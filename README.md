@@ -48,7 +48,7 @@ bash scripts/setup-oss-test.sh
 
 # This syncs skills/, hooks/, client code, and installs deps.
 # Then test locally with:
-claude --plugin-dir mega-code-oss
+claude --plugin-dir mega-code-oss/plugin
 ```
 
 The sync script copies the latest code from the main repo into this submodule
@@ -57,23 +57,26 @@ so you can iterate quickly without any git commits to GitHub.
 ## Project Structure
 
 ```
-mega-code/
+mega-code-oss/
 ├── .claude-plugin/
-│   ├── plugin.json          # Plugin metadata
-│   └── marketplace.json     # Marketplace listing
-├── hooks/
-│   └── hooks.json           # Lifecycle hooks (SessionStart, etc.)
-├── skills/
-│   ├── run/SKILL.md         # /mega-code:run
-│   ├── status/SKILL.md      # /mega-code:status
-│   ├── feedback/SKILL.md    # /mega-code:feedback
-│   ├── manage/SKILL.md      # /mega-code:manage
-│   └── help/SKILL.md        # /mega-code:help
-├── mega_code/
-│   └── client/              # Python client modules
-├── scripts/
-│   └── session-start.sh     # Bootstrap script
-└── pyproject.toml
+│   └── marketplace.json     # Marketplace listing (source: ./plugin)
+├── plugin/                  # Plugin root (installed by Claude Code)
+│   ├── .claude-plugin/
+│   │   └── plugin.json      # Plugin metadata
+│   ├── hooks/
+│   │   └── hooks.json       # Lifecycle hooks (SessionStart, etc.)
+│   ├── skills/
+│   │   ├── run/SKILL.md     # /mega-code:run
+│   │   ├── status/SKILL.md  # /mega-code:status
+│   │   ├── feedback/SKILL.md
+│   │   ├── manage/SKILL.md  # /mega-code:manage
+│   │   └── help/SKILL.md    # /mega-code:help
+│   ├── mega_code/
+│   │   └── client/          # Python client modules
+│   ├── scripts/
+│   │   └── session-start.sh # Bootstrap script
+│   └── pyproject.toml
+└── README.md
 ```
 
 ## Configuration

@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "mega-code",
-      "source": "./",
+      "source": "./plugin",
       "description": "Collect interaction data, extract reusable skills, and optimize AI workflows with MEGA-Code",
       "version": "1.0.0",
       "author": {
