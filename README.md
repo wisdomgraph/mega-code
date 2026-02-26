@@ -41,7 +41,6 @@ your API key is saved automatically.
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
 | `/mega-code:feedback` | Provide feedback on generated items |
-| `/mega-code:manage` | Upload, config, profile, uninstall |
 | `/mega-code:help` | Show help and reference |
 
 ### Example Usage
@@ -52,8 +51,6 @@ your API key is saved automatically.
 /mega-code:run --project          # Extract skills from all project sessions
 /mega-code:status                 # See what was generated
 /mega-code:feedback               # Rate the generated skills
-/mega-code:manage config          # Set up API keys
-/mega-code:manage profile         # Set your developer profile
 ```
 
 ## Development Setup (from main repo)
@@ -89,7 +86,6 @@ mega-code-oss/
 │   │   ├── run/SKILL.md     # /mega-code:run
 │   │   ├── status/SKILL.md  # /mega-code:status
 │   │   ├── feedback/SKILL.md
-│   │   ├── manage/SKILL.md  # /mega-code:manage
 │   │   └── help/SKILL.md    # /mega-code:help
 │   ├── mega_code/
 │   │   └── client/          # Python client modules
@@ -101,14 +97,8 @@ mega-code-oss/
 
 ## Configuration
 
-After installing, configure your settings:
-
-```
-/mega-code:manage config          # View current config
-/mega-code:manage profile         # Set developer profile
-```
-
 Configuration is stored in `~/.local/mega-code/` and persists across sessions.
+Use `/mega-code:login` to authenticate, or `mega-code configure` CLI for advanced settings.
 
 ## License
 

@@ -14,10 +14,6 @@ allowed-tools: Read
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
 | `/mega-code:feedback` | Provide feedback on generated items |
-| `/mega-code:manage upload` | Upload session data to server |
-| `/mega-code:manage config` | View/modify configuration |
-| `/mega-code:manage profile` | Set up developer profile |
-| `/mega-code:manage uninstall` | Remove MEGA-Code |
 | `/mega-code:help` | Show this help |
 
 ## Output Locations
@@ -71,6 +67,4 @@ When no model is specified, the server selects the best model based on your conf
 - Use `@name` to run on a different project without switching directories
 - Skills with more evidence (from multiple sessions) are higher quality
 - Review and edit skills before installing for best results
-- Use `/mega-code:manage upload` to share session data for server-side processing
-- Use `/mega-code:manage config` to set up credentials before first upload
 - For plugin updates, use `/plugin marketplace update wisdomgraph-mega-code`

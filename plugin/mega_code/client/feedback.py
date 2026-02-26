@@ -8,7 +8,6 @@ This module handles:
 Feedback lifecycle:
   /mega-code:run → pipeline generates → user reviews/installs → items archived
   /mega-code:feedback → discover archived items → ask user questions → save feedback
-  /mega-code:manage upload → include feedback/ directory in archive
 
 Storage layout (project-scoped):
   ~/.local/mega-code/data/feedback/

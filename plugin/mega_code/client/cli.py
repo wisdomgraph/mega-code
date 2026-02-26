@@ -4,8 +4,8 @@ MEGA-Code CLI - Manage mega-code plugin for Claude Code.
 
 Usage:
     mega-code status
-    mega-code upload [--project <path>]
     mega-code configure [--user-id <id>] [--api-key <key>] [--server-url <url>]
+    mega-code login [--provider github|google]
     mega-code profile [--language <lang>] [--level <level>] [--style <style>]
 
 Installation is handled via Claude Code marketplace plugin.
@@ -14,19 +14,10 @@ Installation is handled via Claude Code marketplace plugin.
 import argparse
 import json
 import os
-import platform
 import sys
-import tarfile
-import tempfile
-from datetime import datetime
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 from mega_code.client.profile import get_profile_path
-
-# Placeholder values that should be replaced by users
-PLACEHOLDER_VALUES = frozenset({"YOUR_NAME", "YOUR_ID"})
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -86,7 +77,7 @@ def get_env_path() -> Path:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Env file helpers (used by configure/upload)
+# Env file helpers (used by configure)
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -209,166 +200,6 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         print("MEGA-Code plugin not detected")
         return 1
-
-
-def cmd_upload(args: argparse.Namespace) -> int:
-    """Upload project data to Bitbucket Downloads."""
-    env_path = get_env_path()
-    data_dir = get_projects_data_dir()
-
-    print("Uploading MEGA-Code data...")
-
-    # Load credentials
-    print("\nLoading configuration...")
-    env_vars = load_env_file(env_path)
-    user_id = env_vars.get("MEGA_CODE_USER_ID")
-    token = env_vars.get("BITBUCKET_ACCESS_TOKEN")
-
-    if not user_id:
-        print("Error: MEGA_CODE_USER_ID not found in .env")
-        print(f"   Please add it to: {env_path}")
-        return 1
-
-    if user_id in PLACEHOLDER_VALUES:
-        print(f"Error: MEGA_CODE_USER_ID is set to placeholder value: {user_id}")
-        print("   Please set your actual user ID:")
-        print("   mega-code configure --user-id <your-name>")
-        return 1
-
-    if not token:
-        print("Error: BITBUCKET_ACCESS_TOKEN not found in .env")
-        print(f"   Please add it to: {env_path}")
-        return 1
-
-    print(f"   User ID: {user_id}")
-    print("   Credentials loaded")
-
-    # Determine what to upload
-    if args.project:
-        project_path = Path(args.project).resolve()
-        project_name = project_path.name
-        project_data_dir = None
-        if data_dir.exists():
-            for d in data_dir.iterdir():
-                if d.is_dir() and d.name.startswith(project_name):
-                    project_data_dir = d
-                    break
-        if not project_data_dir:
-            print(f"Error: No data found for project: {project_name}")
-            print(f"   Searched in: {data_dir}")
-            if data_dir.exists():
-                available = [
-                    d.name for d in data_dir.iterdir() if d.is_dir() and not d.name.startswith(".")
-                ]
-                if available:
-                    print(f"   Available: {', '.join(sorted(available)[:10])}")
-            return 1
-        upload_dir = project_data_dir
-        archive_suffix = f"_{project_name}"
-    else:
-        if not data_dir.exists():
-            print(f"Error: No data directory found: {data_dir}")
-            return 1
-        upload_dir = data_dir
-        archive_suffix = ""
-
-    file_count = sum(1 for _ in upload_dir.rglob("*") if _.is_file())
-    print("\nPreparing archive...")
-    print(f"   Source: {upload_dir}")
-    print(f"   Files: {file_count}")
-
-    if file_count == 0:
-        print("Error: No files to upload")
-        return 1
-
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    hostname = platform.node().split(".")[0]
-    archive_name = f"{user_id}_{hostname}_{timestamp}{archive_suffix}.tar.gz"
-
-    # Collect additional data dirs to include in the archive
-    data_root = _get_mega_code_data_root() / "data"
-    extra_dirs: list[tuple[Path, str]] = []  # (source_path, arcname)
-    if args.project and project_data_dir:
-        # Project-scoped: include matching feedback subdir
-        project_id = project_data_dir.name
-        feedback_dir = data_root / "feedback" / project_id
-        if feedback_dir.exists():
-            extra_dirs.append((feedback_dir, f"data/feedback/{project_id}"))
-    else:
-        # Full upload: include entire data dir (feedback, pending-skills, etc.)
-        if data_root.exists():
-            for sub in sorted(data_root.iterdir()):
-                if sub.is_dir():
-                    extra_dirs.append((sub, f"data/{sub.name}"))
-
-    extra_file_count = sum(sum(1 for _ in d.rglob("*") if _.is_file()) for d, _ in extra_dirs)
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        archive_path = Path(tmp_dir) / archive_name
-
-        print(f"   Creating: {archive_name}")
-        with tarfile.open(archive_path, "w:gz") as tar:
-            tar.add(upload_dir, arcname=upload_dir.name)
-            for src_dir, arcname in extra_dirs:
-                tar.add(src_dir, arcname=arcname)
-            if extra_file_count > 0:
-                print(f"   Including data: {extra_file_count} files from {len(extra_dirs)} dirs")
-
-        archive_size = archive_path.stat().st_size
-        print(f"   Size: {archive_size / 1024 / 1024:.2f} MB")
-
-        print("\nUploading to Bitbucket...")
-        upload_url = "https://api.bitbucket.org/2.0/repositories/mindai/mega-code/downloads"
-
-        with open(archive_path, "rb") as f:
-            file_content = f.read()
-
-        boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-        body = (
-            (
-                f"--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="files"; filename="{archive_name}"\r\n'
-                f"Content-Type: application/gzip\r\n\r\n"
-            ).encode()
-            + file_content
-            + f"\r\n--{boundary}--\r\n".encode()
-        )
-
-        req = Request(
-            upload_url,
-            data=body,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-            },
-            method="POST",
-        )
-
-        try:
-            with urlopen(req, timeout=300) as response:
-                if response.status in (200, 201):
-                    print("   Upload successful!")
-                else:
-                    print(f"   Unexpected status: {response.status}")
-        except HTTPError as e:
-            print(f"Error: Upload failed: {e.code} {e.reason}")
-            try:
-                error_body = e.read().decode()
-                print(f"   Response: {error_body[:500]}")
-            except Exception:
-                pass
-            return 1
-        except URLError as e:
-            print(f"Error: Upload failed: {e.reason}")
-            return 1
-
-    print("\n" + "=" * 60)
-    print("Data uploaded successfully!")
-    print("=" * 60)
-    print(f"\nArchive: {archive_name}")
-    print("   View at: https://bitbucket.org/mindai/mega-code/downloads/")
-
-    return 0
 
 
 def cmd_configure(args: argparse.Namespace) -> int:
@@ -495,12 +326,6 @@ def main():
     # Status command
     subparsers.add_parser("status", help="Check installation status")
 
-    # Upload command
-    upload_parser = subparsers.add_parser("upload", help="Upload data to Bitbucket Downloads")
-    upload_parser.add_argument(
-        "--project", "-p", type=str, metavar="PATH", help="Upload only specific project data"
-    )
-
     # Configure command
     configure_parser = subparsers.add_parser("configure", help="Configure mega-code settings")
     configure_parser.add_argument("--user-id", "-u", type=str, help="Set your user identifier")
@@ -565,8 +390,6 @@ def main():
             return 1
         case "status":
             return cmd_status(args)
-        case "upload":
-            return cmd_upload(args)
         case "configure":
             return cmd_configure(args)
         case "login":
