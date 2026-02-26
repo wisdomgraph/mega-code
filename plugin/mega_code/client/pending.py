@@ -23,6 +23,7 @@ import re
 import shutil
 import time
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 MEGA_CODE_DATA_DIR = Path.home() / ".local" / "mega-code" / "data"
 PENDING_SKILLS_DIR = MEGA_CODE_DATA_DIR / "pending-skills"
 PENDING_STRATEGIES_DIR = MEGA_CODE_DATA_DIR / "pending-strategies"
+LESSONS_DIR = Path.home() / ".local" / "mega-code" / "lessons-learned"
 
 # Maximum length for description truncation
 MAX_DESCRIPTION_LENGTH = 100
@@ -67,11 +69,21 @@ class PendingStrategyInfo:
 
 
 @dataclass
+class PendingLessonInfo:
+    """Information about a saved lesson learned document."""
+
+    slug: str
+    title: str
+    path: str
+
+
+@dataclass
 class PendingResult:
     """Result from saving outputs to pending folders."""
 
     skills: list[PendingSkillInfo] = field(default_factory=list)
     strategies: list[PendingStrategyInfo] = field(default_factory=list)
+    lessons: list[PendingLessonInfo] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     run_id: str = ""
     project_id: str = ""
@@ -85,8 +97,12 @@ class PendingResult:
         return len(self.strategies)
 
     @property
+    def lesson_count(self) -> int:
+        return len(self.lessons)
+
+    @property
     def total_count(self) -> int:
-        return self.skill_count + self.strategy_count
+        return self.skill_count + self.strategy_count + self.lesson_count
 
     def has_outputs(self) -> bool:
         return self.total_count > 0
@@ -180,6 +196,27 @@ def save_outputs_to_pending(
                 description=_truncate(strat.content),
                 path=str(path),
                 category=strat.category,
+            )
+        )
+
+    # Save lessons to ~/.local/mega-code/lessons-learned/
+    # (Lessons are permanent outputs, not pending review items, so they live
+    # alongside data/ rather than inside it.)
+    lessons_to_save = [ls for ls in (status.outputs.pending_lessons or []) if ls.rendered_md]
+    if lessons_to_save:
+        LESSONS_DIR.mkdir(parents=True, exist_ok=True)
+    for lesson in lessons_to_save:
+        # Include short run_id prefix to prevent same-day slug collisions
+        # across different pipeline runs.
+        run_prefix = f"-{resolved_run_id[:8]}" if resolved_run_id else ""
+        filename = f"{date.today().isoformat()}{run_prefix}-{lesson.slug}.md"
+        path = LESSONS_DIR / filename
+        path.write_text(lesson.rendered_md, encoding="utf-8")
+        result.lessons.append(
+            PendingLessonInfo(
+                slug=lesson.slug,
+                title=lesson.title,
+                path=str(path),
             )
         )
 
@@ -514,6 +551,23 @@ def _format_strategies_section(strategies: list) -> str:
     return "\n".join(lines)
 
 
+def _format_lessons_section(lessons: list) -> str:
+    """Format lessons list for notification display.
+
+    Accepts both PendingLessonInfo (dataclass) and PendingLessonData (Pydantic).
+    """
+    if not lessons:
+        return ""
+    lines = []
+    for i, lesson in enumerate(lessons, 1):
+        title = getattr(lesson, "title", "") or getattr(lesson, "slug", "")
+        lines.append(f"  {i}. \U0001f4d6 **{title}**")
+        path = getattr(lesson, "path", "")
+        if path:
+            lines.append(f"       \U0001f4c1 `{path}`")
+    return "\n".join(lines)
+
+
 def _format_install_options(
     skills: list,
     strategies: list,
@@ -673,6 +727,7 @@ def format_review_notification(
     skills: list,
     strategies: list,
     *,
+    lessons: list | None = None,
     header: str = "PENDING ITEM(S) READY FOR REVIEW",
     preamble: str = "",
     errors: list[str] | None = None,
@@ -690,6 +745,7 @@ def format_review_notification(
     Args:
         skills: List of pending skills to display.
         strategies: List of pending strategies to display.
+        lessons: Optional list of lessons to display.
         header: Title shown in the top banner box.
         preamble: Optional text shown between the banner and the item lists.
         errors: Optional list of warning messages to display.
@@ -699,7 +755,8 @@ def format_review_notification(
     Returns:
         Formatted notification string.
     """
-    total_count = len(skills) + len(strategies)
+    lessons = lessons or []
+    total_count = len(skills) + len(strategies) + len(lessons)
     skills_section = _format_skills_section(skills)
     strategies_section = _format_strategies_section(strategies)
     options_list = _format_install_options(skills, strategies)
@@ -717,6 +774,14 @@ def format_review_notification(
         project_id=project_id or "<PROJECT_ID>",
     )
 
+    lessons_block = ""
+    if lessons:
+        lessons_section = _format_lessons_section(lessons)
+        lessons_block = f"""
+\U0001f4d6 LESSONS LEARNED ({len(lessons)}):
+{lessons_section}
+"""
+
     return f"""
 \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
 \u2551  \U0001f3af MEGA-CODE: {total_count} {header:<54}\u2551
@@ -729,5 +794,5 @@ def format_review_notification(
 
 \U0001f4cb PENDING STRATEGIES ({len(strategies)}):
 {strategies_section}
-{errors_section}
+{lessons_block}{errors_section}
 {workflow}"""

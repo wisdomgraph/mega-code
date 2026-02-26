@@ -97,7 +97,7 @@ NO_OUTPUTS_NOTIFICATION = """
 \u2551  \u26a0\ufe0f  MEGA-CODE: PIPELINE COMPLETE - NO NEW OUTPUTS                 \u2551
 \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d
 
-The pipeline completed but did not generate any new skills or strategies.
+The pipeline completed but did not generate any new skills, strategies, or lessons.
 This may happen if:
 - The session(s) didn't contain learnable patterns
 - Quality gates filtered out low-quality outputs
@@ -208,6 +208,7 @@ def format_pipeline_notification(result: PendingResult) -> str:
     return format_review_notification(
         result.skills,
         result.strategies,
+        lessons=result.lessons,
         header="ITEM(S) READY - PIPELINE COMPLETE",
         preamble="Pipeline completed successfully! Generated:",
         errors=result.errors or None,
@@ -469,6 +470,7 @@ async def main():
 
             span.set_attribute("pipeline.skills_count", result.skill_count)
             span.set_attribute("pipeline.strategies_count", result.strategy_count)
+            span.set_attribute("pipeline.lessons_count", result.lesson_count)
 
             # Format and output notification
             notification = format_pipeline_notification(result)

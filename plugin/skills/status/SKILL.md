@@ -34,31 +34,23 @@ List all pending skills with descriptions and all pending strategies with catego
 ```bash
 # Show pending skills
 echo "=== Pending Skills ===" && \
-shopt -s nullglob && found=false && \
 for dir in ~/.local/mega-code/data/pending-skills/*/; do
   if [ -d "$dir" ]; then
-    found=true
     name=$(basename "$dir")
     desc=$(grep -m1 "description:" "$dir/SKILL.md" 2>/dev/null | cut -d: -f2- | head -c 60)
-    echo "  $name: $desc"
+    echo "  $name: $desc..."
   fi
-done && \
-$found || echo "  (none)"
-```
+done
 
-```bash
 # Show pending strategies
 echo "=== Pending Strategies ===" && \
-shopt -s nullglob && found=false && \
-for file in ~/.local/mega-code/data/pending-strategies/*.md; do
+for file in ~/.local/mega-code/data/pending-strategies/*.md 2>/dev/null; do
   if [ -f "$file" ]; then
-    found=true
     name=$(basename "$file" .md)
     desc=$(grep -m1 "^# " "$file" | cut -c3- | head -c 60)
-    echo "  $name: $desc"
+    echo "  $name: $desc..."
   fi
-done && \
-$found || echo "  (none)"
+done
 ```
 
 ## Output Locations
