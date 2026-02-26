@@ -101,7 +101,6 @@ The `--model` flag accepts any model alias supported by the LLM module:
 |-------|----------|
 | `gemini-3-flash` | Google (default) |
 | `gpt-5-mini` | OpenAI |
-| `claude-sonnet-4-5` | Anthropic |
 
 ## Pipeline Outputs
 

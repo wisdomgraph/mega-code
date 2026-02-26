@@ -272,7 +272,7 @@ Project argument formats:
         default=None,
         help=(
             f"LLM model for pipeline (default: {DEFAULT_PIPELINE_MODEL}). "
-            "e.g. gemini-3-flash, gpt-5-mini, claude-sonnet-4-5"
+            "e.g. gemini-3-flash, gpt-5-mini"
         ),
     )
     parser.add_argument(
