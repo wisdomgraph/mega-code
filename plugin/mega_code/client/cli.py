@@ -19,7 +19,6 @@ from pathlib import Path
 
 from mega_code.client.profile import get_profile_path
 
-
 # ═══════════════════════════════════════════════════════════════════
 # Path helpers
 # ═══════════════════════════════════════════════════════════════════

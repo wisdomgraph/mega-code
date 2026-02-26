@@ -64,6 +64,7 @@ def _load_local_session_as_turnset(
     Returns:
         TurnSet if the session has turns, None otherwise.
     """
+    from mega_code.client.filters import filter_metadata, filter_turns
     from mega_code.client.history.loader import DataLoader
     from mega_code.client.history.sources.mega_code import MegaCodeSource
     from mega_code.client.turns import extract_turns
@@ -80,6 +81,11 @@ def _load_local_session_as_turnset(
     turns, metadata = extract_turns(session)
     if not turns:
         return None
+
+    # Filter sensitive data before upload (use actual project path, not data storage path)
+    project_dir = metadata.project_path
+    turns = filter_turns(turns, project_dir=project_dir)
+    metadata = filter_metadata(metadata, project_dir=project_dir)
 
     return TurnSet(
         session_id=session_id,

@@ -27,6 +27,7 @@ import dotenv
 import httpx
 
 from mega_code.client.api import create_client
+from mega_code.client.filters import filter_metadata, filter_turns
 from mega_code.client.history.sources.mega_code import MegaCodeSource
 from mega_code.client.models import TurnSet
 from mega_code.client.turns import extract_turns
@@ -334,6 +335,10 @@ def _upload_trajectory(session_id: str, project_dir: str | None) -> None:
         turns, turn_metadata = extract_turns(session)
         if not turns:
             return
+
+        # Filter sensitive data before upload
+        turns = filter_turns(turns, project_dir=project_dir)
+        turn_metadata = filter_metadata(turn_metadata, project_dir=project_dir)
 
         # Build TurnSet
         turn_set = TurnSet(
