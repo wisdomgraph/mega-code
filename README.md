@@ -16,6 +16,12 @@ Inside a Claude Code session, run:
 
 That's it — the plugin's slash commands are immediately available.
 
+### Update to Latest Version
+
+```
+/plugin marketplace update wisdomgraph-mega-code
+```
+
 ### Available Slash Commands
 
 | Command | Description |
