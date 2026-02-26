@@ -18,6 +18,23 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_otlp_headers(headers_str: str) -> tuple[tuple[str, str], ...]:
+    """Parse OTEL_EXPORTER_OTLP_HEADERS env var into tuple of (key, value) pairs.
+
+    Format: "key1=value1,key2=value2"
+    """
+    if not headers_str:
+        return ()
+    return tuple(
+        tuple(h.strip().split("=", 1))  # type: ignore[misc]
+        for h in headers_str.split(",")
+        if "=" in h
+    )
+
+
+_client_initialized = False
+
 try:
     from opentelemetry import trace as _trace
 
@@ -66,10 +83,19 @@ try:
         """Initialize tracing exporter (call once at startup).
 
         Only sets up if OTEL_EXPORTER_OTLP_ENDPOINT env var is configured.
+        Uses gRPC protocol for both Phoenix (local) and Honeycomb (deployed).
+
+        Supported env vars:
+            OTEL_EXPORTER_OTLP_ENDPOINT: gRPC endpoint (e.g. http://localhost:4317)
+            OTEL_EXPORTER_OTLP_HEADERS: Auth headers (e.g. x-honeycomb-team=hcaik_xxx)
 
         Returns:
             True if tracing was set up, False otherwise.
         """
+        global _client_initialized
+        if _client_initialized:
+            return True
+
         import os
 
         endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -77,17 +103,27 @@ try:
             return False
 
         try:
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            provider = TracerProvider()
-            provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
+            headers = _parse_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", ""))
+            resource = Resource.create({"service.name": service_name})
+            insecure = endpoint.startswith("http://")
+            exporter = OTLPSpanExporter(
+                endpoint=endpoint,
+                headers=headers,
+                insecure=insecure,
+            )
+            provider = TracerProvider(resource=resource)
+            provider.add_span_processor(BatchSpanProcessor(exporter))
             _trace.set_tracer_provider(provider)
+            _client_initialized = True
             logger.info("OpenTelemetry tracing initialized: endpoint=%s", endpoint)
             return True
         except ImportError:
-            logger.debug("OTLP exporter not available, tracing disabled")
+            logger.debug("OTLP gRPC exporter not available, tracing disabled")
             return False
 
 except ImportError:

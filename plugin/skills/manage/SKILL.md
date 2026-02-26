@@ -1,13 +1,13 @@
 ---
-description: Manage MEGA-Code installation — upload session data, update to latest version, configure credentials, set up developer profile, or uninstall.
-argument-hint: <upload|update|config|profile|uninstall> [options]
+description: Manage MEGA-Code installation — upload session data, configure credentials, set up developer profile, or uninstall.
+argument-hint: <upload|config|profile|uninstall> [options]
 allowed-tools: Bash, Read, Write, AskUserQuestion
 disable-model-invocation: true
 ---
 
 # Manage MEGA-Code
 
-Administrative commands for MEGA-Code: upload data, update, configure, profile, and uninstall.
+Administrative commands for MEGA-Code: upload data, configure, profile, and uninstall.
 
 ## Finding the MEGA-Code Directory
 
@@ -38,26 +38,6 @@ uv run --directory "$MEGA_DIR" mega-code upload --project /path/to/project
 ```
 
 If credentials are missing, run `/mega-code:manage config` first to set them up.
-
-## Update
-
-Update MEGA-Code to the latest version from the remote repository.
-
-- Pulls latest code from git origin
-- Re-runs the full installation process
-- Only works for remote installs (where `~/.mega-code/repo` exists)
-- For marketplace installs, use `/plugin marketplace update wisdomgraph-mega-code`
-- For local development installs, use `git pull` in the source repo instead
-
-```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
-
-# Update to latest version
-uv run --directory "$MEGA_DIR" mega-code update
-```
-
-**Note**: This modifies the installation. After update, restart your Claude Code
-session to pick up any new hooks or statusline changes.
 
 ## Configure
 

@@ -25,7 +25,7 @@ Then use `uv run --directory "$MEGA_DIR"` for all subsequent commands.
 - **Without --project**: Process current session only
 - **With --project** (no value): Process all sessions in current project
 - **With --project @name**: Process a specific project by name prefix
-- **With --model**: Specify LLM model (default: gemini-3-flash)
+- **With --model**: Specify LLM model (server selects best model based on your configured LLM keys)
 - **With --include-claude**: Include claude.jsonl conversation files
 - **With --include-codex**: Include opencode.jsonl conversation files
 - **With --include-all**: Include all available conversion sources
@@ -99,8 +99,10 @@ The `--model` flag accepts any model alias supported by the LLM module:
 
 | Alias | Provider |
 |-------|----------|
-| `gemini-3-flash` | Google (default) |
+| `gemini-3-flash` | Google |
 | `gpt-5-mini` | OpenAI |
+
+When `--model` is omitted, the server selects the best model based on your configured LLM keys (priority: OpenAI > Anthropic > Gemini). If no user keys are configured, defaults to `gemini-3-flash`.
 
 ## Pipeline Outputs
 

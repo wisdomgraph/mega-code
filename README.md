@@ -22,20 +22,33 @@ That's it — the plugin's slash commands are immediately available.
 /plugin marketplace update wisdomgraph-mega-code
 ```
 
+### First Steps After Install
+
+Sign in to MEGA-Code to get an API key:
+
+```
+/mega-code:login
+```
+
+This opens a browser-based OAuth flow (GitHub or Google). Once signed in,
+your API key is saved automatically.
+
 ### Available Slash Commands
 
 | Command | Description |
 |---------|-------------|
+| `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
 | `/mega-code:feedback` | Provide feedback on generated items |
-| `/mega-code:manage` | Upload, update, config, profile, uninstall |
+| `/mega-code:manage` | Upload, config, profile, uninstall |
 | `/mega-code:help` | Show help and reference |
 
 ### Example Usage
 
 ```
 # In a Claude Code session:
+/mega-code:login                  # Sign in and get API key (first time)
 /mega-code:run --project          # Extract skills from all project sessions
 /mega-code:status                 # See what was generated
 /mega-code:feedback               # Rate the generated skills
@@ -72,6 +85,7 @@ mega-code-oss/
 │   ├── hooks/
 │   │   └── hooks.json       # Lifecycle hooks (SessionStart, etc.)
 │   ├── skills/
+│   │   ├── login/SKILL.md   # /mega-code:login
 │   │   ├── run/SKILL.md     # /mega-code:run
 │   │   ├── status/SKILL.md  # /mega-code:status
 │   │   ├── feedback/SKILL.md

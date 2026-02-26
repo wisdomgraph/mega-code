@@ -22,7 +22,7 @@
       "tags": ["optimization", "skills", "data-collection", "analytics"],
       "homepage": "https://megacode.ai",
       "repository": "https://github.com/wisdomgraph/mega-code",
-      "license": "MIT"
+      "license": "Apache-2.0"
     }
   ]
 }

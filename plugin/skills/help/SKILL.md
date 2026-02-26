@@ -10,11 +10,11 @@ allowed-tools: Read
 
 | Command | Description |
 |---------|-------------|
+| `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
 | `/mega-code:feedback` | Provide feedback on generated items |
 | `/mega-code:manage upload` | Upload session data to server |
-| `/mega-code:manage update` | Update to latest version |
 | `/mega-code:manage config` | View/modify configuration |
 | `/mega-code:manage profile` | Set up developer profile |
 | `/mega-code:manage uninstall` | Remove MEGA-Code |
@@ -59,8 +59,10 @@ The `--model` flag for `/mega-code:run` accepts any model alias supported by the
 
 | Alias | Provider |
 |-------|----------|
-| `gemini-3-flash` | Google (default) |
+| `gemini-3-flash` | Google |
 | `gpt-5-mini` | OpenAI |
+
+When no model is specified, the server selects the best model based on your configured LLM keys.
 
 ## Tips
 
@@ -70,5 +72,5 @@ The `--model` flag for `/mega-code:run` accepts any model alias supported by the
 - Skills with more evidence (from multiple sessions) are higher quality
 - Review and edit skills before installing for best results
 - Use `/mega-code:manage upload` to share session data for server-side processing
-- Run `/mega-code:manage update` periodically to get the latest pipeline improvements
 - Use `/mega-code:manage config` to set up credentials before first upload
+- For plugin updates, use `/plugin marketplace update wisdomgraph-mega-code`
