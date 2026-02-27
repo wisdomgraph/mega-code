@@ -9,8 +9,15 @@ reusable skills, and optimizes AI workflows.
 
 Inside a Claude Code session, run:
 
+**Step 1 — Add the repository to your marketplace:**
+
 ```
 /plugin marketplace add https://github.com/wisdomgraph/mega-code.git
+```
+
+**Step 2 — Install the plugin:**
+
+```
 /plugin install mega-code@mind-ai-mega-code
 ```
 

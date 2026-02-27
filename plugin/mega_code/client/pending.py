@@ -20,7 +20,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import shutil
 import string
 import time
@@ -111,25 +110,11 @@ class PendingResult:
         return self.total_count > 0
 
 
-def _sanitize_name(name: str) -> str:
-    """Sanitize a name for use as a directory/file name.
+from mega_code.client.skill_utils import sanitize_name, ensure_skill_frontmatter  # noqa: E402
 
-    - Lowercase
-    - Replace spaces and special chars with hyphens
-    - Remove consecutive hyphens
-    - Limit length to 64 chars
-    """
-    # Lowercase and replace non-alphanumeric with hyphens
-    sanitized = re.sub(r"[^a-z0-9]+", "-", name.lower())
-    # Remove leading/trailing hyphens
-    sanitized = sanitized.strip("-")
-    # Remove consecutive hyphens
-    sanitized = re.sub(r"-+", "-", sanitized)
-    # Limit length
-    sanitized = sanitized[:64]
-    if not sanitized:
-        sanitized = "unnamed"
-    return sanitized
+# Backwards-compatible aliases for internal callers
+_sanitize_name = sanitize_name
+_ensure_skill_frontmatter = ensure_skill_frontmatter
 
 
 # =============================================================================
@@ -164,25 +149,25 @@ def save_outputs_to_pending(
     if not status.outputs:
         return result
 
-    # Mapping of filename -> PendingSkillData attribute for data-driven writes
-    _skill_files = {
-        "SKILL.md": "skill_md",
-        "injection.json": "injection_rules",
-        "evidence.json": "evidence",
-        "metadata.json": "metadata",
-    }
-
     # Save pending skills
     for skill_data in status.outputs.pending_skills or []:
         skill_name = _sanitize_name(skill_data.skill_name)
         skill_dir = PENDING_SKILLS_DIR / skill_name
         skill_dir.mkdir(parents=True, exist_ok=True)
-        for filename, attr in _skill_files.items():
-            (skill_dir / filename).write_text(getattr(skill_data, attr), encoding="utf-8")
+
+        # Ensure SKILL.md has required YAML frontmatter before writing
+        skill_md_content = _ensure_skill_frontmatter(skill_data.skill_md, skill_name)
+        (skill_dir / "SKILL.md").write_text(skill_md_content, encoding="utf-8")
+
+        # Write remaining files as-is
+        (skill_dir / "injection.json").write_text(skill_data.injection_rules, encoding="utf-8")
+        (skill_dir / "evidence.json").write_text(skill_data.evidence, encoding="utf-8")
+        (skill_dir / "metadata.json").write_text(skill_data.metadata, encoding="utf-8")
+
         result.skills.append(
             PendingSkillInfo(
                 name=skill_name,
-                description=_truncate(skill_data.skill_md),
+                description=_truncate(skill_md_content),
                 path=str(skill_dir),
             )
         )
