@@ -259,17 +259,19 @@ def cmd_login(args: argparse.Namespace) -> int:
 
 def cmd_profile(args: argparse.Namespace) -> int:
     """View or update user profile."""
+    from mega_code.client.api import create_client
     from mega_code.client.api.protocol import UserProfile
-    from mega_code.client.profile import load_profile, save_profile
+    from mega_code.client.profile import load_profile
 
     # Reset
     if args.reset:
+        # Clear local file
         profile_path = get_profile_path()
         if profile_path.exists():
             profile_path.unlink()
-            print("Profile reset.")
-        else:
-            print("No profile to reset.")
+        # Sync reset to remote (overwrites with default empty profile)
+        create_client().save_profile(profile=UserProfile())
+        print("Profile reset.")
         return 0
 
     has_updates = any(x is not None for x in [args.language, args.level, args.style])
@@ -300,7 +302,7 @@ def cmd_profile(args: argparse.Namespace) -> int:
         data["style"] = args.style
 
     updated_profile = UserProfile(**data)
-    save_profile(updated_profile.model_dump(by_alias=True))
+    create_client().save_profile(profile=updated_profile)
 
     print("Profile updated:")
     for key, value in updated_profile.model_dump(by_alias=True).items():
