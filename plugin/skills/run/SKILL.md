@@ -1,6 +1,6 @@
 ---
 description: Run the MEGA-Code skill extraction pipeline to analyze Claude Code sessions and generate reusable skills and strategies.
-argument-hint: [--project [@<name>]] [--model <model>] [--include-claude] [--include-codex] [--include-all] [--poll-timeout <seconds>]
+argument-hint: [--project [@<name>]] [--model <model>] [--poll-timeout <seconds>]
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 disable-model-invocation: true
 ---
@@ -39,12 +39,7 @@ All commands below assume `MEGA_DIR` is set.
 | `--project @name` | Specific project by name prefix |
 | `--session-id <uuid>` | Specific session |
 | `--model <alias>` | LLM model (default: server picks best) |
-| `--include-claude` | Include claude.jsonl conversations |
-| `--include-codex` | Include opencode.jsonl conversations |
-| `--include-all` | All conversation sources |
 | `--poll-timeout <seconds>` | Max seconds to poll for completion (default: 1200 = 20 min; 0 = indefinite) |
-
-Flags combine freely (e.g., `--project --include-claude --include-codex`).
 
 **Project argument formats** (all equivalent):
 `@mega-code` · `mega-code` · `mega-code_b39e0992` · `/path/to/project`
@@ -77,7 +72,7 @@ When omitted, server selects based on configured LLM keys (priority: OpenAI > An
 ## Pipeline Outputs
 
 1. **Skills & Strategies** — saved to pending dirs for review/install
-2. **Lesson Learned documents** — saved to `~/.local/mega-code/lessons-learned/` (from sessions tagged lesson_learn)
+2. **Lesson Learned documents** — saved to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged lesson_learn)
 
 ## Post-Pipeline Workflow (MANDATORY)
 
@@ -87,7 +82,7 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 ### Steps:
 
 1. **Read & Analyze** — Read each pending item with the Read tool. Analyze quality, clarity, completeness silently.
-   For **lessons**: read each lesson file and present a brief summary to the user.
+   For **lessons**: read each `.md` file at the path shown in the notification and display the markdown content directly to the user.
 
 2. **Present Review** — Show each item with summary, quality assessment, and enhanced version if needed.
 
@@ -99,18 +94,17 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 4. **Install** — Write approved items:
    - Skills → `<location>/skills/<name>/SKILL.md`
    - Strategies → `.claude/rules/mega-code/<name>.md`
-   - Lessons are auto-saved — no install step needed.
+   - Lessons are already saved to the run folder — no install step needed.
 
-5. **Archive** — Archive (not delete) pending items (skills, strategies, and lessons):
+5. **Archive** — Archive (not delete) pending skills and strategies:
 
 ```bash
 set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python -c "
 from mega_code.client.feedback import archive_pending_items
-from mega_code.client.pending import get_pending_lessons, get_pending_skills, get_pending_strategies
+from mega_code.client.pending import get_pending_skills, get_pending_strategies
 skills = get_pending_skills()
 strategies = get_pending_strategies()
-lessons = get_pending_lessons()
 installed_names = set()  # <-- fill with names of installed items
 run_id = archive_pending_items(
     run_id='<RUN_ID>',
@@ -119,7 +113,6 @@ run_id = archive_pending_items(
     skipped_skills=[s for s in skills if s.name not in installed_names],
     installed_strategies=[s for s in strategies if s.name in installed_names],
     skipped_strategies=[s for s in strategies if s.name not in installed_names],
-    lessons=lessons,
 )
 print(f'ARCHIVED_RUN_ID={run_id}')
 "

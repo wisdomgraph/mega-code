@@ -18,6 +18,8 @@ Storage layout (project-scoped):
           │   └── {name}/          # Archived skill folder (SKILL.md, metadata.json, etc.)
           ├── strategies/
           │   └── {name}.md        # Archived strategy file
+          ├── lessons/
+          │   └── {slug}.md        # Lessons saved directly here by save_outputs_to_pending()
           └── feedback.json        # User feedback (written by /mega-code:feedback)
 """
 
@@ -31,16 +33,12 @@ from typing import Literal
 
 from mega_code.client.models import FeedbackItem
 from mega_code.client.pending import (
-    MEGA_CODE_DATA_DIR,
-    PendingLessonInfo,
+    FEEDBACK_DIR,
     PendingSkillInfo,
     PendingStrategyInfo,
 )
 
 logger = logging.getLogger(__name__)
-
-# Feedback directory under user data
-FEEDBACK_DIR = MEGA_CODE_DATA_DIR / "feedback"
 
 
 def _validate_path_component(value: str, name: str) -> bool:
@@ -81,7 +79,6 @@ class ArchivedRun:
     project_id: str = ""
     skills: list[dict] = field(default_factory=list)  # Serialized PendingSkillInfo
     strategies: list[dict] = field(default_factory=list)  # Serialized PendingStrategyInfo
-    lessons: list[dict] = field(default_factory=list)  # Serialized PendingLessonInfo
     actions: dict[str, str] = field(default_factory=dict)  # item_name -> action_taken
     has_feedback: bool = False
 
@@ -98,14 +95,13 @@ def archive_pending_items(
     installed_strategies: list[PendingStrategyInfo] | None = None,
     skipped_skills: list[PendingSkillInfo] | None = None,
     skipped_strategies: list[PendingStrategyInfo] | None = None,
-    lessons: list[PendingLessonInfo] | None = None,
 ) -> str | None:
     """Archive pending items to feedback directory instead of deleting them.
 
     Moves all pending items (both installed and skipped) into a project-scoped
     archive folder so they can be referenced during feedback collection.
-    Lesson staging files are also moved to the archive; the permanent copy in
-    lessons-learned/ is left untouched.
+    Lessons are saved directly to the run folder by save_outputs_to_pending()
+    and do not require a separate archive step.
 
     Storage: feedback/{project_id}/{run_id}/
 
@@ -116,7 +112,6 @@ def archive_pending_items(
         installed_strategies: Strategies that were installed by the user.
         skipped_skills: Skills that the user chose not to install.
         skipped_strategies: Strategies that the user chose not to install.
-        lessons: Lessons the user has read/acknowledged.
 
     Returns:
         Run ID of the archive, or None if nothing to archive.
@@ -125,25 +120,21 @@ def archive_pending_items(
     installed_strategies = installed_strategies or []
     skipped_skills = skipped_skills or []
     skipped_strategies = skipped_strategies or []
-    lessons = lessons or []
 
     all_skills = installed_skills + skipped_skills
     all_strategies = installed_strategies + skipped_strategies
 
-    if not all_skills and not all_strategies and not lessons:
+    if not all_skills and not all_strategies:
         return None
 
     archive_dir = FEEDBACK_DIR / project_id / run_id
     archive_skills_dir = archive_dir / "skills"
     archive_strategies_dir = archive_dir / "strategies"
-    archive_lessons_dir = archive_dir / "lessons"
 
     try:
         # Only need child dirs; parents=True creates archive_dir implicitly
         archive_skills_dir.mkdir(parents=True, exist_ok=True)
         archive_strategies_dir.mkdir(parents=True, exist_ok=True)
-        if lessons:
-            archive_lessons_dir.mkdir(parents=True, exist_ok=True)
 
         # Archive skills (move from pending to archive)
         for skill in all_skills:
@@ -160,18 +151,9 @@ def archive_pending_items(
             if _move_file(Path(strategy.path), dst):
                 logger.info(f"Archived strategy: {strategy.name} -> {dst}")
 
-        # Archive lessons (move staging file; permanent copy in lessons-learned/ untouched)
-        for lesson in lessons:
-            src = Path(lesson.path)
-            dst = archive_lessons_dir / src.name
-            if _move_file(src, dst):
-                logger.info(f"Archived lesson: {lesson.slug} -> {dst}")
-
-        # Build actions map — prefix lessons with "lesson:" to avoid slug collision
-        # with same-named skills/strategies.
-        actions = {s.name: "installed" for s in [*installed_skills, *installed_strategies]}
-        actions |= {s.name: "skipped" for s in [*skipped_skills, *skipped_strategies]}
-        actions |= {f"lesson:{ls.slug}": "read" for ls in lessons}
+        # Build actions map
+        actions = {s.name: "installed" for s in installed_skills + installed_strategies}
+        actions |= {s.name: "skipped" for s in skipped_skills + skipped_strategies}
 
         # Write manifest
         manifest = ArchivedRun(
@@ -194,22 +176,13 @@ def archive_pending_items(
                 }
                 for s in all_strategies
             ],
-            lessons=[
-                {
-                    "slug": ls.slug,
-                    "title": ls.title,
-                    "path": str(archive_lessons_dir / Path(ls.path).name),
-                }
-                for ls in lessons
-            ],
             actions=actions,
         )
         _save_manifest(archive_dir, manifest)
 
         logger.info(
             f"Archived {len(all_skills)} skills, "
-            f"{len(all_strategies)} strategies, "
-            f"{len(lessons)} lessons -> {archive_dir}"
+            f"{len(all_strategies)} strategies -> {archive_dir}"
         )
         return run_id
 
@@ -329,7 +302,6 @@ def load_manifest(run_id: str, project_id: str) -> ArchivedRun | None:
         archived_at=data["archived_at"],
         skills=data.get("skills", []),
         strategies=data.get("strategies", []),
-        lessons=data.get("lessons", []),
         actions=data.get("actions", {}),
         has_feedback=data.get("has_feedback", False),
     )

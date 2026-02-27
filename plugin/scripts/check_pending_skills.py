@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Check for pending skills, strategies, and lessons; output highlighted notification for Claude Code.
+Check for pending skills and strategies; output highlighted notification for Claude Code.
 
 This script is called via UserPromptSubmit hook to inject context about pending items.
-It scans ~/.local/mega-code/data/pending-{skills,strategies,lessons}/ directories.
+It scans ~/.local/mega-code/data/pending-{skills,strategies}/ directories.
 
 Output format follows Claude Code hooks reference:
 https://code.claude.com/docs/en/hooks
@@ -35,7 +35,6 @@ if _env_path.exists():
 
 from mega_code.client.pending import (  # noqa: E402
     format_review_notification,
-    get_pending_lessons,
     get_pending_skills,
     get_pending_strategies,
 )
@@ -63,18 +62,16 @@ def main():
 
         skills = get_pending_skills()
         strategies = get_pending_strategies()
-        lessons = get_pending_lessons()
 
         span.set_attribute("check_pending.skills_count", len(skills))
         span.set_attribute("check_pending.strategies_count", len(strategies))
-        span.set_attribute("check_pending.lessons_count", len(lessons))
 
-        if not skills and not strategies and not lessons:
+        if not skills and not strategies:
             # No pending items - exit cleanly with no output
             sys.exit(0)
 
         # Format highlighted notification using shared formatter
-        notification = format_review_notification(skills, strategies, lessons=lessons)
+        notification = format_review_notification(skills, strategies)
 
         # Output using hookSpecificOutput format
         result = {

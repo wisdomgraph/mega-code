@@ -12,8 +12,7 @@ consistent across both local and remote installation modes.
 Directories:
 - ~/.local/mega-code/data/pending-skills/{name}/ - for skills (SKILL.md + metadata)
 - ~/.local/mega-code/data/pending-strategies/{name}.md - for strategies (modular rules)
-- ~/.local/mega-code/data/pending-lessons/{filename}.md - for lessons (staging area)
-- ~/.local/mega-code/lessons-learned/{filename}.md - permanent lesson archive
+- ~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/{slug}.md - for lessons
 """
 
 from __future__ import annotations
@@ -23,11 +22,11 @@ import json
 import logging
 import re
 import shutil
+import string
 import time
 
 import httpx
 from dataclasses import dataclass, field
-from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -40,8 +39,7 @@ logger = logging.getLogger(__name__)
 MEGA_CODE_DATA_DIR = Path.home() / ".local" / "mega-code" / "data"
 PENDING_SKILLS_DIR = MEGA_CODE_DATA_DIR / "pending-skills"
 PENDING_STRATEGIES_DIR = MEGA_CODE_DATA_DIR / "pending-strategies"
-PENDING_LESSONS_DIR = MEGA_CODE_DATA_DIR / "pending-lessons"
-LESSONS_DIR = Path.home() / ".local" / "mega-code" / "lessons-learned"
+FEEDBACK_DIR = MEGA_CODE_DATA_DIR / "feedback"
 
 # Maximum length for description truncation
 MAX_DESCRIPTION_LENGTH = 100
@@ -204,28 +202,19 @@ def save_outputs_to_pending(
             )
         )
 
-    # Save lessons to two locations:
-    # 1. ~/.local/mega-code/data/pending-lessons/ — staging area scanned by the
-    #    session-start hook; cleared when user acknowledges during archive.
-    # 2. ~/.local/mega-code/lessons-learned/ — permanent archive; never deleted.
+    # Save lessons to feedback/{project_id}/{run_id}/lessons/{slug}.md
     lessons_to_save = [ls for ls in (status.outputs.pending_lessons or []) if ls.rendered_md]
     if lessons_to_save:
-        PENDING_LESSONS_DIR.mkdir(parents=True, exist_ok=True)
-        LESSONS_DIR.mkdir(parents=True, exist_ok=True)
-    for lesson in lessons_to_save:
-        # Include short run_id prefix to prevent same-day slug collisions
-        # across different pipeline runs.
-        run_prefix = f"-{resolved_run_id[:8]}" if resolved_run_id else ""
-        filename = f"{date.today().isoformat()}{run_prefix}-{lesson.slug}.md"
-        pending_path = PENDING_LESSONS_DIR / filename
-        # Write to staging (hook-visible) and permanent locations
-        for dest in (pending_path, LESSONS_DIR / filename):
-            if dest.exists():
-                logger.warning("Overwriting existing lesson file: %s", dest)
-            dest.write_text(lesson.rendered_md, encoding="utf-8")
-        result.lessons.append(
-            PendingLessonInfo(slug=lesson.slug, title=lesson.title, path=str(pending_path))
-        )
+        lessons_dir = FEEDBACK_DIR / (resolved_project_id or "unknown") / (resolved_run_id or "unknown") / "lessons"
+        lessons_dir.mkdir(parents=True, exist_ok=True)
+        for lesson in lessons_to_save:
+            lesson_path = lessons_dir / f"{_sanitize_name(lesson.slug)}.md"
+            if lesson_path.exists():
+                logger.warning("Overwriting existing lesson file: %s", lesson_path)
+            lesson_path.write_text(lesson.rendered_md, encoding="utf-8")
+            result.lessons.append(
+                PendingLessonInfo(slug=lesson.slug, title=lesson.title, path=str(lesson_path))
+            )
 
     return result
 
@@ -314,31 +303,6 @@ def get_pending_strategies() -> list[PendingStrategyInfo]:
     return strategies
 
 
-def get_pending_lessons() -> list[PendingLessonInfo]:
-    """Scan pending-lessons directory and return list of pending lesson files."""
-    if not PENDING_LESSONS_DIR.exists():
-        return []
-
-    lessons = []
-    for lesson_file in sorted(PENDING_LESSONS_DIR.glob("*.md")):
-        content = lesson_file.read_text(encoding="utf-8")
-
-        # Extract title from first # heading; fall back to filename stem
-        title = _extract_heading(content) or lesson_file.stem
-
-        # Derive slug from filename: strip date prefix (YYYY-MM-DD-<run8>-slug.md)
-        parts = lesson_file.stem.split("-", maxsplit=3)  # YYYY, MM, DD, tail
-        tail = parts[-1] if len(parts) >= 4 else lesson_file.stem
-        # Strip 8-char run-id prefix from tail if present
-        # e.g. "abcdef12-git-workflow" → "git-workflow"
-        sub = tail.split("-", maxsplit=1)
-        slug = sub[1] if len(sub) > 1 and len(sub[0]) == 8 else tail
-
-        lessons.append(PendingLessonInfo(slug=slug, title=title, path=str(lesson_file)))
-
-    return lessons
-
-
 def _extract_description_from_skill(skill_md: Path) -> str:
     """Extract description from SKILL.md file."""
     content = skill_md.read_text(encoding="utf-8")
@@ -372,13 +336,12 @@ def _extract_description_from_skill(skill_md: Path) -> str:
 # =============================================================================
 
 
-def clear_pending(skills: bool = True, strategies: bool = True, lessons: bool = True) -> int:
+def clear_pending(skills: bool = True, strategies: bool = True) -> int:
     """Clear all pending files.
 
     Args:
         skills: If True, clear pending skills.
         strategies: If True, clear pending strategies.
-        lessons: If True, clear pending lessons staging area (lessons-learned/ untouched).
 
     Returns:
         Number of items cleared.
@@ -401,22 +364,15 @@ def clear_pending(skills: bool = True, strategies: bool = True, lessons: bool = 
                 item.unlink()
                 cleared += 1
 
-    if lessons:
-        if PENDING_LESSONS_DIR.exists():
-            for item in PENDING_LESSONS_DIR.glob("*.md"):
-                item.unlink()
-                cleared += 1
-
     logger.info(f"Cleared {cleared} pending items")
     return cleared
 
 
 def delete_pending_item(path: Path) -> bool:
-    """Delete a single pending item (skill directory, strategy file, or lesson file).
+    """Delete a single pending item (skill directory or strategy file).
 
-    Only allows deletion within PENDING_SKILLS_DIR, PENDING_STRATEGIES_DIR, or
-    PENDING_LESSONS_DIR to prevent accidental deletion of files outside the
-    allowed directories.
+    Only allows deletion within PENDING_SKILLS_DIR or PENDING_STRATEGIES_DIR
+    to prevent accidental deletion of files outside the allowed directories.
 
     Args:
         path: Path to the pending item.
@@ -428,7 +384,6 @@ def delete_pending_item(path: Path) -> bool:
     if not (
         resolved.is_relative_to(PENDING_SKILLS_DIR.resolve())
         or resolved.is_relative_to(PENDING_STRATEGIES_DIR.resolve())
-        or resolved.is_relative_to(PENDING_LESSONS_DIR.resolve())
     ):
         logger.error(f"Refusing to delete path outside pending directories: {resolved}")
         return False
@@ -711,7 +666,7 @@ MUST use AskUserQuestion with MULTIPLE questions:
 Question 1 - "Which items to install?" (multiSelect: true)
   Header: "Install"
   Options:
-{options_list}
+${options_list}
 
 Question 2 - "Which version?" (per item with improvements)
   Header: "Version"
@@ -743,27 +698,25 @@ Run this command EXACTLY as shown (do NOT change imports):
 
 ```bash
 MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
-[ -f "${{HOME}}/.local/mega-code/.env" ] && set -a && . "${{HOME}}/.local/mega-code/.env" && set +a
+[ -f "${HOME}/.local/mega-code/.env" ] && set -a && . "${HOME}/.local/mega-code/.env" && set +a
 cd "$MEGA_DIR" && set -a && . ./.env && set +a && uv run python -c "
 # IMPORTANT: archive_pending_items is in feedback module, NOT pending module
 from mega_code.client.feedback import archive_pending_items
 # IMPORTANT: listing functions are get_pending_*, NOT list_pending_*
-from mega_code.client.pending import get_pending_lessons, get_pending_skills, get_pending_strategies
+from mega_code.client.pending import get_pending_skills, get_pending_strategies
 skills = get_pending_skills()
 strategies = get_pending_strategies()
-lessons = get_pending_lessons()
 # Build installed_names set from the items user chose to install in Step 3
-installed_names = {{}}  # <-- fill with set of installed item names
+installed_names = {}  # <-- fill with set of installed item names
 run_id = archive_pending_items(
-    run_id='{run_id}',
-    project_id='{project_id}',
+    run_id='${run_id}',
+    project_id='${project_id}',
     installed_skills=[s for s in skills if s.name in installed_names],
     skipped_skills=[s for s in skills if s.name not in installed_names],
     installed_strategies=[s for s in strategies if s.name in installed_names],
     skipped_strategies=[s for s in strategies if s.name not in installed_names],
-    lessons=lessons,
 )
-print(f'ARCHIVED_RUN_ID={{run_id}}')
+print(f'ARCHIVED_RUN_ID={run_id}')
 "
 ```
 
@@ -798,11 +751,11 @@ After collecting answers, save feedback:
 
 ```bash
 MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
-[ -f "${{HOME}}/.local/mega-code/.env" ] && set -a && . "${{HOME}}/.local/mega-code/.env" && set +a
+[ -f "${HOME}/.local/mega-code/.env" ] && set -a && . "${HOME}/.local/mega-code/.env" && set +a
 cd "$MEGA_DIR" && set -a && . ./.env && set +a && \
   uv run python -m mega_code.client.feedback_cli \
-  --run-id '{run_id}' \
-  --project '{project_id}' \
+  --run-id '${run_id}' \
+  --project '${project_id}' \
   --overall-quality <quality> \
   --comments "<text or empty>"
 ```
@@ -857,7 +810,7 @@ def format_review_notification(
 
     preamble_section = f"\n{preamble}\n" if preamble else ""
 
-    workflow = _WORKFLOW_TEMPLATE.format(
+    workflow = string.Template(_WORKFLOW_TEMPLATE).safe_substitute(
         options_list=options_list,
         run_id=run_id or "<RUN_ID>",
         project_id=project_id or "<PROJECT_ID>",
