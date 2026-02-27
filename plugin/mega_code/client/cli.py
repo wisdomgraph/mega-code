@@ -261,12 +261,14 @@ def cmd_profile(args: argparse.Namespace) -> int:
     """View or update user profile."""
     from mega_code.client.api import create_client
     from mega_code.client.api.protocol import UserProfile
-    from mega_code.client.profile import load_profile
 
     # Load .env into os.environ so create_client() can find MEGA_CODE_API_KEY etc.
     env_vars = load_env_file(get_env_path())
     for key, value in env_vars.items():
         os.environ.setdefault(key, value)
+
+    # Single client instance for all operations in this command.
+    client = create_client()
 
     # Reset
     if args.reset:
@@ -274,16 +276,16 @@ def cmd_profile(args: argparse.Namespace) -> int:
         profile_path = get_profile_path()
         if profile_path.exists():
             profile_path.unlink()
-        # Sync reset to remote (overwrites with default empty profile)
-        create_client().save_profile(profile=UserProfile())
+        # Save empty profile via client (remote mode pushes to mega-service DB)
+        client.save_profile(profile=UserProfile())
         print("Profile reset.")
         return 0
 
     has_updates = any(x is not None for x in [args.language, args.level, args.style])
 
     if not has_updates:
-        # Show current profile
-        user_profile = load_profile()
+        # Show current profile via client (remote mode reads from mega-service DB)
+        user_profile = client.load_profile()
         if all(v is None for v in [user_profile.language, user_profile.level, user_profile.style]):
             print("No profile set.")
             print("\nSet your profile with:")
@@ -295,8 +297,8 @@ def cmd_profile(args: argparse.Namespace) -> int:
             print(f"   {key}: {value}")
         return 0
 
-    # Load existing, merge updates, save
-    user_profile = load_profile()
+    # Load existing from authoritative source, merge updates, save
+    user_profile = client.load_profile()
     data = user_profile.model_dump(by_alias=True)
 
     if args.language is not None:
@@ -307,7 +309,7 @@ def cmd_profile(args: argparse.Namespace) -> int:
         data["style"] = args.style
 
     updated_profile = UserProfile(**data)
-    create_client().save_profile(profile=updated_profile)
+    client.save_profile(profile=updated_profile)
 
     print("Profile updated:")
     for key, value in updated_profile.model_dump(by_alias=True).items():
