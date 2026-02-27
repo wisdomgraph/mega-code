@@ -13,7 +13,7 @@ first creates a session and shows a URL, then polls in background for completion
 
 ```bash
 # Discover mega-code root (marketplace or symlink install)
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 ## Usage (Two-Step Flow)
@@ -21,7 +21,7 @@ MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude
 ### Step 1: Create session and get the login URL (fast, non-blocking)
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create
 ```
@@ -42,7 +42,7 @@ If there's an error, the JSON will have an `error` field instead.
 ### Step 2: Poll for completion (run in background)
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
     --step poll --client-id CLIENT_ID --url BASE_URL
@@ -62,7 +62,7 @@ When the user completes login in their browser, this command will:
 Add `--provider github` to the create step:
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create --provider github
 ```
@@ -82,7 +82,7 @@ set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
 Verify the config is saved:
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 grep -E "MEGA_CODE_(API_KEY|CLIENT_MODE|SERVER_URL)" "$MEGA_DIR/.env"
 ```
 

@@ -12,7 +12,7 @@ Show current MEGA-Code status and pending items.
 
 ```bash
 # Discover mega-code root (marketplace or symlink install)
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 ## Quick Status

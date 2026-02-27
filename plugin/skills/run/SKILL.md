@@ -1,6 +1,6 @@
 ---
 description: Run the MEGA-Code skill extraction pipeline to analyze Claude Code sessions and generate reusable skills and strategies.
-argument-hint: [--project [@<name>]] [--model <model>] [--include-claude] [--include-codex] [--include-all]
+argument-hint: [--project [@<name>]] [--model <model>] [--include-claude] [--include-codex] [--include-all] [--poll-timeout <seconds>]
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 disable-model-invocation: true
 ---
@@ -11,11 +11,23 @@ Extract reusable skills and coding strategies from your Claude Code sessions.
 MEGA-Code analyzes your interactions to identify patterns, best practices,
 and learned rules that can be saved as reusable skills.
 
+## ⚠️ Important: Pipeline is Long-Running
+
+The pipeline command runs as a **background process and may take a long time**:
+
+**DO NOT terminate or interrupt the background command.** It will print results
+when done. Silence with no new output for several minutes is **completely normal**
+during LLM inference (especially with `gpt-5-mini` or other reasoning models).
+
+The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout`:
+- `--poll-timeout 3600` — wait up to 1 hour
+- `--poll-timeout 0` — wait indefinitely (no timeout)
+
 ## Finding the MEGA-Code Directory
 
 ```bash
 # Discover mega-code root (marketplace or symlink install)
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 Then use `uv run --directory "$MEGA_DIR"` for all subsequent commands.
@@ -29,6 +41,7 @@ Then use `uv run --directory "$MEGA_DIR"` for all subsequent commands.
 - **With --include-claude**: Include claude.jsonl conversation files
 - **With --include-codex**: Include opencode.jsonl conversation files
 - **With --include-all**: Include all available conversion sources
+- **With --poll-timeout SECONDS**: Max seconds to wait for completion (default: 1200 = 20 min; 0 = indefinite)
 - **Note**: Source flags can be combined (e.g., `--include-claude --include-codex`)
 
 **Project argument formats** (all equivalent for the same project):
@@ -41,7 +54,7 @@ Then use `uv run --directory "$MEGA_DIR"` for all subsequent commands.
 # IMPORTANT: All run commands must export CLAUDE_PROJECT_DIR=$PWD
 # so the pipeline knows which project to process.
 # Discover the mega-code directory first:
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 
 # Run on current session
 LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log"
@@ -144,7 +157,7 @@ Do NOT just report "pipeline complete" — you must execute the full workflow.
 5. **Archive** — Run this command to archive (not delete) pending items:
 
 ```bash
-MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 cd "$MEGA_DIR" && set -a && . ./.env && set +a && uv run python -c "
 from mega_code.client.feedback import archive_pending_items
 from mega_code.client.pending import get_pending_skills, get_pending_strategies
@@ -170,7 +183,7 @@ print(f'ARCHIVED_RUN_ID={run_id}')
 
    Then save feedback:
 ```bash
-MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 cd "$MEGA_DIR" && set -a && . ./.env && set +a && \
   uv run python -m mega_code.client.feedback_cli \
   --run-id '<RUN_ID>' \

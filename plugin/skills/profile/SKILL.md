@@ -12,7 +12,7 @@ which skills are too basic for your experience level.
 ## Finding the MEGA-Code Directory
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 ## Interactive Setup (Recommended)
@@ -27,21 +27,21 @@ Ask the user for their profile using `AskUserQuestion` with these fields:
 After collecting answers, save with:
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" mega-code profile --language "<language>" --level <level> --style <style>
 ```
 
 ## Show Current Profile
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" mega-code profile
 ```
 
 ## Reset Profile
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" mega-code profile --reset
 ```
 

@@ -13,7 +13,7 @@ Provide feedback on generated skills and strategies.
 
 ```bash
 # Discover mega-code root (marketplace or symlink install)
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 ## Usage
@@ -32,7 +32,7 @@ shows what was generated, and collects structured feedback via AskUserQuestion.
 4. **Save**: Write feedback.json alongside the archived run data
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 
 # List recent runs and their feedback status
 uv run --directory "$MEGA_DIR" python -c "
@@ -67,7 +67,7 @@ with type-specific questions:
 After collecting answers, save feedback:
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo $HOME/.claude/mega-code)"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.feedback_cli \
   --run-id <RUN_ID> \
   --project <PROJECT_ID> \
