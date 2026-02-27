@@ -224,11 +224,23 @@ class MegaCodeRemote:
         *,
         profile: UserProfile,
     ) -> ProfileResult:
-        """Save user profile via PUT /api/megacode/v1/profile."""
+        """Save user profile to remote DB then mirror to local JSON file.
+
+        Order of operations:
+          1. PUT /api/megacode/v1/profile  → persists to mega-service Postgres
+          2. Write ~/.local/mega-code/profile.json  → local mirror for inspection
+             (only written when the API call succeeds)
+        """
         payload = profile.model_dump(by_alias=True)
         resp = self._client.put("/api/megacode/v1/profile", json=payload)
         self._check_response(resp)
         data = resp.json()
+
+        # Mirror to local file only after a successful remote save.
+        from mega_code.client.profile import save_profile as _save_local
+
+        _save_local(profile)
+
         return ProfileResult(
             success=data.get("success", True),
             message=data.get("message", ""),

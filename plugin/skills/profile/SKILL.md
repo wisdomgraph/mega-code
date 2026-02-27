@@ -47,5 +47,11 @@ uv run --directory "$MEGA_DIR" mega-code profile --reset
 
 ## Profile Storage
 
-Profile is stored at `~/.local/mega-code/profile.json` and used by the pipeline
-to filter out skills too basic for the user's experience level.
+Profile is saved in two places:
+
+- **Remote database** (Postgres via mega-service) — authoritative source, persists across machines.
+  Requires a valid API key (run `/mega-code:login` first).
+- **Local mirror** `~/.local/mega-code/profile.json` — written only after a successful remote save.
+  Used by the local pipeline to personalise skill and lesson generation without a network call.
+
+If the remote save fails (e.g. no API key configured), the local file is **not** updated.
