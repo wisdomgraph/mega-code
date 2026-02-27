@@ -87,27 +87,30 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 ### Steps:
 
 1. **Read & Analyze** — Read each pending item with the Read tool. Analyze quality, clarity, completeness silently.
+   For **lessons**: read each lesson file and present a brief summary to the user.
 
 2. **Present Review** — Show each item with summary, quality assessment, and enhanced version if needed.
 
 3. **Ask User** — Use AskUserQuestion:
-   - Which items to install (multiSelect: true)
-   - Which version (Enhanced/Original)
+   - Which items to install (multiSelect: true) — skills and strategies only
+   - Which version (Enhanced/Original) — for skills/strategies
    - Location: project (`.claude/skills/`) or user (`~/.claude/skills/`)
 
 4. **Install** — Write approved items:
    - Skills → `<location>/skills/<name>/SKILL.md`
    - Strategies → `.claude/rules/mega-code/<name>.md`
+   - Lessons are auto-saved — no install step needed.
 
-5. **Archive** — Archive (not delete) pending items:
+5. **Archive** — Archive (not delete) pending items (skills, strategies, and lessons):
 
 ```bash
 set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python -c "
 from mega_code.client.feedback import archive_pending_items
-from mega_code.client.pending import get_pending_skills, get_pending_strategies
+from mega_code.client.pending import get_pending_lessons, get_pending_skills, get_pending_strategies
 skills = get_pending_skills()
 strategies = get_pending_strategies()
+lessons = get_pending_lessons()
 installed_names = set()  # <-- fill with names of installed items
 run_id = archive_pending_items(
     run_id='<RUN_ID>',
@@ -116,6 +119,7 @@ run_id = archive_pending_items(
     skipped_skills=[s for s in skills if s.name not in installed_names],
     installed_strategies=[s for s in strategies if s.name in installed_names],
     skipped_strategies=[s for s in strategies if s.name not in installed_names],
+    lessons=lessons,
 )
 print(f'ARCHIVED_RUN_ID={run_id}')
 "
