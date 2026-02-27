@@ -1,8 +1,5 @@
 """Shared utilities for skill file generation and naming.
 
-These helpers are used by the client layer (mega_code.client.pending)
-and re-exported from mega_code.skill_utils for the pipeline layer.
-
 Functions:
     sanitize_name: Kebab-case sanitizer for directory/file names.
     ensure_skill_frontmatter: Prepend YAML frontmatter to SKILL.md when missing.

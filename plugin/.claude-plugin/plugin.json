@@ -1,7 +1,6 @@
 {
   "name": "mega-code",
   "description": "AI optimization data collector and skill extractor for Claude Code - captures trajectories, extracts reusable skills, and optimizes AI workflows",
-  "version": "1.0.0 (BETA)",
   "author": {
     "name": "Mind AI",
     "email": "support@megacode.ai"

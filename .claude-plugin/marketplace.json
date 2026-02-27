@@ -13,7 +13,7 @@
       "name": "mega-code",
       "source": "./plugin",
       "description": "Collect interaction data, extract reusable skills, and optimize AI workflows with MEGA-Code",
-      "version": "1.0.0 (BETA)",
+      "version": "1.0.0-beta",
       "author": {
         "name": "Mind AI",
         "email": "support@megacode.ai"

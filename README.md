@@ -1,4 +1,4 @@
-# MEGA-Code 1.0.0 (BETA) — Open Source Edition
+# MEGA-Code 1.0.0-beta — Open Source Edition
 
 An open-source Claude Code plugin that collects interaction data, extracts
 reusable skills, and optimizes AI workflows.
@@ -21,7 +21,7 @@ Inside a Claude Code session, run:
 /plugin install mega-code@mind-ai-mega-code
 ```
 
-That's it — the plugin's slash commands are immediately available.
+Then restart Claude Code to load the plugin. The slash commands will be available in your next session.
 
 ### Update to Latest Version
 
