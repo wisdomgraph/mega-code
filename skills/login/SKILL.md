@@ -60,7 +60,7 @@ Do **not** print the raw API key — mask it.
 
 ```bash
 grep -E "MEGA_CODE_(API_KEY|CLIENT_MODE|SERVER_URL)" "$HOME/.local/mega-code/.env" \
-  | sed 's/\(MEGA_CODE_API_KEY=.\{6\}\).*/\1***/'
+  | sed -E 's/(MEGA_CODE_API_KEY=.{6}).*/\1***/'
 ```
 
 ## Troubleshooting

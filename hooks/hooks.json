@@ -26,7 +26,7 @@
       {
         "hooks": [{
           "type": "command",
-          "command": "uv run --directory ${CLAUDE_PLUGIN_ROOT} python scripts/check_pending_skills.py",
+          "command": "uv run --directory ${CLAUDE_PLUGIN_ROOT} python mega_code/client/check_pending.py",
           "timeout": 5,
           "statusMessage": "Checking for pending skills..."
         }]

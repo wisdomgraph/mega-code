@@ -1,10 +1,10 @@
 """Shared Pydantic models for mega_code client.
 
-Extracted from pipeline/models.py, pipeline/feedback.py and pipeline/lesson.py
-so that client/ has zero enterprise dependencies. These models are used by both
-open-source (client) and internal (pipeline) codepaths.
+Defines the core data models shared between the open-source plugin client
+and any server-side pipeline code. Client code and server-side code both
+import from this module to keep a single source of truth.
 
-Enterprise code should import from here:
+Server-side code should import from here:
     from mega_code.client.models import Turn, TurnSet, SessionMetadata
     from mega_code.client.models import LessonSection, LessonDoc
 """
@@ -124,7 +124,7 @@ class FeedbackItem(BaseModel):
     reason: str | None = None
     improvement_suggestion: str | None = None
     correction: str | None = None
-    action_taken: str | None = None  # "installed", "installed_enhanced", "skipped", "pending"
+    action_taken: Literal["installed", "installed_enhanced", "skipped", "pending"] | None = None
     item_path: str | None = None
     item_name: str | None = None
 

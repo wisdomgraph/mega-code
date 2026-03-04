@@ -1,8 +1,8 @@
 """Schema definitions for MEGA-Code data collection (client edition).
 
 Client-side version with no LLM dependencies.
-estimate_cost() returns 0.0 — the enterprise mega_code/__init__.py
-overrides this with litellm-based pricing at import time.
+estimate_cost() returns 0.0 — cost computation is handled server-side.
+A server-side installation may override this function with accurate pricing.
 """
 
 from __future__ import annotations
@@ -216,7 +216,7 @@ def estimate_cost(tokens: SessionTokens, model: str | None = None) -> float:
     """Return 0.0 — client does not compute cost.
 
     Server computes accurate cost on upload.
-    Enterprise mega_code/__init__.py overrides this with litellm-based pricing.
+    A server-side installation may override this function with litellm-based pricing.
 
     Args:
         tokens: Token usage counts for the session.

@@ -102,23 +102,12 @@ def get_env_path() -> Path:
 
 
 def load_env_file(env_path: Path) -> dict[str, str]:
-    """Load environment variables from .env file."""
-    env_vars = {}
+    """Load environment variables from .env file using python-dotenv."""
     if not env_path.exists():
-        return env_vars
+        return {}
+    from dotenv import dotenv_values
 
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip()
-                # Remove quotes if present
-                if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
-                    value = value[1:-1]
-                env_vars[key] = value
-    return env_vars
+    return {k: v for k, v in dotenv_values(env_path).items() if v is not None}
 
 
 def save_env_file(env_path: Path, env_vars: dict[str, str]) -> None:
@@ -235,7 +224,6 @@ def cmd_configure(args: argparse.Namespace) -> int:
     # (arg_name, env_var_key, is_secret)
     _CONFIG_FIELDS = [
         ("user_id", "MEGA_CODE_USER_ID", False),
-        ("bitbucket_token", "BITBUCKET_ACCESS_TOKEN", True),
         ("api_key", "MEGA_CODE_API_KEY", True),
         ("server_url", "MEGA_CODE_SERVER_URL", False),
         ("client_mode", "MEGA_CODE_CLIENT_MODE", False),
@@ -365,9 +353,6 @@ def main():
     # Configure command
     configure_parser = subparsers.add_parser("configure", help="Configure mega-code settings")
     configure_parser.add_argument("--user-id", "-u", type=str, help="Set your user identifier")
-    configure_parser.add_argument(
-        "--bitbucket-token", "-t", type=str, help="Set Bitbucket access token"
-    )
     configure_parser.add_argument("--api-key", "-k", type=str, help="Set MEGA-Code API key")
     configure_parser.add_argument(
         "--server-url", type=str, help="Set MEGA-Code server URL (e.g. http://localhost:8000)"

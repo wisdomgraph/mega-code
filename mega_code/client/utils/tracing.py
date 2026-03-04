@@ -98,6 +98,9 @@ try:
 
         import os
 
+        if os.environ.get("OTEL_SDK_DISABLED", "").lower() in ("true", "1"):
+            return False
+
         endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
         if not endpoint:
             return False

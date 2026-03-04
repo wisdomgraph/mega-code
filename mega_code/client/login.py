@@ -26,6 +26,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 import httpx
 
@@ -153,13 +154,16 @@ def poll_cli_session(
     raise TimeoutError(f"Login timed out after {timeout} seconds. Please try again.")
 
 
-def _save_api_key(api_key: str, base_url: str) -> None:
+def _save_api_key(api_key: str, base_url: str) -> tuple[Path, dict[str, str]]:
     """Save API key and related env vars to the .env file.
 
     Sets:
       - MEGA_CODE_API_KEY
       - MEGA_CODE_CLIENT_MODE=remote (if not already set)
       - MEGA_CODE_SERVER_URL (if not already set, derived from base_url)
+
+    Returns:
+        Tuple of (env_path, updated env_vars dict).
     """
     env_path = get_env_path()
     env_vars = load_env_file(env_path)

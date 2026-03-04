@@ -1,18 +1,18 @@
 [project]
 name = "mega-code"
-version = "1.0.0b1"
+version = "1.0.0"
 description = "Open-source Claude Code plugin — collect interaction data, extract skills, and optimize AI workflows"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
-license = "Apache-2.0"
+license = "MIT"
 authors = [
-    { name = "WisdomGraph", email = "support@megacode.ai" }
+    { name = "Mind AI", email = "support@megacode.ai" }
 ]
 keywords = ["claude-code", "plugin", "skills", "optimization", "data-collection"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -31,7 +31,7 @@ parquet = ["pyarrow>=12.0"]
 telemetry = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
 
 [project.urls]
-Homepage = "https://www.megacode.ai"
+Homepage = "https://megacode.ai"
 Repository = "https://github.com/wisdomgraph/mega-code"
 
 [project.scripts]
@@ -43,25 +43,34 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mega_code"]
+only-include = [
+    "mega_code/__init__.py",
+    "mega_code/client",
+]
+artifacts = [
+    "*.toml",
+    ".claude-plugin/**",
+    "hooks/**",
+    "commands/**",
+    "skills/**",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"pyproject.toml" = "mega_code/data/pyproject.toml"
+"README.md" = "mega_code/data/README.md"
+".claude-plugin" = "mega_code/data/.claude-plugin"
+"hooks" = "mega_code/data/hooks"
+"commands" = "mega_code/data/commands"
+"skills" = "mega_code/data/skills"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "mega_code/",
+    "mega_code/__init__.py",
+    "mega_code/client/",
     ".claude-plugin/",
     "hooks/",
+    "commands/",
     "skills/",
-    "scripts/",
     "README.md",
     "pyproject.toml",
 ]
-
-[tool.black]
-line-length = 100
-target-version = ["py310"]
-
-[tool.flake8]
-max-line-length = 100
-extend-ignore = ["E203", "W503"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
