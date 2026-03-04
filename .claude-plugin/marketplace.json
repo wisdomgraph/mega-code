@@ -6,13 +6,13 @@
     "email": "support@megacode.ai"
   },
   "metadata": {
-    "description": "MEGA-Code: AI optimization data collector and skill extractor for Claude Code"
+    "description": "MEGA-Code: Extract reusable Skills and Strategies from Claude Code sessions so AI agents + improve over time"
   },
   "plugins": [
     {
       "name": "mega-code",
       "source": "./plugin",
-      "description": "Collect interaction data, extract reusable skills, and optimize AI workflows with MEGA-Code",
+      "description": "Automatically creates Skills and Strategies by capturing execution logs from coding sessions. The AI agents learn from past mistakes instead of starting from zero every session. BYOK model with local extraction pipeline.",
       "version": "1.0.0-beta",
       "author": {
         "name": "Mind AI",
@@ -20,10 +20,10 @@
       },
       "category": "productivity",
       "tags": [
-        "optimization",
-        "skills",
-        "data-collection",
-        "analytics"
+        "ai-agent-evolution",
+        "skill-extraction",
+        "session-learning",
+        "compound-intelligence"
       ],
       "homepage": "https://www.megacode.ai",
       "repository": "https://github.com/wisdomgraph/mega-code",
