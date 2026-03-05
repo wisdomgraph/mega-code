@@ -96,38 +96,13 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
    - Strategies → `.claude/rules/mega-code/<name>.md`
    - Lessons are already saved to the run folder — no install step needed.
 
-5. **Archive** — Archive (not delete) pending skills and strategies:
+5. **Clean Up** — Clear all pending items after installation:
 
 ```bash
 set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python -c "
-from mega_code.client.feedback import archive_pending_items
-from mega_code.client.pending import get_pending_skills, get_pending_strategies
-skills = get_pending_skills()
-strategies = get_pending_strategies()
-installed_names = set()  # <-- fill with names of installed items
-run_id = archive_pending_items(
-    run_id='<RUN_ID>',
-    project_id='<PROJECT_ID>',
-    installed_skills=[s for s in skills if s.name in installed_names],
-    skipped_skills=[s for s in skills if s.name not in installed_names],
-    installed_strategies=[s for s in strategies if s.name in installed_names],
-    skipped_strategies=[s for s in strategies if s.name not in installed_names],
-)
-print(f'ARCHIVED_RUN_ID={run_id}')
+from mega_code.client.pending import clear_pending
+cleared = clear_pending()
+print(f'Cleared {cleared} pending items')
 "
-```
-
-6. **Collect Feedback** — Use AskUserQuestion:
-   - Quality rating (Excellent/Good/Mixed/Poor)
-   - What could be improved (multiSelect)
-   - Additional comments
-
-   Save feedback:
-
-```bash
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
-  uv run --directory "$MEGA_DIR" python -m mega_code.client.feedback_cli \
-  --run-id '<RUN_ID>' --project '<PROJECT_ID>' \
-  --overall-quality <quality> --comments "<text or empty>"
 ```

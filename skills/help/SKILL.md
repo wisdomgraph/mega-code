@@ -13,7 +13,6 @@ allowed-tools: Read
 | `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
-| `/mega-code:feedback` | Provide feedback on generated items |
 | `/mega-code:help` | Show this help |
 
 ## Output Locations

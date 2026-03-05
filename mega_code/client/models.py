@@ -11,13 +11,13 @@ Server-side code should import from here:
 
 from __future__ import annotations
 
-__all__ = ["Turn", "SessionMetadata", "TurnSet", "FeedbackItem"]
+__all__ = ["Turn", "SessionMetadata", "TurnSet"]
 
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Turn(BaseModel):
@@ -99,34 +99,6 @@ class TurnSet(BaseModel):
     session_dir: Path = Field(default=Path(""))
     turns: list[Turn]
     metadata: SessionMetadata
-
-
-class FeedbackItem(BaseModel):
-    """Feedback for a single skill or strategy.
-
-    Type-specific ratings dict allows different dimensions per type:
-    - Skills: focus, accuracy, completeness, conciseness, clarity (1-5 scale)
-    - Strategies: accuracy, relevance, specificity (1-5 scale)
-    """
-
-    item_id: str
-    item_type: Literal["skill", "strategy"]
-    ratings: dict[str, int] = Field(default_factory=dict)
-    useful: Literal["yes", "no", "maybe"] | None = None
-
-    @field_validator("useful", mode="before")
-    @classmethod
-    def _normalize_useful(cls, v: str | bool | None) -> str | None:
-        if isinstance(v, bool):
-            return "yes" if v else "no"
-        return v
-
-    reason: str | None = None
-    improvement_suggestion: str | None = None
-    correction: str | None = None
-    action_taken: Literal["installed", "installed_enhanced", "skipped", "pending"] | None = None
-    item_path: str | None = None
-    item_name: str | None = None
 
 
 class LessonSection(BaseModel):

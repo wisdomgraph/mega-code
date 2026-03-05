@@ -8,7 +8,6 @@ only slash commands, lifecycle hooks, and plugin configuration.
 
 ```
 skills/run/       → /mega-code:run      trigger extraction pipeline
-skills/feedback/  → /mega-code:feedback rate generated skills/strategies
 skills/status/    → /mega-code:status   show pending items
 skills/profile/   → /mega-code:profile  set language/level/style
 skills/login/     → /mega-code:login    OAuth flow

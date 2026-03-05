@@ -12,10 +12,8 @@ __all__ = [
     "SkillArtifactData",
     "PendingStrategyData",
     "PendingLessonData",
-    "FeedbackRequest",
     "UploadResult",
     "OutputsResult",
-    "FeedbackResult",
     "TriggerPipelineResult",
     "PipelineStatusResult",
     "UserProfile",
@@ -28,7 +26,7 @@ from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mega_code.client.models import FeedbackItem, TurnSet
+from mega_code.client.models import TurnSet
 
 # =============================================================================
 # Pipeline Output Models (inlined from pipeline/store/base.py)
@@ -84,21 +82,6 @@ class PendingLessonData(BaseModel):
 
 
 # =============================================================================
-# Request Models
-# =============================================================================
-
-
-class FeedbackRequest(BaseModel):
-    """Run-level user feedback on pipeline outputs."""
-
-    run_id: str = Field(..., description="Pipeline run ID")
-    project_id: str = Field(..., description="Project identifier")
-    overall_quality: str | None = Field(None, description="excellent/good/mixed/poor")
-    additional_comments: str | None = Field(None, description="Free-text comments")
-    items: list[FeedbackItem] = Field(default_factory=list, description="Per-item feedback")
-
-
-# =============================================================================
 # Response Models
 # =============================================================================
 
@@ -118,13 +101,6 @@ class OutputsResult(BaseModel):
     pending_skills: list[PendingSkillData] = Field(default_factory=list)
     pending_strategies: list[PendingStrategyData] = Field(default_factory=list)
     pending_lessons: list[PendingLessonData] = Field(default_factory=list)
-
-
-class FeedbackResult(BaseModel):
-    """Result of submitting feedback."""
-
-    success: bool = Field(True, description="Whether feedback was processed")
-    message: str = Field("", description="Human-readable message")
 
 
 class TriggerPipelineResult(BaseModel):
@@ -207,16 +183,6 @@ class MegaCodeBaseClient(Protocol):
         project_id: str,
         run_id: str,
     ) -> OutputsResult: ...
-
-    def submit_feedback(
-        self,
-        *,
-        run_id: str,
-        project_id: str,
-        overall_quality: str | None = None,
-        additional_comments: str | None = None,
-        items: list[FeedbackItem] | None = None,
-    ) -> FeedbackResult: ...
 
     async def trigger_pipeline_run(
         self,

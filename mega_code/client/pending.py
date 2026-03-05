@@ -684,77 +684,21 @@ Based on user's choices:
 Use Write tool to create the files.
 
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-STEP 5: ARCHIVE & FEEDBACK
+STEP 5: CLEAN UP
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-After successful installation, ARCHIVE (not delete) all pending items.
-
-Run this command EXACTLY as shown (do NOT change imports):
+After installation, clear all pending items:
 
 ```bash
 MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
-[ -f "${HOME}/.local/mega-code/.env" ] && set -a && . "${HOME}/.local/mega-code/.env" && set +a
-cd "$MEGA_DIR" && set -a && . ./.env && set +a && uv run python -c "
-# IMPORTANT: archive_pending_items is in feedback module, NOT pending module
-from mega_code.client.feedback import archive_pending_items
-# IMPORTANT: listing functions are get_pending_*, NOT list_pending_*
-from mega_code.client.pending import get_pending_skills, get_pending_strategies
-skills = get_pending_skills()
-strategies = get_pending_strategies()
-# Build installed_names set from the items user chose to install in Step 3
-installed_names = {}  # <-- fill with set of installed item names
-run_id = archive_pending_items(
-    run_id='${run_id}',
-    project_id='${project_id}',
-    installed_skills=[s for s in skills if s.name in installed_names],
-    skipped_skills=[s for s in skills if s.name not in installed_names],
-    installed_strategies=[s for s in strategies if s.name in installed_names],
-    skipped_strategies=[s for s in strategies if s.name not in installed_names],
-)
-print(f'ARCHIVED_RUN_ID={run_id}')
+set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
+  uv run --directory "$MEGA_DIR" python -c "
+from mega_code.client.pending import clear_pending
+cleared = clear_pending()
+print(f'Cleared {cleared} pending items')
 "
 ```
 
-Parse ARCHIVED_RUN_ID from the output for Step 6.
 Report summary of what was installed and where.
-
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-STEP 6: COLLECT FEEDBACK (use AskUserQuestion tool)
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-Ask the user for feedback on the generated items:
-
-Question 1 - "How useful were the generated items?" (header: "Quality")
-  Options:
-     - Excellent - all items were relevant and useful
-     - Good - most items were useful
-     - Mixed - some good, some irrelevant
-     - Poor - most items missed the mark
-
-Question 2 - "What could be improved?" (header: "Improve", multiSelect: true)
-  Options:
-     - More specific trigger conditions
-     - Better examples in skills
-     - More concise content
-     - Better scope (too broad/narrow)
-
-Question 3 - "Any additional comments?" (header: "Comments")
-  Options:
-     - No additional comments
-     - (User can type via "Other")
-
-After collecting answers, save feedback:
-
-```bash
-MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
-[ -f "${HOME}/.local/mega-code/.env" ] && set -a && . "${HOME}/.local/mega-code/.env" && set +a
-cd "$MEGA_DIR" && set -a && . ./.env && set +a && \
-  uv run python -m mega_code.client.feedback_cli \
-  --run-id '${run_id}' \
-  --project '${project_id}' \
-  --overall-quality <quality> \
-  --comments "<text or empty>"
-```
-
-Report: "Feedback saved! Thank you for helping improve skill generation."
 
 \u26a1 START STEP 1 NOW - READ THE PENDING FILES IMMEDIATELY \u26a1"""
 
@@ -785,8 +729,8 @@ def format_review_notification(
         header: Title shown in the top banner box.
         preamble: Optional text shown between the banner and the item lists.
         errors: Optional list of warning messages to display.
-        run_id: Pipeline run UUID for archive/feedback commands.
-        project_id: Project identifier for archive/feedback commands.
+        run_id: Pipeline run UUID used for lesson storage paths.
+        project_id: Project identifier used for lesson storage paths.
 
     Returns:
         Formatted notification string.

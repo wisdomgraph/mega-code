@@ -13,10 +13,8 @@ from pathlib import Path
 
 import httpx
 
-from mega_code.client.models import FeedbackItem, TurnSet
+from mega_code.client.models import TurnSet
 from mega_code.client.api.protocol import (
-    FeedbackRequest,
-    FeedbackResult,
     OutputsResult,
     PipelineStatusResult,
     ProfileResult,
@@ -116,32 +114,6 @@ class MegaCodeRemote:
         resp = self._client.get(f"/api/megacode/v1/outputs/{project_id}/{run_id}")
         self._check_response(resp)
         return OutputsResult(**resp.json())
-
-    @traced("client.remote.submit_feedback")
-    def submit_feedback(
-        self,
-        *,
-        run_id: str,
-        project_id: str,
-        overall_quality: str | None = None,
-        additional_comments: str | None = None,
-        items: list[FeedbackItem] | None = None,
-    ) -> FeedbackResult:
-        """Submit run-level feedback via POST /api/megacode/v1/feedback."""
-        request = FeedbackRequest(
-            run_id=run_id,
-            project_id=project_id,
-            overall_quality=overall_quality,
-            additional_comments=additional_comments,
-            items=items or [],
-        )
-        resp = self._client.post("/api/megacode/v1/feedback", json=request.model_dump())
-        self._check_response(resp)
-        data = resp.json()
-        return FeedbackResult(
-            success=data.get("status") == "ok",
-            message=data.get("message", ""),
-        )
 
     @traced("client.remote.trigger_pipeline_run")
     async def trigger_pipeline_run(
