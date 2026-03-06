@@ -109,12 +109,26 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
    - Strategies → `.claude/rules/mega-code/<name>.md`
    - Lessons are already saved to the run folder — no install step needed.
 
-5. **Clean Up** — Clear all pending items after installation:
+5. **Archive** — Archive pending items (not delete) to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/`:
 
 ```bash
 uv run --directory "$MEGA_DIR" python -c "
-from mega_code.client.pending import clear_pending
-cleared = clear_pending()
-print(f'Cleared {cleared} pending items')
+from mega_code.client.feedback import archive_pending_items
+from mega_code.client.pending import get_pending_skills, get_pending_strategies
+skills = get_pending_skills()
+strategies = get_pending_strategies()
+installed_names = ${installed_names}  # <-- set of names user chose to install
+run_id = archive_pending_items(
+    run_id='${run_id}',
+    project_id='${project_id}',
+    installed_skills=[s for s in skills if s.name in installed_names],
+    skipped_skills=[s for s in skills if s.name not in installed_names],
+    installed_strategies=[s for s in strategies if s.name in installed_names],
+    skipped_strategies=[s for s in strategies if s.name not in installed_names],
+)
+print(f'Archived run: {run_id}')
 "
 ```
+
+Parse `run_id` and `project_id` from the pipeline output JSON (`additionalContext`).
+Fill `installed_names` with the set of item names the user chose to install in Step 4.
