@@ -117,18 +117,18 @@ from mega_code.client.feedback import archive_pending_items
 from mega_code.client.pending import get_pending_skills, get_pending_strategies
 skills = get_pending_skills()
 strategies = get_pending_strategies()
-installed_names = ${installed_names}  # <-- set of names user chose to install
+installed_names = set()  # <-- fill with names of installed items
 run_id = archive_pending_items(
-    run_id='${run_id}',
-    project_id='${project_id}',
+    run_id='<RUN_ID>',
+    project_id='<PROJECT_ID>',
     installed_skills=[s for s in skills if s.name in installed_names],
     skipped_skills=[s for s in skills if s.name not in installed_names],
     installed_strategies=[s for s in strategies if s.name in installed_names],
     skipped_strategies=[s for s in strategies if s.name not in installed_names],
 )
-print(f'Archived run: {run_id}')
+print(f'ARCHIVED_RUN_ID={run_id}')
 "
 ```
 
 Parse `run_id` and `project_id` from the pipeline output JSON (`additionalContext`).
-Fill `installed_names` with the set of item names the user chose to install in Step 4.
+Fill `installed_names` with the set of names the user chose to install in Step 4.
