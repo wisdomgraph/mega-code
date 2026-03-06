@@ -1,6 +1,6 @@
 ---
 description: Sign in to MEGA-Code via GitHub or Google OAuth to get an API key.
-argument-hint: [--provider github|google]
+argument-hint: [--provider github|google] [--url https://console.megacode.ai]
 allowed-tools: Bash, Read, AskUserQuestion
 ---
 
@@ -17,10 +17,11 @@ MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null
 ## Step 1: Create session (fast, non-blocking)
 
 ```bash
-uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create
+uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create [--url URL]
 ```
 
 Add `--provider github` for GitHub OAuth instead of Google.
+Add `--url URL` to specify the server (default: `https://console.megacode.ai`).
 
 Returns a **JSON object** to stdout:
 

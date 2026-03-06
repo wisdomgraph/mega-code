@@ -82,36 +82,31 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 1. **Read & Analyze** *(Response 1)* — Read each pending item with the Read tool. Analyze quality, clarity, completeness silently.
    For **lessons**: read each `.md` file at the path shown in the notification and display the markdown content directly to the user.
 
-2. **Present Review** *(Response 2)* —
+2. **Present Review & Ask User** *(Response 2)* —
    Show each item with summary, quality assessment, and enhanced version if needed.
-   **This response MUST contain ONLY text output. Do NOT call AskUserQuestion or
-   any Read tools in this response.** End this response after the review text,
-   then **immediately auto-continue to Step 3** — do NOT wait for user input.
-
-3. **Ask User** *(Response 3+)* —
-   Use AskUserQuestion in a **clean response with no other text or tool output**.
+   Then immediately call AskUserQuestion in the **same response** to ask what to install.
 
    **Rules for AskUserQuestion:**
-   - Each AskUserQuestion call MUST be in a response that contains **no Read tool
-     calls and no large text output** — the interactive UI will not render otherwise
    - Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
    - If an answer comes back **empty/blank**, re-ask that same question once more
    - After **2 consecutive empty responses** for the same question, ask the user in plain text what they'd like to do
 
    **Question flow (one at a time, separate calls):**
-   1. "Which skills to install?" (multiSelect: true, options: `["None — skip all", ...pending skill names]`) — skip if no pending skills
-   2. "Which strategies to install?" (multiSelect: true, options: `["None — skip all", ...pending strategy names]`) — skip if no pending strategies
+   1. "Which skills to install?" (multiSelect: true, options: `[...pending skill names, "None — skip all"]`) — skip if no pending skills
+   2. "Which strategies to install?" (multiSelect: true, options: `[...pending strategy names, "None — skip all"]`) — skip if no pending strategies
    3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
-   4. "Installation location?" (project `.claude/skills/` or user `~/.claude/skills/`) — only ask if items were selected
+   4. "Installation location?" — only ask if items were selected. Options:
+      - "Project level" (description: `.claude/skills/` and `.claude/rules/` in current project)
+      - "User level" (description: `~/.claude/skills/` and `~/.claude/rules/` shared across all projects)
 
-   If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 5.
+   If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 3.
 
-4. **Install** — Write approved items:
+3. **Install** — Write approved items:
    - Skills → `<location>/skills/<name>/SKILL.md`
    - Strategies → `.claude/rules/mega-code/<name>.md`
    - Lessons are already saved to the run folder — no install step needed.
 
-5. **Archive** — Archive pending items (not delete) to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/`:
+4. **Archive** — Archive pending items (not delete) to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/`:
 
 ```bash
 uv run --directory "$MEGA_DIR" python -c "
@@ -133,4 +128,4 @@ print(f'ARCHIVED_RUN_ID={run_id}')
 ```
 
 Parse `run_id` and `project_id` from the pipeline output JSON (`additionalContext`).
-Fill `installed_names` with the set of names the user chose to install in Step 4.
+Fill `installed_names` with the set of names the user chose to install in Step 3.
