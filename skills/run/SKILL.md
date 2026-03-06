@@ -82,13 +82,13 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 1. **Read & Analyze** *(Response 1)* — Read each pending item with the Read tool. Analyze quality, clarity, completeness silently.
    For **lessons**: read each `.md` file at the path shown in the notification and display the markdown content directly to the user.
 
-2. **Present Review** *(Response 2 — STOP after this, do NOT continue to Step 3)* —
+2. **Present Review** *(Response 2)* —
    Show each item with summary, quality assessment, and enhanced version if needed.
    **This response MUST contain ONLY text output. Do NOT call AskUserQuestion or
-   any Read tools in this response.** End the response after the review text.
+   any Read tools in this response.** End this response after the review text,
+   then **immediately auto-continue to Step 3** — do NOT wait for user input.
 
-3. **Ask User** *(Response 3+)* — **Immediately proceed to this step after Step 2
-   — do NOT wait for user confirmation or prompting. Auto-continue.**
+3. **Ask User** *(Response 3+)* —
    Use AskUserQuestion in a **clean response with no other text or tool output**.
 
    **Rules for AskUserQuestion:**
@@ -99,10 +99,12 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
    - After **2 consecutive empty responses** for the same question, ask the user in plain text what they'd like to do
 
    **Question flow (one at a time, separate calls):**
-   1. "Which skills to install?" (multiSelect: true)
-   2. "Which strategies to install?" (multiSelect: true)
+   1. "Which skills to install?" (multiSelect: true, options: `["None — skip all", ...pending skill names]`) — skip if no pending skills
+   2. "Which strategies to install?" (multiSelect: true, options: `["None — skip all", ...pending strategy names]`) — skip if no pending strategies
    3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
    4. "Installation location?" (project `.claude/skills/` or user `~/.claude/skills/`) — only ask if items were selected
+
+   If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 5.
 
 4. **Install** — Write approved items:
    - Skills → `<location>/skills/<name>/SKILL.md`
