@@ -373,7 +373,7 @@ def _load_env():
 
     Credentials are stored in ~/.local/mega-code/.env (a fixed, version-independent
     path that survives plugin updates).  The versioned plugin .env may still hold
-    non-secret overrides (e.g. MEGA_SERVICE_URL for dev/staging).
+    non-secret overrides (e.g. MEGA_CODE_SERVER_URL for dev/staging).
 
     Search order:
     1. ~/.local/mega-code/.env  — stable credential store (always loaded first)

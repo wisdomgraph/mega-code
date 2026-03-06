@@ -14,6 +14,7 @@ When NOT installed:
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,11 +35,10 @@ def _parse_otlp_headers(headers_str: str) -> tuple[tuple[str, str], ...]:
 
 
 _client_initialized = False
+_HAS_OTEL = importlib.util.find_spec("opentelemetry") is not None
 
-try:
+if _HAS_OTEL:
     from opentelemetry import trace as _trace
-
-    _HAS_OTEL = True
 
     def get_tracer(name: str):
         """Get a tracer by name."""
@@ -105,33 +105,28 @@ try:
         if not endpoint:
             return False
 
-        try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-            from opentelemetry.sdk.resources import Resource
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            headers = _parse_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", ""))
-            resource = Resource.create({"service.name": service_name})
-            insecure = endpoint.startswith("http://")
-            exporter = OTLPSpanExporter(
-                endpoint=endpoint,
-                headers=headers,
-                insecure=insecure,
-            )
-            provider = TracerProvider(resource=resource)
-            provider.add_span_processor(BatchSpanProcessor(exporter))
-            _trace.set_tracer_provider(provider)
-            _client_initialized = True
-            logger.info("OpenTelemetry tracing initialized: endpoint=%s", endpoint)
-            return True
-        except ImportError:
-            logger.debug("OTLP gRPC exporter not available, tracing disabled")
-            return False
+        headers = _parse_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", ""))
+        resource = Resource.create({"service.name": service_name})
+        insecure = endpoint.startswith("http://")
+        exporter = OTLPSpanExporter(
+            endpoint=endpoint,
+            headers=headers,
+            insecure=insecure,
+        )
+        provider = TracerProvider(resource=resource)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+        _trace.set_tracer_provider(provider)
+        _client_initialized = True
+        logger.info("OpenTelemetry tracing initialized: endpoint=%s", endpoint)
+        return True
 
-except ImportError:
+else:
     # OpenTelemetry not installed — no-op stubs
-    _HAS_OTEL = False
 
     class _NoOpSpan:
         """No-op span for when OTEL is not available."""

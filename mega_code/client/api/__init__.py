@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 
 from mega_code.client.api.protocol import MegaCodeBaseClient
@@ -10,12 +11,9 @@ from mega_code.client.api.remote import MegaCodeRemote
 
 def _default_mode() -> str:
     """Detect whether pipeline is available for local mode."""
-    try:
-        import mega_code.pipeline  # noqa: F401
-
+    if importlib.util.find_spec("mega_code.pipeline") is not None:
         return "local"
-    except ImportError:
-        return "remote"
+    return "remote"
 
 
 def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
@@ -51,14 +49,8 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
             kwargs["server_url"] = os.environ.get("MEGA_CODE_SERVER_URL", "http://localhost:8000")
         return MegaCodeRemote(**kwargs)
     elif mode == "local":
-        try:
-            from mega_code.pipeline.local_client import MegaCodeLocal
-        except ImportError:
-            raise ValueError(
-                "Local mode requires the full mega-code package (with pipeline).\n"
-                "This is not available in the open-source edition.\n"
-                "Use mode='remote' to connect to a MEGA-Code server instead."
-            ) from None
+        from mega_code.pipeline.local_client import MegaCodeLocal
+
         return MegaCodeLocal(**kwargs)
 
     raise ValueError(f"Unknown client mode: {mode!r}. Expected 'local' or 'remote'.")

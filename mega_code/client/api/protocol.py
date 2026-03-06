@@ -43,6 +43,9 @@ class PendingSkillData(BaseModel):
     metadata: str = Field(description="JSON string of metadata dict")
     installed: bool = False
     approved: bool = False
+    author: str = ""
+    version: str = ""
+    tags: list[str] = Field(default_factory=list)
 
 
 class SkillArtifactData(BaseModel):
@@ -64,6 +67,9 @@ class PendingStrategyData(BaseModel):
     category: str | None = None
     installed: bool = False
     approved: bool = False
+    author: str = ""
+    version: str = ""
+    tags: list[str] = Field(default_factory=list)
 
 
 class PendingLessonData(BaseModel):
@@ -79,6 +85,9 @@ class PendingLessonData(BaseModel):
     rendered_md: str = Field("", description="Rendered markdown content")
     run_id: str | None = None
     project_id: str | None = None
+    author: str = ""
+    version: str = ""
+    tags: list[str] = Field(default_factory=list)
 
 
 # =============================================================================

@@ -61,6 +61,7 @@ Supported providers: **OpenAI** (`OPENAI_API_KEY`) and **Google Gemini** (`GEMIN
 | `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
+| `/mega-code:feedback` | Provide feedback on generated items |
 | `/mega-code:profile` | View or update your developer profile (language, level, style) |
 | `/mega-code:help` | Show help and reference |
 
@@ -72,6 +73,7 @@ Supported providers: **OpenAI** (`OPENAI_API_KEY`) and **Google Gemini** (`GEMIN
 /mega-code:profile                # Set your language, level, and style
 /mega-code:run --project          # Extract skills from all project sessions
 /mega-code:status                 # See what was generated
+/mega-code:feedback               # Rate the generated skills
 ```
 
 ## Development Setup (from main repo)
@@ -106,6 +108,7 @@ mega-code-oss/
 │   │   ├── login/SKILL.md    # /mega-code:login
 │   │   ├── run/SKILL.md      # /mega-code:run
 │   │   ├── status/SKILL.md   # /mega-code:status
+│   │   ├── feedback/SKILL.md # /mega-code:feedback
 │   │   ├── profile/SKILL.md  # /mega-code:profile
 │   │   └── help/SKILL.md     # /mega-code:help
 │   ├── mega_code/

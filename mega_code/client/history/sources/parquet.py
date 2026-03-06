@@ -70,12 +70,7 @@ class ParquetDatasetSource:
         if self._df is not None:
             return self._df
 
-        try:
-            import pyarrow.parquet as pq
-        except ImportError as e:
-            raise ImportError(
-                "pyarrow is required for Parquet support. " "Install with: pip install pyarrow"
-            ) from e
+        import pyarrow.parquet as pq
 
         if self.path.is_dir():
             # Load all parquet files in directory

@@ -14,8 +14,8 @@ endpoints. Supports two modes:
     python -m mega_code.client.login --step poll --client-id <ID> --url <URL>
 
 Environment variables:
-  MEGA_SERVICE_URL -- mega-service API base URL
-                     (default: https://console.megacode.ai/api/mega-service/v1)
+  MEGA_CODE_SERVER_URL -- server base URL (default: https://console.megacode.ai)
+                         The mega-service API path is derived automatically.
 """
 
 from __future__ import annotations
@@ -34,7 +34,8 @@ from mega_code.client.cli import get_env_path, load_env_file, save_env_file
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MEGA_SERVICE_URL = "https://console.megacode.ai/api/mega-service/v1"
+_DEFAULT_SERVER_URL = "https://console.megacode.ai"
+_MEGA_SERVICE_API_PATH = "/api/mega-service/v1"
 _DEFAULT_PROVIDER = "google"
 _POLL_INTERVAL_SECONDS = 3
 _POLL_TIMEOUT_SECONDS = 600  # 10 minutes, matches server-side expiry
@@ -42,26 +43,31 @@ _MAX_TRANSIENT_RETRIES = 3  # consecutive network failures before aborting
 
 
 def _resolve_mega_service_url() -> str:
-    """Resolve the mega-service base URL.
+    """Resolve the mega-service API URL from MEGA_CODE_SERVER_URL.
+
+    Reads the server base URL and appends the API path.
 
     Priority:
-    1. MEGA_SERVICE_URL from the .env file
-    2. MEGA_SERVICE_URL environment variable
+    1. MEGA_CODE_SERVER_URL from the .env file
+    2. MEGA_CODE_SERVER_URL environment variable
     3. Default URL
     """
     env_vars = load_env_file(get_env_path())
-    url = env_vars.get("MEGA_SERVICE_URL") or os.environ.get("MEGA_SERVICE_URL")
-    return url.rstrip("/") if url else _DEFAULT_MEGA_SERVICE_URL
+    server = (
+        env_vars.get("MEGA_CODE_SERVER_URL")
+        or os.environ.get("MEGA_CODE_SERVER_URL")
+        or _DEFAULT_SERVER_URL
+    )
+    return server.rstrip("/") + _MEGA_SERVICE_API_PATH
 
 
 def _derive_server_url(base_url: str) -> str:
-    """Derive MEGA_CODE_SERVER_URL from a mega-service base URL.
+    """Derive MEGA_CODE_SERVER_URL from a mega-service API URL.
 
     Strips the /api/mega-service/v1 suffix if present.
     """
-    api_suffix = "/api/mega-service/v1"
-    if base_url.endswith(api_suffix):
-        return base_url[: -len(api_suffix)]
+    if base_url.endswith(_MEGA_SERVICE_API_PATH):
+        return base_url[: -len(_MEGA_SERVICE_API_PATH)]
     return base_url
 
 
@@ -174,10 +180,8 @@ def _save_api_key(api_key: str, base_url: str) -> tuple[Path, dict[str, str]]:
     if env_vars.get("MEGA_CODE_CLIENT_MODE") != "remote":
         env_vars["MEGA_CODE_CLIENT_MODE"] = "remote"
 
-    # Derive server URL from mega-service URL
-    server_url = _derive_server_url(base_url)
-    if not env_vars.get("MEGA_CODE_SERVER_URL"):
-        env_vars["MEGA_CODE_SERVER_URL"] = server_url
+    # Always update server URL to match the service we authenticated against
+    env_vars["MEGA_CODE_SERVER_URL"] = _derive_server_url(base_url)
 
     env_path.parent.mkdir(parents=True, exist_ok=True)
     save_env_file(env_path, env_vars)
@@ -360,7 +364,7 @@ def main() -> int:
         "--url",
         type=str,
         default=None,
-        help="mega-service base URL (overrides MEGA_SERVICE_URL)",
+        help="mega-service API URL (overrides MEGA_CODE_SERVER_URL-derived URL)",
     )
     parser.add_argument(
         "--client-id",

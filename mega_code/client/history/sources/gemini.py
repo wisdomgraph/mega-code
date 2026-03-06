@@ -257,7 +257,11 @@ class GeminiSource:
         messages = chat_data.get("messages", [])
         for msg in messages:
             if msg.get("type") == "user":
-                first_prompt = msg.get("content", "")
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    # Structured content: extract text parts
+                    content = " ".join(p.get("text", "") for p in content if isinstance(p, dict))
+                first_prompt = content
                 break
 
         # Determine primary model from messages

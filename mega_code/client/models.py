@@ -114,3 +114,4 @@ class LessonDoc(BaseModel):
     title: str
     slug: str
     sections: list[LessonSection]
+    tags: list[str] = Field(default_factory=list)

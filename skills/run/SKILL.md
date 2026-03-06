@@ -52,8 +52,6 @@ All variables must be in **one single Bash call** so `$LOG` and `$MEGA_DIR` stay
 LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log" && \
   echo "Pipeline log: $LOG" && \
   export CLAUDE_PROJECT_DIR="$PWD" && \
-  [ -f "${HOME}/.local/mega-code/.env" ] && set -a && . "${HOME}/.local/mega-code/.env" && set +a ; \
-  set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
   uv run --directory "$MEGA_DIR" python scripts/run_pipeline_async.py [FLAGS] 2>&1 | tee "$LOG"
 ```
 
@@ -72,7 +70,7 @@ When omitted, server selects based on configured LLM keys (priority: OpenAI > An
 ## Pipeline Outputs
 
 1. **Skills & Strategies** — saved to pending dirs for review/install
-2. **Lesson Learned documents** — saved to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged lesson_learn)
+2. **Lesson Learned documents** — saved to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged `lesson_learn`)
 
 ## Post-Pipeline Workflow (MANDATORY)
 
@@ -81,15 +79,30 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 
 ### Steps:
 
-1. **Read & Analyze** — Read each pending item with the Read tool. Analyze quality, clarity, completeness silently.
+1. **Read & Analyze** *(Response 1)* — Read each pending item with the Read tool. Analyze quality, clarity, completeness silently.
    For **lessons**: read each `.md` file at the path shown in the notification and display the markdown content directly to the user.
 
-2. **Present Review** — Show each item with summary, quality assessment, and enhanced version if needed.
+2. **Present Review** *(Response 2 — STOP after this, do NOT continue to Step 3)* —
+   Show each item with summary, quality assessment, and enhanced version if needed.
+   **This response MUST contain ONLY text output. Do NOT call AskUserQuestion or
+   any Read tools in this response.** End the response after the review text.
 
-3. **Ask User** — Use AskUserQuestion:
-   - Which items to install (multiSelect: true) — skills and strategies only
-   - Which version (Enhanced/Original) — for skills/strategies
-   - Location: project (`.claude/skills/`) or user (`~/.claude/skills/`)
+3. **Ask User** *(Response 3+)* — **Immediately proceed to this step after Step 2
+   — do NOT wait for user confirmation or prompting. Auto-continue.**
+   Use AskUserQuestion in a **clean response with no other text or tool output**.
+
+   **Rules for AskUserQuestion:**
+   - Each AskUserQuestion call MUST be in a response that contains **no Read tool
+     calls and no large text output** — the interactive UI will not render otherwise
+   - Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
+   - If an answer comes back **empty/blank**, re-ask that same question once more
+   - After **2 consecutive empty responses** for the same question, ask the user in plain text what they'd like to do
+
+   **Question flow (one at a time, separate calls):**
+   1. "Which skills to install?" (multiSelect: true)
+   2. "Which strategies to install?" (multiSelect: true)
+   3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
+   4. "Installation location?" (project `.claude/skills/` or user `~/.claude/skills/`) — only ask if items were selected
 
 4. **Install** — Write approved items:
    - Skills → `<location>/skills/<name>/SKILL.md`
@@ -99,8 +112,7 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 5. **Clean Up** — Clear all pending items after installation:
 
 ```bash
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
-  uv run --directory "$MEGA_DIR" python -c "
+uv run --directory "$MEGA_DIR" python -c "
 from mega_code.client.pending import clear_pending
 cleared = clear_pending()
 print(f'Cleared {cleared} pending items')

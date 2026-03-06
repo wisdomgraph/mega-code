@@ -43,6 +43,7 @@ MEGA_CODE_DATA_DIR = _DATA_ROOT / "data"
 PENDING_SKILLS_DIR = MEGA_CODE_DATA_DIR / "pending-skills"
 PENDING_STRATEGIES_DIR = MEGA_CODE_DATA_DIR / "pending-strategies"
 FEEDBACK_DIR = MEGA_CODE_DATA_DIR / "feedback"
+DEDUP_METADATA_PATH = MEGA_CODE_DATA_DIR / "dedup_metadata.json"
 
 # Maximum length for description truncation
 MAX_DESCRIPTION_LENGTH = 100
@@ -51,6 +52,35 @@ MAX_DESCRIPTION_LENGTH = 100
 def _truncate(text: str, max_len: int = MAX_DESCRIPTION_LENGTH) -> str:
     """Truncate text to max_len, adding ellipsis if needed."""
     return text[:max_len] + "..." if len(text) > max_len else text
+
+
+def save_dedup_metadata(
+    skill_metadata: dict[str, dict], strategy_metadata: dict[str, dict]
+) -> None:
+    """Save dedup metadata (signal_strength, embedding) for pending items.
+
+    Written by the pipeline after dedup filtering; read by archive_pending_items()
+    so that manifests include signal_strength and embedding for cross-run dedup.
+    """
+    DEDUP_METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DEDUP_METADATA_PATH.write_text(
+        json.dumps({"skill_metadata": skill_metadata, "strategy_metadata": strategy_metadata}),
+        encoding="utf-8",
+    )
+
+
+def load_dedup_metadata() -> tuple[dict[str, dict], dict[str, dict]]:
+    """Load and consume dedup metadata written by the pipeline.
+
+    Returns (skill_metadata, strategy_metadata). Deletes the file after reading
+    so it is only consumed once.
+    """
+    try:
+        data = json.loads(DEDUP_METADATA_PATH.read_text(encoding="utf-8"))
+        DEDUP_METADATA_PATH.unlink(missing_ok=True)
+        return data.get("skill_metadata", {}), data.get("strategy_metadata", {})
+    except (json.JSONDecodeError, OSError):
+        return {}, {}
 
 
 @dataclass
@@ -62,6 +92,9 @@ class PendingSkillInfo:
     path: str
     domains: list[str] = field(default_factory=list)
     validation_passed: bool = True
+    author: str = ""
+    version: str = ""
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -72,6 +105,9 @@ class PendingStrategyInfo:
     description: str
     path: str
     category: str | None = None
+    author: str = ""
+    version: str = ""
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -81,6 +117,9 @@ class PendingLessonInfo:
     slug: str
     title: str
     path: str
+    author: str = ""
+    version: str = ""
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -171,7 +210,7 @@ def save_outputs_to_pending(
         result.skills.append(
             PendingSkillInfo(
                 name=skill_name,
-                description=_truncate(skill_md_content),
+                description=extract_skill_description(skill_md_content),
                 path=str(skill_dir),
             )
         )
@@ -185,7 +224,7 @@ def save_outputs_to_pending(
         result.strategies.append(
             PendingStrategyInfo(
                 name=strat_name,
-                description=_truncate(strat.content),
+                description=_truncate(_extract_heading(strat.content)),
                 path=str(path),
                 category=strat.category,
             )
@@ -218,6 +257,58 @@ def save_outputs_to_pending(
 # =============================================================================
 
 
+def _parse_yaml_frontmatter(content: str) -> dict[str, str | list[str]]:
+    """Parse YAML frontmatter from markdown content into a flat dict.
+
+    Only handles simple key: value pairs and tags lists.
+    Returns empty dict if no frontmatter found.
+    """
+    if not content.strip().startswith("---"):
+        return {}
+
+    result: dict[str, str | list[str]] = {}
+    lines = content.split("\n")
+    current_list_key: str | None = None
+    current_list: list[str] = []
+
+    for line in lines[1:]:  # skip opening ---
+        if line.strip() == "---":
+            if current_list_key:
+                result[current_list_key] = current_list
+            break
+
+        # List item (e.g. "  - python")
+        stripped = line.strip()
+        if stripped.startswith("- ") and current_list_key:
+            current_list.append(stripped[2:].strip())
+            continue
+
+        # New key
+        if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
+            # Save previous list if any
+            if current_list_key:
+                result[current_list_key] = current_list
+                current_list_key = None
+                current_list = []
+
+            key, _, val = line.partition(":")
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if not val:
+                # Might be a list or multi-line value
+                current_list_key = key
+                current_list = []
+            else:
+                result[key] = val
+        elif current_list_key and not stripped:
+            # Empty line ends list
+            result[current_list_key] = current_list
+            current_list_key = None
+            current_list = []
+
+    return result
+
+
 def get_pending_skills() -> list[PendingSkillInfo]:
     """Scan pending-skills directory and return list of pending skills."""
     pending_dir = PENDING_SKILLS_DIR
@@ -243,8 +334,15 @@ def get_pending_skills() -> list[PendingSkillInfo]:
             except json.JSONDecodeError:
                 pass
 
-        # Extract description from SKILL.md frontmatter or first paragraph
-        description = _extract_description_from_skill(skill_md)
+        # Extract description and frontmatter fields from SKILL.md (single read)
+        skill_content = skill_md.read_text(encoding="utf-8")
+        fm = _parse_yaml_frontmatter(skill_content)
+        description = (
+            str(fm.get("description", ""))
+            if fm.get("description")
+            else _extract_first_paragraph(skill_content)
+        )
+        fm_tags = fm.get("tags", [])
 
         skills.append(
             PendingSkillInfo(
@@ -253,10 +351,30 @@ def get_pending_skills() -> list[PendingSkillInfo]:
                 path=str(skill_dir),
                 domains=metadata.get("workflow", {}).get("domains", []),
                 validation_passed=metadata.get("validation_passed", True),
+                author=str(fm.get("author", "")),
+                version=str(fm.get("version", "")),
+                tags=fm_tags if isinstance(fm_tags, list) else [],
             )
         )
 
     return skills
+
+
+def _extract_first_paragraph(content: str) -> str:
+    """Extract first non-heading paragraph from markdown, skipping frontmatter."""
+    in_frontmatter = False
+    for i, line in enumerate(content.strip().split("\n")):
+        if i == 0 and line.strip() == "---":
+            in_frontmatter = True
+            continue
+        if in_frontmatter:
+            if line.strip() == "---":
+                in_frontmatter = False
+            continue
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return _truncate(stripped)
+    return "No description available"
 
 
 def _extract_heading(content: str) -> str:
@@ -275,35 +393,52 @@ def get_pending_strategies() -> list[PendingStrategyInfo]:
     strategies = []
     for strategy_file in PENDING_STRATEGIES_DIR.glob("*.md"):
         content = strategy_file.read_text(encoding="utf-8")
+        fm = _parse_yaml_frontmatter(content)
+        fm_tags = fm.get("tags", [])
 
-        # Extract category from frontmatter if present
-        category = None
-        if content.startswith("---"):
-            for line in content.split("\n")[1:]:
-                if line.strip() == "---":
-                    break
-                if line.startswith("category:"):
-                    category = line.split(":", 1)[1].strip()
+        # Use heading if present, otherwise first non-empty content line
+        description = _extract_heading(content)
+        if not description:
+            for line in content.split("\n"):
+                stripped = line.strip()
+                if stripped and not stripped.startswith("---") and not stripped.startswith("#"):
+                    if not stripped.startswith("category:"):
+                        description = stripped
+                        break
 
         strategies.append(
             PendingStrategyInfo(
                 name=strategy_file.stem,
-                description=_truncate(_extract_heading(content)),
+                description=_truncate(description),
                 path=str(strategy_file),
-                category=category,
+                category=str(fm.get("category", "")) or None,
+                author=str(fm.get("author", "")),
+                version=str(fm.get("version", "")),
+                tags=fm_tags if isinstance(fm_tags, list) else [],
             )
         )
 
     return strategies
 
 
-def _extract_description_from_skill(skill_md: Path) -> str:
-    """Extract description from SKILL.md file."""
-    content = skill_md.read_text(encoding="utf-8")
+def extract_skill_description(content: str, fallback: str = "") -> str:
+    """Extract description from SKILL.md content string.
+
+    Looks for a YAML frontmatter ``description`` field first, then falls back
+    to the first non-heading paragraph line.
+
+    Args:
+        content: Raw markdown text of the skill file.
+        fallback: Value to return when no description is found.
+
+    Returns:
+        Extracted (and truncated) description, or *fallback*.
+    """
     lines = content.strip().split("\n")
 
-    # Check for frontmatter description
     in_frontmatter = False
+    in_multiline_desc = False
+    desc_lines: list[str] = []
     for i, line in enumerate(lines):
         if i == 0 and line.strip() == "---":
             in_frontmatter = True
@@ -311,18 +446,33 @@ def _extract_description_from_skill(skill_md: Path) -> str:
         if in_frontmatter:
             if line.strip() == "---":
                 in_frontmatter = False
+                if desc_lines:
+                    return _truncate(" ".join(desc_lines))
                 continue
             if line.startswith("description:"):
-                desc = line.split(":", 1)[1].strip().strip('"').strip("'")
-                return _truncate(desc)
+                val = line.split(":", 1)[1].strip().strip('"').strip("'")
+                if val in ("|", ">", "|+", "|-", ">+", ">-", ""):
+                    in_multiline_desc = True
+                    continue
+                return _truncate(val)
+            if in_multiline_desc:
+                if line.startswith("  ") or line.startswith("\t"):
+                    desc_lines.append(line.strip())
+                    continue
+                else:
+                    in_multiline_desc = False
             continue
 
-        # After frontmatter, look for first paragraph
         stripped = line.strip()
         if stripped and not stripped.startswith("#"):
             return _truncate(stripped)
 
-    return "No description available"
+    return fallback or "No description available"
+
+
+def _extract_description_from_skill(skill_md: Path) -> str:
+    """Extract description from a SKILL.md file path."""
+    return extract_skill_description(skill_md.read_text(encoding="utf-8"))
 
 
 # =============================================================================
@@ -602,19 +752,6 @@ def _format_lessons_section(lessons: list) -> str:
     return "\n".join(lines)
 
 
-def _format_install_options(
-    skills: list,
-    strategies: list,
-) -> str:
-    """Format multi-select install options for AskUserQuestion.
-
-    Accepts both dataclass and Pydantic model types.
-    """
-    options = [f"Skill: {_get_skill_name(s)}" for s in skills]
-    options += [f"Strategy: {_get_strategy_name(s)}" for s in strategies]
-    return "\n".join(f"     - {opt}" for opt in options)
-
-
 _WORKFLOW_TEMPLATE = """\
 \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
 \u2502                    MANDATORY WORKFLOW FOR CLAUDE                   \u2502
@@ -633,7 +770,10 @@ For EACH pending item, use the Read tool to:
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 STEP 2: PRESENT REVIEW TO USER
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-For EACH item, show the user:
+For EACH item, show the user.
+Do NOT call AskUserQuestion in this response. End after the review,
+then proceed directly to Step 3 in your next response (no user confirmation needed).
+Show each item as:
 
 \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
 \u2502 \U0001f4e6 SKILL: <name>                                    \u2502
@@ -655,24 +795,18 @@ For EACH item, show the user:
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 STEP 3: ASK USER QUESTIONS (use AskUserQuestion tool)
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-MUST use AskUserQuestion with MULTIPLE questions:
+**Rules for AskUserQuestion:**
+- Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
+- Do NOT call AskUserQuestion in the **same response** as Read tool calls or large text output
+  AskUserQuestion will not render in the UI if combined with heavy output
+- If an answer comes back **empty/blank**, re-ask that same question once more
+- After **2 consecutive empty responses**, ask the user in plain text what to do
 
-Question 1 - "Which items to install?" (multiSelect: true)
-  Header: "Install"
-  Options:
-${options_list}
-
-Question 2 - "Which version?" (per item with improvements)
-  Header: "Version"
-  Options:
-     - Enhanced (Recommended) - with Claude's improvements
-     - Original - as generated by pipeline
-
-Question 3 - "Installation location?"
-  Header: "Location"
-  Options:
-     - Project level (.claude/skills/) (Recommended)
-     - User level (~/.claude/skills/)
+**Question flow (one at a time, separate calls):**
+1. "Which skills to install?" (multiSelect: true)
+2. "Which strategies to install?" (multiSelect: true)
+3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
+4. "Installation location?" (project or user level) — only ask if items were selected
 
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 STEP 4: INSTALL APPROVED ITEMS
@@ -684,20 +818,37 @@ Based on user's choices:
 Use Write tool to create the files.
 
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-STEP 5: CLEAN UP
+STEP 5: ARCHIVE
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-After installation, clear all pending items:
+After successful installation, ARCHIVE (not delete) all pending items.
+
+Run this command EXACTLY as shown (do NOT change imports):
 
 ```bash
 MEGA_DIR=$(cat ~/.local/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
-  uv run --directory "$MEGA_DIR" python -c "
-from mega_code.client.pending import clear_pending
-cleared = clear_pending()
-print(f'Cleared {cleared} pending items')
+[ -f "${{HOME}}/.local/mega-code/.env" ] && set -a && . "${{HOME}}/.local/mega-code/.env" && set +a
+cd "$MEGA_DIR" && set -a && . ./.env && set +a && uv run python -c "
+# IMPORTANT: archive_pending_items is in feedback module, NOT pending module
+from mega_code.client.feedback import archive_pending_items
+# IMPORTANT: listing functions are get_pending_*, NOT list_pending_*
+from mega_code.client.pending import get_pending_skills, get_pending_strategies
+skills = get_pending_skills()
+strategies = get_pending_strategies()
+# Build installed_names set from the items user chose to install in Step 3
+installed_names = ${{installed_names}}  # <-- fill with set of installed item names
+run_id = archive_pending_items(
+    run_id='${{run_id}}',
+    project_id='${{project_id}}',
+    installed_skills=[s for s in skills if s.name in installed_names],
+    skipped_skills=[s for s in skills if s.name not in installed_names],
+    installed_strategies=[s for s in strategies if s.name in installed_names],
+    skipped_strategies=[s for s in strategies if s.name not in installed_names],
+)
+print(f'ARCHIVED_RUN_ID={{run_id}}')
 "
 ```
 
+Parse ARCHIVED_RUN_ID from the output.
 Report summary of what was installed and where.
 
 \u26a1 START STEP 1 NOW - READ THE PENDING FILES IMMEDIATELY \u26a1"""
@@ -729,8 +880,8 @@ def format_review_notification(
         header: Title shown in the top banner box.
         preamble: Optional text shown between the banner and the item lists.
         errors: Optional list of warning messages to display.
-        run_id: Pipeline run UUID used for lesson storage paths.
-        project_id: Project identifier used for lesson storage paths.
+        run_id: Pipeline run UUID for archive commands.
+        project_id: Project identifier for archive commands.
 
     Returns:
         Formatted notification string.
@@ -739,7 +890,6 @@ def format_review_notification(
     total_count = len(skills) + len(strategies) + len(lessons)
     skills_section = _format_skills_section(skills)
     strategies_section = _format_strategies_section(strategies)
-    options_list = _format_install_options(skills, strategies)
 
     errors_section = ""
     if errors:
@@ -749,7 +899,6 @@ def format_review_notification(
     preamble_section = f"\n{preamble}\n" if preamble else ""
 
     workflow = string.Template(_WORKFLOW_TEMPLATE).safe_substitute(
-        options_list=options_list,
         run_id=run_id or "<RUN_ID>",
         project_id=project_id or "<PROJECT_ID>",
     )

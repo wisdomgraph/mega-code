@@ -17,8 +17,7 @@ MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null
 ## Step 1: Create session (fast, non-blocking)
 
 ```bash
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
-  uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create
+uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create
 ```
 
 Add `--provider github` for GitHub OAuth instead of Google.
@@ -39,9 +38,8 @@ On error, the JSON has an `error` field instead.
 ## Step 2: Poll for completion (run in background)
 
 ```bash
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a && \
-  uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
-    --step poll --client-id CLIENT_ID --url BASE_URL
+uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
+  --step poll --client-id CLIENT_ID --url BASE_URL
 ```
 
 Replace `CLIENT_ID` and `BASE_URL` with values from Step 1.
@@ -66,5 +64,5 @@ grep -E "MEGA_CODE_(API_KEY|CLIENT_MODE|SERVER_URL)" "$HOME/.local/mega-code/.en
 ## Troubleshooting
 
 - **Timeout**: Session expires after 10 min. Re-run the command.
-- **Connection error**: Check `MEGA_SERVICE_URL` in `~/.local/mega-code/.env`.
+- **Connection error**: Check `MEGA_CODE_SERVER_URL` in `~/.local/mega-code/.env`.
 - **Already logged in**: Running login again replaces the existing key.
