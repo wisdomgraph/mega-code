@@ -1,6 +1,6 @@
 ---
 description: Run the MEGA-Code skill extraction pipeline to analyze Claude Code sessions and generate reusable skills and strategies.
-argument-hint: [--project [@<name>]] [--model <model>] [--poll-timeout <seconds>]
+argument-hint: [--project [@<name>]] [--model <model>] [--poll-timeout <seconds>] [--include-claude] [--include-codex] [--include-all]
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 disable-model-invocation: true
 ---
@@ -40,6 +40,9 @@ All commands below assume `MEGA_DIR` is set.
 | `--session-id <uuid>` | Specific session |
 | `--model <alias>` | LLM model (default: server picks best) |
 | `--poll-timeout <seconds>` | Max seconds to poll for completion (default: 1200 = 20 min; 0 = indefinite) |
+| `--include-claude` | Include related Claude Code sessions from the project |
+| `--include-codex` | Include related Codex CLI sessions from the project |
+| `--include-all` | Include sessions from all sources (Claude + Codex) |
 
 **Project argument formats** (all equivalent):
 `@mega-code` · `mega-code` · `mega-code_b39e0992` · `/path/to/project`
