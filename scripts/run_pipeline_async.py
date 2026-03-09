@@ -486,9 +486,9 @@ async def main():
                     _raw = 1200
             poll_timeout: float | None = None if _raw == 0 else float(_raw)
             if poll_timeout is None:
-                logger.info("Poll timeout: indefinite (waiting until pipeline completes)")
+                print("Poll timeout: indefinite (waiting until pipeline completes)")
             else:
-                logger.info("Poll timeout: %.0fs (%.0f min)", poll_timeout, poll_timeout / 60)
+                print(f"Poll timeout: {poll_timeout:.0f}s ({poll_timeout / 60:.0f} min)")
 
             # Trigger pipeline
             logger.info("Triggering pipeline via client...")
