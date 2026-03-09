@@ -38,11 +38,7 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
             api_key = os.environ.get("MEGA_CODE_API_KEY", "")
             if not api_key:
                 raise ValueError(
-                    "MEGA_CODE_API_KEY is required for remote mode but not set.\n"
-                    "\n"
-                    "Run the following command to configure your API key:\n"
-                    "  uv run --directory ~/.claude/mega-code mega-code configure"
-                    " --api-key <your_key>\n"
+                    "Not logged in. Run /mega-code:login first."
                 )
             kwargs["api_key"] = api_key
         if "server_url" not in kwargs:
