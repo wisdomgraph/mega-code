@@ -768,6 +768,40 @@ def _get_workflow_template() -> str:
     return config["review_notification"]["workflow_template"].rstrip("\n")
 
 
+def get_no_outputs_notification() -> str:
+    """Load the no-outputs notification from config.yaml."""
+    config = _load_config()
+    return config["no_outputs_notification"].rstrip("\n")
+
+
+def format_error_notification(error: str) -> str:
+    """Format an error notification from config.yaml template."""
+    config = _load_config()
+    template = config["error_notification"].rstrip("\n")
+    return string.Template(template).safe_substitute(error=error)
+
+
+def format_pipeline_notification(result: PendingResult) -> str:
+    """Format notification after pipeline completion.
+
+    Delegates to format_review_notification() for the review workflow,
+    with a pipeline-specific header and preamble.
+    """
+    if not result.has_outputs():
+        return get_no_outputs_notification()
+
+    return format_review_notification(
+        result.skills,
+        result.strategies,
+        lessons=result.lessons,
+        header="ITEM(S) READY - PIPELINE COMPLETE",
+        preamble="Pipeline completed successfully! Generated:",
+        errors=result.errors or None,
+        run_id=result.run_id,
+        project_id=result.project_id,
+    )
+
+
 def format_review_notification(
     skills: list,
     strategies: list,

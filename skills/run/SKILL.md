@@ -56,7 +56,7 @@ All variables must be in **one single Bash call** so `$LOG` and `$MEGA_DIR` stay
 LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log" && \
   echo "Pipeline log: $LOG" && \
   export CLAUDE_PROJECT_DIR="$PWD" && \
-  uv run --directory "$MEGA_DIR" python scripts/run_pipeline_async.py [FLAGS] 2>&1 | tee "$LOG"
+  uv run --directory "$MEGA_DIR" python -m mega_code.client.run_pipeline [FLAGS] 2>&1 | tee "$LOG"
 ```
 
 Replace `[FLAGS]` with desired combination from the table above.

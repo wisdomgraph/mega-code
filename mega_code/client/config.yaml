@@ -1,6 +1,31 @@
 # Client-side configuration for mega-code notifications and prompts.
 # Templates use Python string.Template syntax: ${var} for substitution.
 
+no_outputs_notification: |
+  ╔═══════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  MEGA-CODE: PIPELINE COMPLETE - NO NEW OUTPUTS                 ║
+  ╚═══════════════════════════════════════════════════════════════════╝
+
+  The pipeline completed but did not generate any new skills, strategies, or lessons.
+  This may happen if:
+  - The session(s) didn't contain learnable patterns
+  - Quality gates filtered out low-quality outputs
+  - No new patterns were detected
+
+  Try running on more sessions with: /mega-code:run --project
+
+error_notification: |
+  ═══════════════════════════════════════════════════════════════════════
+  ❌ MEGA-CODE: PIPELINE ERROR
+  ═══════════════════════════════════════════════════════════════════════
+
+  The pipeline encountered an error:
+
+  ${error}
+
+  Please check the logs for more details.
+  You can try again with: /mega-code:run
+
 review_notification:
   workflow_template: |
     ┌───────────────────────────────────────────────────────────────────┐
