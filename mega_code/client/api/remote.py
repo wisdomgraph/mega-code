@@ -1,8 +1,6 @@
-"""Remote client implementation (client edition).
+"""Remote client implementation.
 
 MegaCodeRemote connects to the FastAPI server via HTTP.
-For open-source users uploading data to a hosted server.
-Zero enterprise dependencies.
 """
 
 from __future__ import annotations

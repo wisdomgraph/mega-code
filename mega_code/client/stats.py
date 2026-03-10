@@ -326,6 +326,73 @@ def finalize_session(
         save_metadata(metadata)
 
 
+def resolve_project_path(project_arg: str) -> Path:
+    """Resolve a project argument to a mega-code data folder path.
+
+    Supports three input formats:
+    1. @prefix or name prefix: fuzzy match against mapping.json keys
+       e.g. '@mega-code' or 'mega-code' -> ~/.local/mega-code/projects/mega-code_b39e0992/
+    2. Folder name with hash: direct lookup
+       e.g. 'mega-code_b39e0992' -> ~/.local/mega-code/projects/mega-code_b39e0992/
+    3. Absolute/relative path: resolve via get_project_sessions_dir()
+       e.g. '/Users/foo/my-project' -> ~/.local/mega-code/projects/my-project_a1b2c3d4/
+
+    Args:
+        project_arg: Project identifier (with optional @ prefix).
+
+    Returns:
+        Path to the mega-code project data folder.
+
+    Raises:
+        ValueError: If the project cannot be resolved.
+    """
+    import logging
+
+    _logger = logging.getLogger(__name__)
+
+    # Strip @ prefix if present (Claude Code autocomplete adds this)
+    arg = project_arg.lstrip("@").strip()
+
+    if not arg:
+        raise ValueError("Empty project argument")
+
+    projects_dir = get_projects_dir()
+    mapping = load_mapping()
+
+    # Strategy 1: Exact folder name match (e.g. 'mega-code_b39e0992')
+    candidate = projects_dir / arg
+    if candidate.is_dir():
+        _logger.info(f"Resolved project by exact folder name: {arg}")
+        return candidate
+
+    # Strategy 2: Prefix match against mapping keys (e.g. 'mega-code')
+    matches = [
+        folder_name
+        for folder_name in mapping
+        if folder_name.startswith(arg) and (projects_dir / folder_name).is_dir()
+    ]
+    if len(matches) == 1:
+        _logger.info(f"Resolved project by prefix '{arg}' -> {matches[0]}")
+        return projects_dir / matches[0]
+    if len(matches) > 1:
+        match_list = ", ".join(matches)
+        raise ValueError(
+            f"Ambiguous project prefix '{arg}' matches: {match_list}. "
+            f"Use a more specific name or the full folder name."
+        )
+
+    # Strategy 3: Treat as filesystem path, resolve via stats
+    path = Path(arg).expanduser().resolve()
+    if path.is_dir():
+        _logger.info(f"Resolved project by path: {path}")
+        return get_project_sessions_dir(str(path))
+
+    raise ValueError(
+        f"Cannot resolve project '{project_arg}'. "
+        f"Use: @<name-prefix>, <folder_name>, or /path/to/project"
+    )
+
+
 def find_current_session(project_dir: str | None = None) -> str | None:
     """Find the most recently updated session.
 

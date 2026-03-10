@@ -12,8 +12,7 @@ Canonical imports:
 import importlib
 
 # Lazy re-exports so that `from mega_code.client import create_client` works
-# without capturing early references (estimate_cost is patched at runtime by
-# mega_code/__init__.py for enterprise pricing).
+# without capturing early references (estimate_cost may be patched at runtime).
 _LAZY_IMPORTS = {
     "create_client": "mega_code.client.api",
     "MegaCodeBaseClient": "mega_code.client.api.protocol",

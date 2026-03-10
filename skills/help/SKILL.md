@@ -59,6 +59,7 @@ The `--model` flag for `/mega-code:run` accepts any model alias supported by the
 
 When no model is specified, the server selects the best model based on your configured LLM keys.
 
+
 ## Tips
 
   - Run /mega-code:run after significant coding sessions
