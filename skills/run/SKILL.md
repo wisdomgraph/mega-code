@@ -69,7 +69,7 @@ Tell the user the log path so they can monitor with `tail -f` or check after com
 | `gemini-3-flash` | Google |
 | `gpt-5-mini` | OpenAI |
 
-When omitted, server selects based on configured LLM keys (priority: OpenAI > Anthropic > Gemini). Falls back to `gemini-3-flash`.
+When omitted, server selects based on configured LLM keys (priority: OpenAI > Gemini). Falls back to `gemini-3-flash`.
 
 ## Pipeline Outputs
 
