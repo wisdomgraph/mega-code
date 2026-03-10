@@ -1,4 +1,5 @@
 ---
+name: mega-code-run
 description: Run the MEGA-Code skill extraction pipeline to analyze coding sessions and generate reusable skills and strategies.
 ---
 
@@ -22,9 +23,9 @@ The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout
 ## Setup
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null)"
-if [ -z "$MEGA_DIR" ]; then
-  MEGA_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+MEGA_DIR="$HOME/.local/mega-code/pkg"
+if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+  git clone --depth 1 https://github.com/wisdomgraph/mega-code.git "$MEGA_DIR"
 fi
 bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
 ```

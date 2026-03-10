@@ -1,4 +1,5 @@
 ---
+name: mega-code-login
 description: Sign in to MEGA-Code via GitHub or Google OAuth to get an API key.
 ---
 
@@ -9,9 +10,9 @@ Authenticate with MEGA-Code to obtain an API key using a two-step OAuth flow.
 ## Setup
 
 ```bash
-MEGA_DIR="$(cat ~/.local/mega-code/plugin-root 2>/dev/null)"
-if [ -z "$MEGA_DIR" ]; then
-  MEGA_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+MEGA_DIR="$HOME/.local/mega-code/pkg"
+if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+  git clone --depth 1 https://github.com/wisdomgraph/mega-code.git "$MEGA_DIR"
 fi
 bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
 ```
@@ -38,7 +39,12 @@ On error, the JSON has an `error` field instead.
 2. Show `login_url` to the user — tell them to open it in their browser
 3. Save `client_id` and `base_url` for Step 2
 
-## Step 2: Poll for completion (run in background)
+## Step 2: Poll for completion (foreground — wait for browser)
+
+After showing the user the `login_url`, run the poll command **in the foreground**.
+It blocks until the user completes the browser OAuth flow (polls every 3s, times out after 10 min).
+
+**Do NOT run this in the background** — background processes do not survive in Codex's sandbox.
 
 ```bash
 uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
@@ -46,13 +52,10 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
 ```
 
 Replace `CLIENT_ID` and `BASE_URL` with values from Step 1.
-Run this **in the background** so the user is not blocked.
 
 On success, saves to `~/.local/mega-code/.env` (stable, version-independent):
 - `MEGA_CODE_API_KEY`, `MEGA_CODE_CLIENT_MODE=remote`, `MEGA_CODE_SERVER_URL`
 - Prints "Login successful!" and exits
-
-Polls every 3s, times out after 10 minutes.
 
 ## Verify
 
