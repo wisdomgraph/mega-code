@@ -316,8 +316,11 @@ def load_sessions_from_project(
             project_paths.add(session.metadata.project_path)
 
     if not project_paths:
-        logger.debug("No project paths found in MEGA-Code sessions")
-        return mega_sessions[:limit] if limit else mega_sessions
+        if not include_claude and not include_codex:
+            return mega_sessions[:limit] if limit else mega_sessions
+        # Fall back to the project_path argument for enrichment sources
+        project_paths.add(str(project_path))
+        logger.debug(f"No MEGA sessions; using project_path argument: {project_path}")
 
     logger.debug(f"Found {len(project_paths)} unique project paths in MEGA-Code sessions")
 

@@ -143,6 +143,13 @@ class MegaCodeRemote:
 
             await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
 
+        if include_codex and project_path is not None:
+            from mega_code.client.api.codex_sync import sync_codex_trajectories
+
+            await asyncio.to_thread(
+                sync_codex_trajectories, project_path, self, project_id, str(project_path)
+            )
+
         payload = {
             "project_id": project_id,
             "force": force,

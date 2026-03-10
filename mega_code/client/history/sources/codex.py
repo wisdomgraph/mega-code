@@ -3,6 +3,7 @@
 Loads historical conversation data from Codex CLI's storage format.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime
@@ -94,7 +95,7 @@ class CodexSource:
 
     def _extract_session_metadata(
         self, entries: list[dict[str, Any]], session_path: Path
-    ) -> HistorySessionMetadata:
+    ) -> HistorySessionMetadata | None:
         """Extract session metadata from JSONL entries.
 
         Args:
@@ -102,19 +103,21 @@ class CodexSource:
             session_path: Path to the session file.
 
         Returns:
-            HistorySessionMetadata object.
+            HistorySessionMetadata object, or None if no valid session_meta found.
         """
         # Find session_meta entry
         session_meta = next((e for e in entries if e.get("type") == "session_meta"), None)
         if not session_meta:
-            raise ValueError(f"No session_meta found in {session_path}")
+            return None
 
-        payload = session_meta["payload"]
+        payload = session_meta.get("payload", {})
+        if not payload:
+            return None
         session_id = payload.get("id", "")
 
         # Get first turn context for model
         first_turn = next((e for e in entries if e.get("type") == "turn_context"), None)
-        model_id = first_turn["payload"]["model"] if first_turn else None
+        model_id = first_turn.get("payload", {}).get("model") if first_turn else None
 
         # Get first user message
         first_prompt = None
@@ -133,7 +136,8 @@ class CodexSource:
 
         ended_at = None
         if entries:
-            last_timestamp = max(e.get("timestamp", "") for e in entries)
+            timestamps = [e["timestamp"] for e in entries if e.get("timestamp")]
+            last_timestamp = max(timestamps) if timestamps else None
             if last_timestamp:
                 try:
                     ended_at = datetime.fromisoformat(last_timestamp.replace("Z", "+00:00"))
@@ -269,10 +273,14 @@ class CodexSource:
         for item in items:
             item_payload = item["payload"]
             if item_payload["type"] == "function_call":
-                call_id = item_payload["call_id"]
+                call_id = item_payload.get("call_id")
+                if not call_id:
+                    continue
                 call_entries[call_id] = item
             elif item_payload["type"] == "function_call_output":
-                call_id = item_payload["call_id"]
+                call_id = item_payload.get("call_id")
+                if not call_id:
+                    continue
                 output_entries[call_id] = item
 
         # Build ToolCall objects
@@ -351,8 +359,11 @@ class CodexSource:
                 cache_create_tokens=0,  # Not separately tracked
             )
 
+        content_hash = hashlib.sha256(
+            json.dumps(msg_entry, sort_keys=True).encode()
+        ).hexdigest()[:12]
         return Message(
-            id=f"{msg_entry.get('timestamp', '')}-{id(msg_entry)}",
+            id=f"{msg_entry.get('timestamp', '')}-{content_hash}",
             role=mapped_role,  # type: ignore[arg-type]
             content=content,
             tool_calls=tool_calls,
@@ -370,7 +381,9 @@ class CodexSource:
             try:
                 entries = self._load_jsonl_entries(session_path)
                 if entries:
-                    yield self._extract_session_metadata(entries, session_path)
+                    metadata = self._extract_session_metadata(entries, session_path)
+                    if metadata is not None:
+                        yield metadata
             except Exception as e:
                 logger.warning(f"Failed to extract metadata from {session_path}: {e}")
 
@@ -392,7 +405,7 @@ class CodexSource:
             entries = self._load_jsonl_entries(session_path)
             if entries:
                 session_meta = next((e for e in entries if e.get("type") == "session_meta"), None)
-                if session_meta and session_meta["payload"].get("id") == session_id:
+                if session_meta and session_meta.get("payload", {}).get("id") == session_id:
                     return self._load_session_from_entries(entries, session_path)
 
         raise KeyError(f"Session not found: {session_id}")
@@ -410,6 +423,11 @@ class CodexSource:
             Complete Session object.
         """
         metadata = self._extract_session_metadata(entries, session_path)
+        if metadata is None:
+            metadata = HistorySessionMetadata(
+                session_id="",
+                source=self.name,
+            )
         messages = self._parse_messages(entries)
 
         return Session(metadata=metadata, messages=messages)
