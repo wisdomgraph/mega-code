@@ -95,6 +95,36 @@ def _load_local_session_as_turnset(
     )
 
 
+def _load_claude_session_as_turnset(
+    session: "Session",
+) -> TurnSet | None:
+    """Convert a Claude native Session into a TurnSet for upload.
+
+    Args:
+        session: Session loaded from ClaudeNativeSource.
+
+    Returns:
+        TurnSet if the session has turns, None otherwise.
+    """
+    from mega_code.client.filters import filter_metadata, filter_turns
+    from mega_code.client.turns import extract_turns
+
+    turns, metadata = extract_turns(session)
+    if not turns:
+        return None
+
+    project_dir = metadata.project_path
+    turns = filter_turns(turns, project_dir=project_dir)
+    metadata = filter_metadata(metadata, project_dir=project_dir)
+
+    return TurnSet(
+        session_id=session.metadata.session_id,
+        session_dir=Path(""),
+        turns=turns,
+        metadata=metadata,
+    )
+
+
 @traced("client.sync_trajectories")
 def sync_trajectories(
     project_dir: Path,
@@ -164,4 +194,92 @@ def sync_trajectories(
     _save_ledger(ledger_path, ledger)
 
     logger.info("Sync complete: %d new, %d existing", uploaded, len(synced))
+    return uploaded
+
+
+@traced("client.sync_claude_trajectories")
+def sync_claude_trajectories(
+    project_dir: Path,
+    client: MegaCodeBaseClient,
+    project_id: str,
+) -> int:
+    """Upload matching Claude Code native sessions as trajectories.
+
+    Finds Claude native sessions whose projectPath matches the project paths
+    found in local MEGA-Code sessions, converts them to TurnSets, and uploads
+    to the server. Tracks uploads in sync-ledger.json under a
+    "claude_sessions" key to avoid re-uploading.
+
+    Args:
+        project_dir: Local mega-code project data folder
+            (e.g. ~/.local/mega-code/projects/mega-code_b39e0992/).
+        client: Authenticated client (typically MegaCodeRemote).
+        project_id: Project identifier for the server.
+
+    Returns:
+        Number of newly uploaded Claude sessions.
+    """
+    from mega_code.client.history.loader import load_sessions_from_project
+
+    # Load merged sessions (include_claude=True gets us the Claude sessions)
+    all_sessions = load_sessions_from_project(
+        project_dir, include_claude=True, include_codex=False,
+    )
+
+    # Filter to only Claude native sessions
+    claude_sessions = [
+        s for s in all_sessions if s.metadata.source == "claude_native"
+    ]
+    if not claude_sessions:
+        logger.info("No Claude native sessions found for project")
+        return 0
+
+    # Load ledger and check which Claude sessions are already synced
+    ledger_path = project_dir / "sync-ledger.json"
+    ledger = _load_ledger(ledger_path)
+    synced = set(ledger.get("claude_sessions", {}).keys())
+
+    unsynced = [s for s in claude_sessions if s.metadata.session_id not in synced]
+    if not unsynced:
+        logger.info("All %d Claude sessions already synced", len(synced))
+        return 0
+
+    logger.info(
+        "Syncing %d new Claude sessions (%d already synced)",
+        len(unsynced),
+        len(synced),
+    )
+
+    uploaded = 0
+    for session in unsynced:
+        session_id = session.metadata.session_id
+        try:
+            turn_set = _load_claude_session_as_turnset(session)
+            if not turn_set or not turn_set.turns:
+                logger.debug("Skipping empty Claude session: %s", session_id)
+                continue
+
+            result: UploadResult = client.upload_trajectory(
+                turn_set=turn_set,
+                project_id=project_id,
+            )
+            logger.info("Uploaded Claude session %s: %s", session_id, result.message)
+
+            ledger.setdefault("claude_sessions", {})[session_id] = {
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "turn_count": len(turn_set.turns),
+            }
+            uploaded += 1
+        except Exception as e:
+            logger.warning("Failed to sync Claude session %s: %s", session_id, e)
+            continue
+
+    # Save updated ledger
+    from mega_code.client.api.remote import MegaCodeRemote
+
+    if isinstance(client, MegaCodeRemote):
+        ledger["server_url"] = client.server_url
+    _save_ledger(ledger_path, ledger)
+
+    logger.info("Claude sync complete: %d new, %d existing", uploaded, len(synced))
     return uploaded
