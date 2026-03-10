@@ -76,6 +76,40 @@ Supported providers: **OpenAI** (`OPENAI_API_KEY`) and **Google Gemini** (`GEMIN
 /mega-code:feedback               # Rate the generated skills
 ```
 
+### Codex CLI
+
+MEGA-Code also supports [OpenAI Codex CLI](https://github.com/openai/codex) via
+the `.agents/skills/` integration.
+
+**Install:**
+
+```bash
+git clone https://github.com/wisdomgraph/mega-code.git ~/.agents/skills/mega-code
+```
+
+**Available commands** (invoked with `$` prefix in Codex):
+
+| Command | Description |
+|---------|-------------|
+| `$mega-code-login` | Sign in via GitHub or Google OAuth |
+| `$mega-code-run` | Run skill extraction pipeline |
+| `$mega-code-status` | Show pending items and status |
+| `$mega-code-profile` | View or update developer profile |
+| `$mega-code-help` | Show help and reference |
+
+**Example usage:**
+
+```bash
+# In a Codex CLI session:
+$mega-code-login                          # Sign in (first time)
+$mega-code-run --project --include-codex  # Extract skills from Codex sessions
+$mega-code-run --project --include-all    # Extract from all sources (Claude + Codex)
+$mega-code-status                         # See what was generated
+```
+
+> **Note:** The first run triggers a bootstrap step (`codex-bootstrap.sh`) that
+> installs Python dependencies via `uv`. This may take 30–60 seconds on first use.
+
 ## Development Setup (from main repo)
 
 If you are developing from the main `mega-code` repository (which includes this
@@ -116,6 +150,14 @@ mega-code-oss/
 │   ├── scripts/
 │   │   └── session-start.sh # Bootstrap script
 │   └── pyproject.toml
+├── codex-skills/             # Codex CLI skill definitions
+│   ├── mega-code-login/      # $mega-code-login
+│   ├── mega-code-run/        # $mega-code-run
+│   ├── mega-code-status/     # $mega-code-status
+│   ├── mega-code-profile/    # $mega-code-profile
+│   └── mega-code-help/       # $mega-code-help
+├── scripts/
+│   └── codex-bootstrap.sh   # First-run dependency installer
 └── README.md
 ```
 

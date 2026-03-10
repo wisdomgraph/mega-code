@@ -45,3 +45,27 @@ before making server calls.
 - All hook commands reference `${CLAUDE_PLUGIN_ROOT}` — never hardcode paths
 - Every hook entry must have a `timeout` field (max 30s for data hooks, 5s for checks)
 - Required events: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`
+
+## Codex Skill Conventions
+
+Codex CLI uses a different skill layout than Claude Code. Skills live in `codex-skills/`:
+
+```
+codex-skills/
+├── mega-code-login/SKILL.md     # $mega-code-login
+├── mega-code-run/SKILL.md       # $mega-code-run
+├── mega-code-status/SKILL.md    # $mega-code-status
+├── mega-code-profile/SKILL.md   # $mega-code-profile
+└── mega-code-help/SKILL.md      # $mega-code-help
+```
+
+**Invocation syntax:** Codex uses `$mega-code-<name>` (dollar prefix) instead of
+Claude Code's `/mega-code:skill-name` (slash + colon).
+
+**Frontmatter:** Codex SKILL.md files use only `description:` in frontmatter.
+Do not include `allowed-tools:`, `argument-hint:`, or `disable-model-invocation:`
+— these are Claude Code-specific fields that Codex ignores.
+
+**Bootstrap:** The `codex-bootstrap.sh` script installs Python dependencies via
+`uv` on first run. It is called lazily from within skill scripts, not via hooks
+(Codex CLI does not support lifecycle hooks).
