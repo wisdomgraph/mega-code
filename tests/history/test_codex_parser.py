@@ -178,9 +178,7 @@ class TestTokenMapping:
                 and e["payload"].get("type") == "token_count"
             )
         ]
-        session = source._load_session_from_entries(
-            entries_no_tokens, Path("dummy.jsonl")
-        )
+        session = source._load_session_from_entries(entries_no_tokens, Path("dummy.jsonl"))
         for msg in session.messages:
             assert msg.token_usage is None
 
@@ -249,12 +247,6 @@ class TestGoldenFullParse:
         token_usages = [m for m in session.messages if m.token_usage is not None]
 
         assert len(user_msgs) == 5, f"Expected 5 user msgs, got {len(user_msgs)}"
-        assert (
-            len(assistant_msgs) == 8
-        ), f"Expected 8 assistant msgs, got {len(assistant_msgs)}"
-        assert (
-            len(all_tool_calls) == 6
-        ), f"Expected 6 tool calls, got {len(all_tool_calls)}"
-        assert (
-            len(token_usages) == 4
-        ), f"Expected 4 token usages, got {len(token_usages)}"
+        assert len(assistant_msgs) == 8, f"Expected 8 assistant msgs, got {len(assistant_msgs)}"
+        assert len(all_tool_calls) == 6, f"Expected 6 tool calls, got {len(all_tool_calls)}"
+        assert len(token_usages) == 4, f"Expected 4 token usages, got {len(token_usages)}"

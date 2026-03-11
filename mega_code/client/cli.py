@@ -146,9 +146,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     if plugin_root:
         venv_path = plugin_root / ".venv"
         print(f"\nEnvironment: {venv_path}")
-        print(
-            f"   Status: {'Ready' if venv_path.is_dir() else 'Not synced (will auto-sync)'}"
-        )
+        print(f"   Status: {'Ready' if venv_path.is_dir() else 'Not synced (will auto-sync)'}")
 
     # Check data — count sessions across all project folders
     print(f"\nData: {data_dir}")
@@ -266,15 +264,10 @@ def cmd_profile(args: argparse.Namespace) -> int:
     if not has_updates:
         # Show current profile via client (remote mode reads from mega-service DB)
         user_profile = client.load_profile()
-        if all(
-            v is None
-            for v in [user_profile.language, user_profile.level, user_profile.style]
-        ):
+        if all(v is None for v in [user_profile.language, user_profile.level, user_profile.style]):
             print("No profile set.")
             print("\nSet your profile with:")
-            print(
-                "  mega-code profile --language English --level Expert --style Concise"
-            )
+            print("  mega-code profile --language English --level Expert --style Concise")
             return 0
 
         print("Current profile:")
@@ -320,15 +313,9 @@ def main():
     subparsers.add_parser("status", help="Check installation status")
 
     # Configure command
-    configure_parser = subparsers.add_parser(
-        "configure", help="Configure mega-code settings"
-    )
-    configure_parser.add_argument(
-        "--user-id", "-u", type=str, help="Set your user identifier"
-    )
-    configure_parser.add_argument(
-        "--api-key", "-k", type=str, help="Set MEGA-Code API key"
-    )
+    configure_parser = subparsers.add_parser("configure", help="Configure mega-code settings")
+    configure_parser.add_argument("--user-id", "-u", type=str, help="Set your user identifier")
+    configure_parser.add_argument("--api-key", "-k", type=str, help="Set MEGA-Code API key")
     configure_parser.add_argument(
         "--server-url",
         type=str,
@@ -340,17 +327,11 @@ def main():
         choices=["local", "remote"],
         help="Set client mode (local or remote)",
     )
-    configure_parser.add_argument(
-        "--openai-api-key", type=str, help="Set OpenAI API key"
-    )
-    configure_parser.add_argument(
-        "--gemini-api-key", type=str, help="Set Gemini API key"
-    )
+    configure_parser.add_argument("--openai-api-key", type=str, help="Set OpenAI API key")
+    configure_parser.add_argument("--gemini-api-key", type=str, help="Set Gemini API key")
 
     # Login command (default provider imported from login module)
-    login_parser = subparsers.add_parser(
-        "login", help="Sign in via OAuth to get an API key"
-    )
+    login_parser = subparsers.add_parser("login", help="Sign in via OAuth to get an API key")
     login_parser.add_argument(
         "--provider",
         choices=["github", "google"],
@@ -365,9 +346,7 @@ def main():
     )
 
     # Profile command
-    profile_parser = subparsers.add_parser(
-        "profile", help="View or update your developer profile"
-    )
+    profile_parser = subparsers.add_parser("profile", help="View or update your developer profile")
     profile_parser.add_argument(
         "--language",
         "-l",
@@ -386,9 +365,7 @@ def main():
         choices=["Mentor", "Formal", "Concise"],
         help="Preferred teaching style",
     )
-    profile_parser.add_argument(
-        "--reset", action="store_true", help="Reset profile to defaults"
-    )
+    profile_parser.add_argument("--reset", action="store_true", help="Reset profile to defaults")
 
     args = parser.parse_args()
 

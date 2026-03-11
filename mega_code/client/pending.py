@@ -72,9 +72,7 @@ def save_dedup_metadata(
     """
     DEDUP_METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
     DEDUP_METADATA_PATH.write_text(
-        json.dumps(
-            {"skill_metadata": skill_metadata, "strategy_metadata": strategy_metadata}
-        ),
+        json.dumps({"skill_metadata": skill_metadata, "strategy_metadata": strategy_metadata}),
         encoding="utf-8",
     )
 
@@ -216,9 +214,7 @@ def save_outputs_to_pending(
         (skill_dir / "SKILL.md").write_text(skill_md_content, encoding="utf-8")
 
         # Write remaining files as-is
-        (skill_dir / "injection.json").write_text(
-            skill_data.injection_rules, encoding="utf-8"
-        )
+        (skill_dir / "injection.json").write_text(skill_data.injection_rules, encoding="utf-8")
         (skill_dir / "evidence.json").write_text(skill_data.evidence, encoding="utf-8")
         (skill_dir / "metadata.json").write_text(skill_data.metadata, encoding="utf-8")
 
@@ -246,9 +242,7 @@ def save_outputs_to_pending(
         )
 
     # Save lessons to feedback/{project_id}/{run_id}/lessons/{slug}.md
-    lessons_to_save = [
-        ls for ls in (status.outputs.pending_lessons or []) if ls.rendered_md
-    ]
+    lessons_to_save = [ls for ls in (status.outputs.pending_lessons or []) if ls.rendered_md]
     if lessons_to_save:
         lessons_dir = (
             FEEDBACK_DIR
@@ -263,9 +257,7 @@ def save_outputs_to_pending(
                 logger.warning("Overwriting existing lesson file: %s", lesson_path)
             lesson_path.write_text(lesson.rendered_md, encoding="utf-8")
             result.lessons.append(
-                PendingLessonInfo(
-                    slug=lesson.slug, title=lesson.title, path=str(lesson_path)
-                )
+                PendingLessonInfo(slug=lesson.slug, title=lesson.title, path=str(lesson_path))
             )
 
     return result
@@ -420,11 +412,7 @@ def get_pending_strategies() -> list[PendingStrategyInfo]:
         if not description:
             for line in content.split("\n"):
                 stripped = line.strip()
-                if (
-                    stripped
-                    and not stripped.startswith("---")
-                    and not stripped.startswith("#")
-                ):
+                if stripped and not stripped.startswith("---") and not stripped.startswith("#"):
                     if not stripped.startswith("category:"):
                         description = stripped
                         break
@@ -663,9 +651,7 @@ async def poll_pipeline_status(
             elapsed = time.monotonic() - start
             remaining = timeout - elapsed
             if remaining <= 0:
-                raise TimeoutError(
-                    f"Pipeline timed out after {timeout:.0f}s (run_id={run_id})"
-                )
+                raise TimeoutError(f"Pipeline timed out after {timeout:.0f}s (run_id={run_id})")
             await asyncio.sleep(min(poll_interval, remaining))
         else:
             await asyncio.sleep(poll_interval)

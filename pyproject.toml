@@ -57,6 +57,10 @@ include = [
     "pyproject.toml",
 ]
 
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

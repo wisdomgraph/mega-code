@@ -207,9 +207,7 @@ class SessionStats:
             )
 
         if "cost" in data:
-            stats.cost = SessionCost(
-                estimated_usd=data["cost"].get("estimated_usd", 0.0)
-            )
+            stats.cost = SessionCost(estimated_usd=data["cost"].get("estimated_usd", 0.0))
 
         return stats
 

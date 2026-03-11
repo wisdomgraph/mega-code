@@ -5,7 +5,7 @@
 #     1. Lint & Format Check — black --check + flake8
 #     2. Unit Tests          — pytest (when tests exist)
 
-image: python:3.13
+image: python:3.12
 
 definitions:
   caches:

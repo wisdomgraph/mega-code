@@ -17,20 +17,12 @@ class ToolCall(BaseModel):
     including both the request and response.
     """
 
-    tool_id: str = Field(
-        description="Unique identifier for this tool call (e.g., toolu_XXX)"
-    )
+    tool_id: str = Field(description="Unique identifier for this tool call (e.g., toolu_XXX)")
     tool_name: str = Field(description="Name of the tool (e.g., Bash, Read, Edit)")
-    input: dict[str, Any] = Field(
-        default_factory=dict, description="Tool input parameters"
-    )
+    input: dict[str, Any] = Field(default_factory=dict, description="Tool input parameters")
     output: str | None = Field(default=None, description="Tool output/result")
-    is_error: bool = Field(
-        default=False, description="Whether the tool call resulted in error"
-    )
-    duration_ms: int | None = Field(
-        default=None, description="Execution duration in milliseconds"
-    )
+    is_error: bool = Field(default=False, description="Whether the tool call resulted in error")
+    duration_ms: int | None = Field(default=None, description="Execution duration in milliseconds")
     status: str | None = Field(
         default=None, description="Execution status: success, error, cancelled, etc."
     )
@@ -72,12 +64,8 @@ class Message(BaseModel):
         default_factory=list,
         description="Tool results received in this message (user only)",
     )
-    timestamp: datetime | None = Field(
-        default=None, description="Message creation timestamp"
-    )
-    token_usage: TokenUsage | None = Field(
-        default=None, description="Token usage for this message"
-    )
+    timestamp: datetime | None = Field(default=None, description="Message creation timestamp")
+    token_usage: TokenUsage | None = Field(default=None, description="Token usage for this message")
     model: str | None = Field(default=None, description="Model used for this message")
     reasoning: list[dict[str, Any]] | None = Field(
         default=None,
@@ -100,20 +88,12 @@ class HistorySessionMetadata(BaseModel):
         description="Data source identifier (claude_native, mega_code, zai_bench, nlile)"
     )
     project_path: str | None = Field(default=None, description="Project directory path")
-    git_branch: str | None = Field(
-        default=None, description="Git branch at session time"
-    )
+    git_branch: str | None = Field(default=None, description="Git branch at session time")
     model_id: str | None = Field(default=None, description="Primary model used")
-    started_at: datetime | None = Field(
-        default=None, description="Session start timestamp"
-    )
+    started_at: datetime | None = Field(default=None, description="Session start timestamp")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp")
-    first_prompt: str | None = Field(
-        default=None, description="First user prompt (truncated)"
-    )
-    extra: dict[str, Any] = Field(
-        default_factory=dict, description="Source-specific metadata"
-    )
+    first_prompt: str | None = Field(default=None, description="First user prompt (truncated)")
+    extra: dict[str, Any] = Field(default_factory=dict, description="Source-specific metadata")
 
 
 class HistorySessionStats(BaseModel):
@@ -124,20 +104,14 @@ class HistorySessionStats(BaseModel):
 
     message_count: int = Field(default=0, description="Total number of messages")
     user_message_count: int = Field(default=0, description="Number of user messages")
-    assistant_message_count: int = Field(
-        default=0, description="Number of assistant messages"
-    )
+    assistant_message_count: int = Field(default=0, description="Number of assistant messages")
     tool_call_count: int = Field(default=0, description="Total tool invocations")
     tool_calls_by_type: dict[str, int] = Field(
         default_factory=dict, description="Tool calls grouped by tool name"
     )
     error_count: int = Field(default=0, description="Number of tool errors")
-    total_tokens: TokenUsage = Field(
-        default_factory=TokenUsage, description="Total token usage"
-    )
-    estimated_cost_usd: float | None = Field(
-        default=None, description="Estimated API cost"
-    )
+    total_tokens: TokenUsage = Field(default_factory=TokenUsage, description="Total token usage")
+    estimated_cost_usd: float | None = Field(default=None, description="Estimated API cost")
 
     @classmethod
     def from_messages(cls, messages: list[Message]) -> "HistorySessionStats":
@@ -160,9 +134,7 @@ class HistorySessionStats(BaseModel):
                 # Count tool calls
                 for tc in msg.tool_calls:
                     stats.tool_call_count += 1
-                    tool_calls_by_type[tc.tool_name] = (
-                        tool_calls_by_type.get(tc.tool_name, 0) + 1
-                    )
+                    tool_calls_by_type[tc.tool_name] = tool_calls_by_type.get(tc.tool_name, 0) + 1
 
             # Accumulate tokens
             if msg.token_usage:
@@ -181,12 +153,8 @@ class Session(BaseModel):
     """
 
     metadata: HistorySessionMetadata = Field(description="Session metadata")
-    messages: list[Message] = Field(
-        default_factory=list, description="Conversation messages"
-    )
-    stats: HistorySessionStats | None = Field(
-        default=None, description="Computed statistics"
-    )
+    messages: list[Message] = Field(default_factory=list, description="Conversation messages")
+    stats: HistorySessionStats | None = Field(default=None, description="Computed statistics")
 
     def compute_stats(self) -> "Session":
         """Compute and attach statistics from messages."""

@@ -40,9 +40,7 @@ class TestPipelineBusyResponse:
         response_409 = httpx.Response(
             409,
             json={"detail": "Pipeline already running for project test-project"},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:
@@ -64,9 +62,7 @@ class TestPipelineBusyResponse:
         success_response = httpx.Response(
             200,
             json={"run_id": "run-abc", "status": "queued", "message": "ok"},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:
@@ -92,9 +88,7 @@ class TestPipelineBusyResponse:
         success_response = httpx.Response(
             200,
             json={"run_id": "run-force", "status": "queued", "message": "forced"},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:
@@ -116,9 +110,7 @@ class TestPipelineBusyResponse:
         success_response = httpx.Response(
             200,
             json={"run_id": "run-flags", "status": "queued", "message": "ok"},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:
@@ -217,9 +209,7 @@ class TestTriggerPayloadConstruction:
         success = httpx.Response(
             200,
             json={"run_id": "r1", "status": "queued", "message": ""},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:
@@ -244,9 +234,7 @@ class TestTriggerPayloadConstruction:
         success = httpx.Response(
             200,
             json={"run_id": "r2", "status": "queued", "message": ""},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:
@@ -280,9 +268,7 @@ class TestTriggerPayloadConstruction:
         resp_401 = httpx.Response(
             401,
             json={"detail": "Invalid API key"},
-            request=httpx.Request(
-                "POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"
-            ),
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
         )
 
         with patch.object(client, "_get_async_client") as mock_ac:

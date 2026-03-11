@@ -29,9 +29,7 @@ class PathAnonymizer(TurnFilter):
         self._project_dir = project_dir.rstrip("/") if project_dir else None
         # Build regex that only matches project_dir followed by / , whitespace, or EOL
         self._project_pattern = (
-            re.compile(re.escape(self._project_dir) + r"(?=/|\s|$)")
-            if self._project_dir
-            else None
+            re.compile(re.escape(self._project_dir) + r"(?=/|\s|$)") if self._project_dir else None
         )
 
     def filter_text(self, text: str) -> str:

@@ -137,9 +137,7 @@ class TestCodexNotLoadedWhenFlagFalse:
     def test_codex_not_loaded_when_flag_false(self, codex_base, tmp_path):
         shutil.copy2(FIXTURES_DIR / "golden_session.jsonl", codex_base / "s1.jsonl")
 
-        with (
-            patch("mega_code.client.history.loader.MegaCodeSource") as MockMegaSource,
-        ):
+        with (patch("mega_code.client.history.loader.MegaCodeSource") as MockMegaSource,):
             mock_source = MockMegaSource.return_value
             mock_source.iter_sessions_from_path.return_value = iter([])
 
@@ -170,9 +168,7 @@ class TestIncludeFlagMatrix:
 
         with (
             patch("mega_code.client.history.loader.MegaCodeSource") as MockMegaSource,
-            patch(
-                "mega_code.client.history.loader.ClaudeNativeSource"
-            ) as MockClaudeSource,
+            patch("mega_code.client.history.loader.ClaudeNativeSource") as MockClaudeSource,
             patch(
                 "mega_code.client.history.sources.codex.CodexSource",
                 return_value=CodexSource(base_path=codex_base),
@@ -254,9 +250,7 @@ class TestProjectPathFiltering:
             ),
         ):
             mega_sessions = [
-                _make_session(
-                    "mega-001", "mega_code", "/home/user/projects/test-project"
-                ),
+                _make_session("mega-001", "mega_code", "/home/user/projects/test-project"),
             ]
             mock_source = MockMegaSource.return_value
             mock_source.iter_sessions_from_path.return_value = iter(mega_sessions)

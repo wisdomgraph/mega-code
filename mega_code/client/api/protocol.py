@@ -57,9 +57,7 @@ class SkillArtifactData(BaseModel):
     skill_id: str
     skill_type: str = ""
     decision: str = Field(description="PASS, MARGINAL, or FAIL")
-    files: dict[str, str] = Field(
-        default_factory=dict, description="filename -> content map"
-    )
+    files: dict[str, str] = Field(default_factory=dict, description="filename -> content map")
     installed: bool = False
     approved: bool = False
 
@@ -146,25 +144,15 @@ class UserProfile(BaseModel):
     are shared with the MegaEureka VSCode extension.
     """
 
-    language: str | None = Field(
-        None, description="Preferred language (e.g. English, Thai)"
-    )
-    level: str | None = Field(
-        None, description="Experience level (Beginner, Intermediate, Expert)"
-    )
-    style: str | None = Field(
-        None, description="Teaching style (Mentor, Formal, Concise)"
-    )
-    eureka: bool = Field(
-        True, description="[MegaEureka] Enable learning cards generation"
-    )
+    language: str | None = Field(None, description="Preferred language (e.g. English, Thai)")
+    level: str | None = Field(None, description="Experience level (Beginner, Intermediate, Expert)")
+    style: str | None = Field(None, description="Teaching style (Mentor, Formal, Concise)")
+    eureka: bool = Field(True, description="[MegaEureka] Enable learning cards generation")
     goals: list[str] = Field(
         default_factory=list,
         description="[MegaEureka] Learning goals for personalized content",
     )
-    enabled: bool = Field(
-        True, description="[MegaEureka] Master switch for personalization"
-    )
+    enabled: bool = Field(True, description="[MegaEureka] Master switch for personalization")
     auto_permission: bool = Field(
         False,
         alias="autoPermission",

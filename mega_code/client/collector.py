@@ -147,9 +147,7 @@ def handle_session_end(input_data: dict[str, Any]) -> dict[str, Any]:
             try:
                 start = datetime.fromisoformat(metadata.started_at.rstrip("Z"))
                 end = utcnow()
-                stats.timing.total_duration_ms = int(
-                    (end - start).total_seconds() * 1000
-                )
+                stats.timing.total_duration_ms = int((end - start).total_seconds() * 1000)
                 save_stats(stats, project_dir, model=metadata.model_id)
             except (ValueError, TypeError):
                 pass
@@ -247,9 +245,7 @@ def handle_stop(input_data: dict[str, Any]) -> dict[str, Any]:
                     if usage:
                         stats.tokens.total_input += usage.get("input_tokens", 0)
                         stats.tokens.total_output += usage.get("output_tokens", 0)
-                        stats.tokens.total_cache_read += usage.get(
-                            "cache_read_input_tokens", 0
-                        )
+                        stats.tokens.total_cache_read += usage.get("cache_read_input_tokens", 0)
                         stats.tokens.total_cache_create += usage.get(
                             "cache_creation_input_tokens", 0
                         )
@@ -258,15 +254,11 @@ def handle_stop(input_data: dict[str, Any]) -> dict[str, Any]:
                     content = message.get("content", [])
                     if isinstance(content, list):
                         for block in content:
-                            if (
-                                isinstance(block, dict)
-                                and block.get("type") == "tool_use"
-                            ):
+                            if isinstance(block, dict) and block.get("type") == "tool_use":
                                 tool_name = block.get("name", "unknown")
                                 stats.counts.tool_calls += 1
                                 stats.counts.tool_calls_by_type[tool_name] = (
-                                    stats.counts.tool_calls_by_type.get(tool_name, 0)
-                                    + 1
+                                    stats.counts.tool_calls_by_type.get(tool_name, 0) + 1
                                 )
 
                 elif role == "user":
@@ -274,10 +266,7 @@ def handle_stop(input_data: dict[str, Any]) -> dict[str, Any]:
                     content = message.get("content", [])
                     if isinstance(content, list):
                         for block in content:
-                            if (
-                                isinstance(block, dict)
-                                and block.get("type") == "tool_result"
-                            ):
+                            if isinstance(block, dict) and block.get("type") == "tool_result":
                                 if block.get("is_error", False):
                                     stats.counts.errors += 1
 
@@ -402,9 +391,7 @@ def _load_env():
 
     stable_env = data_dir() / ".env"
     if stable_env.exists():
-        dotenv.load_dotenv(
-            stable_env, override=False
-        )  # don't override existing env vars
+        dotenv.load_dotenv(stable_env, override=False)  # don't override existing env vars
 
     # 2. Versioned plugin dir (may add non-secret config on top)
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")

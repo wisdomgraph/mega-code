@@ -213,9 +213,7 @@ def create_loader(
             if source.base_path.exists():
                 loader.register_source(source)
             else:
-                logger.info(
-                    f"Skipping {label} source (path not found): {source.base_path}"
-                )
+                logger.info(f"Skipping {label} source (path not found): {source.base_path}")
         except Exception as e:
             logger.warning(f"Failed to register {label} source: {e}")
 
@@ -321,18 +319,14 @@ def load_sessions_from_project(
         logger.debug("No project paths found in MEGA-Code sessions")
         return mega_sessions[:limit] if limit else mega_sessions
 
-    logger.debug(
-        f"Found {len(project_paths)} unique project paths in MEGA-Code sessions"
-    )
+    logger.debug(f"Found {len(project_paths)} unique project paths in MEGA-Code sessions")
 
     # Load related Claude native sessions
     claude_sessions: list[Session] = []
     if include_claude:
         try:
             claude_source = ClaudeNativeSource()
-            entries = list(
-                claude_source.iter_sessions_by_project_paths(list(project_paths))
-            )
+            entries = list(claude_source.iter_sessions_by_project_paths(list(project_paths)))
             logger.info(f"Found {len(entries)} related Claude native session entries")
 
             for entry in entries:
@@ -343,17 +337,13 @@ def load_sessions_from_project(
                     full_path = entry.get("fullPath")
                     if full_path:
                         project_dir = Path(full_path).parent.parent
-                        session = claude_source._load_session_from_entry(
-                            entry, project_dir
-                        )
+                        session = claude_source._load_session_from_entry(entry, project_dir)
                         claude_sessions.append(session)
                         logger.debug(f"Loaded session {session_id} from claude_native")
                 except Exception as e:
                     logger.warning(f"Failed to load Claude session {session_id}: {e}")
 
-            logger.info(
-                f"Successfully loaded {len(claude_sessions)} Claude native sessions"
-            )
+            logger.info(f"Successfully loaded {len(claude_sessions)} Claude native sessions")
         except Exception as e:
             logger.warning(f"Failed to load Claude native sessions: {e}")
 
@@ -364,9 +354,7 @@ def load_sessions_from_project(
             from mega_code.client.history.sources.codex import CodexSource
 
             codex_source = CodexSource()
-            codex_entries = list(
-                codex_source.iter_sessions_by_project_paths(list(project_paths))
-            )
+            codex_entries = list(codex_source.iter_sessions_by_project_paths(list(project_paths)))
             logger.info(f"Found {len(codex_entries)} related Codex session entries")
 
             for entry in codex_entries:
@@ -377,9 +365,7 @@ def load_sessions_from_project(
                     jsonl_path = Path(entry["session_file_path"])
                     entries = codex_source._load_jsonl_entries(jsonl_path)
                     if entries:
-                        session = codex_source._load_session_from_entries(
-                            entries, jsonl_path
-                        )
+                        session = codex_source._load_session_from_entries(entries, jsonl_path)
                         codex_sessions.append(session)
                         logger.debug(f"Loaded session {session_id} from codex_cli")
                 except Exception as e:

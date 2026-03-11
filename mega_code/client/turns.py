@@ -68,9 +68,7 @@ class TurnExtractor:
         turns = [t for t in all_turns if not t.is_empty()]
         filtered_count = len(all_turns) - len(turns)
         if filtered_count > 0:
-            logger.info(
-                f"Filtered {filtered_count} empty turns (no meaningful content)"
-            )
+            logger.info(f"Filtered {filtered_count} empty turns (no meaningful content)")
 
         metadata = self._build_metadata(session)
 
