@@ -17,7 +17,6 @@ from mega_code.client.schema import (
 from mega_code.client.dirs import data_dir as get_data_dir
 from mega_code.client.utils.io import atomic_write
 
-
 # =============================================================================
 # Project Mapping Functions
 # =============================================================================
