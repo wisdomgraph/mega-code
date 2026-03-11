@@ -26,7 +26,10 @@ The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout
 
 ```bash
 MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
+
+If the auth check fails (non-zero exit), show the output to the user and stop.
 
 All commands below assume `MEGA_DIR` is set.
 
@@ -53,7 +56,7 @@ All variables must be in **one single Bash call** so `$LOG` and `$MEGA_DIR` stay
 LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log" && \
   echo "Pipeline log: $LOG" && \
   export CLAUDE_PROJECT_DIR="$PWD" && \
-  uv run --directory "$MEGA_DIR" python scripts/run_pipeline_async.py [FLAGS] 2>&1 | tee "$LOG"
+  uv run --directory "$MEGA_DIR" python -m mega_code.client.run_pipeline [FLAGS] 2>&1 | tee "$LOG"
 ```
 
 Replace `[FLAGS]` with desired combination from the table above.
@@ -66,7 +69,7 @@ Tell the user the log path so they can monitor with `tail -f` or check after com
 | `gemini-3-flash` | Google |
 | `gpt-5-mini` | OpenAI |
 
-When omitted, server selects based on configured LLM keys (priority: OpenAI > Anthropic > Gemini). Falls back to `gemini-3-flash`.
+When omitted, server selects based on configured LLM keys (priority: Gemini > OpenAI). Falls back to `gemini-3-flash`.
 
 ## Pipeline Outputs
 

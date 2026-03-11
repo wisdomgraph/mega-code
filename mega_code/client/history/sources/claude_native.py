@@ -5,7 +5,7 @@ Loads historical conversation data from Claude Code's native storage format.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
@@ -69,25 +69,118 @@ class ClaudeNativeSource:
                 yield project_dir
 
     def _load_sessions_index(self, project_dir: Path) -> list[dict[str, Any]]:
-        """Load sessions-index.json from a project directory.
+        """Load sessions-index.json, augmented with filesystem-discovered sessions.
+
+        First loads the index file (if present), then scans for JSONL files
+        not listed in the index. This handles stale/missing index files.
 
         Args:
             project_dir: Path to the project directory.
 
         Returns:
-            List of session entries from the index.
+            List of session entries (from index + filesystem discovery).
         """
         index_path = project_dir / "sessions-index.json"
-        if not index_path.exists():
-            return []
+        entries: list[dict[str, Any]] = []
+
+        if index_path.exists():
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                entries = data.get("entries", [])
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(
+                    f"Failed to load sessions index from {index_path}: {e}"
+                )
+
+        # Discover JSONL files not in the index
+        indexed_ids = {e.get("sessionId") for e in entries}
+        discovered = self._discover_sessions_from_jsonl(project_dir, indexed_ids)
+        entries.extend(discovered)
+
+        return entries
+
+    def _discover_sessions_from_jsonl(
+        self, project_dir: Path, indexed_ids: set[str]
+    ) -> list[dict[str, Any]]:
+        """Discover sessions from JSONL files not in sessions-index.json.
+
+        Scans *.jsonl files in the project directory and builds synthetic
+        index entries by reading metadata from the first 'progress' entry.
+
+        Args:
+            project_dir: Claude project directory (e.g. ~/.claude/projects/-Users-...).
+            indexed_ids: Session IDs already in sessions-index.json (to skip).
+
+        Returns:
+            List of synthetic session index entries.
+        """
+        discovered: list[dict[str, Any]] = []
 
         try:
-            with open(index_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data.get("entries", [])
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Failed to load sessions index from {index_path}: {e}")
-            return []
+            jsonl_files = list(project_dir.glob("*.jsonl"))
+        except OSError as e:
+            logger.warning(f"Failed to scan for JSONL files in {project_dir}: {e}")
+            return discovered
+
+        for jsonl_path in jsonl_files:
+            session_id = jsonl_path.stem
+            if session_id in indexed_ids:
+                continue
+
+            # Read first progress entry for metadata
+            cwd = None
+            git_branch = None
+            is_sidechain = False
+            try:
+                with open(jsonl_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if entry.get("type") == "progress" and entry.get("cwd"):
+                            cwd = entry["cwd"]
+                            git_branch = entry.get("gitBranch")
+                            is_sidechain = entry.get("isSidechain", False)
+                            break
+            except OSError as e:
+                logger.debug(f"Failed to read JSONL {jsonl_path}: {e}")
+                continue
+
+            if is_sidechain:
+                continue
+
+            # Build synthetic index entry
+            try:
+                stat = jsonl_path.stat()
+            except OSError as e:
+                logger.debug(f"Failed to stat {jsonl_path}: {e}")
+                continue
+            discovered.append({
+                "sessionId": session_id,
+                "fullPath": str(jsonl_path),
+                "projectPath": cwd,
+                "gitBranch": git_branch,
+                "isSidechain": False,
+                "created": datetime.fromtimestamp(
+                    stat.st_ctime, tz=timezone.utc
+                ).isoformat(),
+                "modified": datetime.fromtimestamp(
+                    stat.st_mtime, tz=timezone.utc
+                ).isoformat(),
+            })
+
+        if discovered:
+            logger.info(
+                f"Discovered {len(discovered)} sessions from JSONL files "
+                f"in {project_dir.name} (not in index)"
+            )
+
+        return discovered
 
     def _parse_jsonl_file(self, jsonl_path: Path) -> list[dict[str, Any]]:
         """Parse a JSONL file into a list of entries.

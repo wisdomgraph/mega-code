@@ -59,11 +59,11 @@ The `--model` flag for `/mega-code:run` accepts any model alias supported by the
 
 When no model is specified, the server selects the best model based on your configured LLM keys.
 
+
 ## Tips
 
-- Run `/mega-code:run` after significant coding sessions
-- Use `--project` to analyze multiple sessions for stronger patterns
-- Use `@name` to run on a different project without switching directories
-- Skills with more evidence (from multiple sessions) are higher quality
-- Review and edit skills before installing for best results
-- For plugin updates, use `/plugin marketplace update wisdomgraph-mega-code`
+  - Run /mega-code:run after significant coding sessions
+  - Use --project to analyze multiple sessions for stronger patterns
+  - Skills with more evidence (from multiple sessions) are higher quality
+  - Review and edit skills before installing for best results
+  - For plugin updates, use `/plugin marketplace update mind-ai-mega-code`

@@ -37,13 +37,7 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
         if "api_key" not in kwargs:
             api_key = os.environ.get("MEGA_CODE_API_KEY", "")
             if not api_key:
-                raise ValueError(
-                    "MEGA_CODE_API_KEY is required for remote mode but not set.\n"
-                    "\n"
-                    "Run the following command to configure your API key:\n"
-                    "  uv run --directory ~/.claude/mega-code mega-code configure"
-                    " --api-key <your_key>\n"
-                )
+                raise ValueError("Not logged in. Run /mega-code:login first.")
             kwargs["api_key"] = api_key
         if "server_url" not in kwargs:
             kwargs["server_url"] = os.environ.get("MEGA_CODE_SERVER_URL", "http://localhost:8000")
@@ -56,8 +50,28 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
     raise ValueError(f"Unknown client mode: {mode!r}. Expected 'local' or 'remote'.")
 
 
+def resolve_mode(mode_arg: str | None = None) -> str:
+    """Determine execution mode (local or remote).
+
+    Priority:
+    1. Explicit mode_arg
+    2. MEGA_CODE_CLIENT_MODE env var
+    3. Default to 'local'
+
+    Args:
+        mode_arg: Explicit mode string, or None for auto-detection.
+
+    Returns:
+        'local' or 'remote'.
+    """
+    if mode_arg:
+        return mode_arg
+    return os.environ.get("MEGA_CODE_CLIENT_MODE", "local")
+
+
 __all__ = [
     "MegaCodeBaseClient",
     "MegaCodeRemote",
     "create_client",
+    "resolve_mode",
 ]

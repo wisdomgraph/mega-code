@@ -16,6 +16,9 @@ __all__ = [
     "OutputsResult",
     "TriggerPipelineResult",
     "PipelineStatusResult",
+    "PipelineStopResult",
+    "ActivePipelineItem",
+    "ActivePipelinesResult",
     "UserProfile",
     "ProfileResult",
     "MegaCodeBaseClient",
@@ -165,6 +168,31 @@ class ProfileResult(BaseModel):
     message: str = Field("", description="Human-readable message")
 
 
+class PipelineStopResult(BaseModel):
+    """Result of stopping a pipeline run."""
+
+    run_id: str
+    status: str
+    message: str = ""
+
+
+class ActivePipelineItem(BaseModel):
+    """Summary of a single active pipeline run (client-side)."""
+
+    run_id: str
+    project_id: str
+    status: str
+    started_at: str | None = None
+    progress: dict | None = None
+
+
+class ActivePipelinesResult(BaseModel):
+    """List of active pipeline runs for the authenticated user."""
+
+    active: bool = False
+    runs: list[ActivePipelineItem] = Field(default_factory=list)
+
+
 # =============================================================================
 # Client Protocol
 # =============================================================================
@@ -221,3 +249,7 @@ class MegaCodeBaseClient(Protocol):
     ) -> ProfileResult: ...
 
     def load_profile(self) -> UserProfile: ...
+
+    def stop_pipeline(self, *, run_id: str) -> PipelineStopResult: ...
+
+    def get_active_pipelines(self) -> ActivePipelinesResult: ...

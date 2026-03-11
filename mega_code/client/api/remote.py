@@ -1,8 +1,6 @@
-"""Remote client implementation (client edition).
+"""Remote client implementation.
 
 MegaCodeRemote connects to the FastAPI server via HTTP.
-For open-source users uploading data to a hosted server.
-Zero enterprise dependencies.
 """
 
 from __future__ import annotations
@@ -13,15 +11,17 @@ from pathlib import Path
 
 import httpx
 
-from mega_code.client.models import TurnSet
 from mega_code.client.api.protocol import (
+    ActivePipelinesResult,
     OutputsResult,
     PipelineStatusResult,
+    PipelineStopResult,
     ProfileResult,
     TriggerPipelineResult,
     UploadResult,
     UserProfile,
 )
+from mega_code.client.models import TurnSet
 from mega_code.client.utils.tracing import traced
 
 logger = logging.getLogger(__name__)
@@ -78,11 +78,15 @@ class MegaCodeRemote:
 
     @staticmethod
     def _check_response(resp: httpx.Response) -> None:
-        """Raise with a helpful message on auth errors, otherwise the default HTTPStatusError."""
+        """Raise on auth/config errors, otherwise the default HTTPStatusError."""
         if resp.status_code in (401, 403):
             raise ValueError(
-                _AUTH_ERROR_MSG.format(status=resp.status_code, reason=resp.reason_phrase)
+                _AUTH_ERROR_MSG.format(
+                    status=resp.status_code, reason=resp.reason_phrase
+                )
             )
+        if resp.status_code == 400:
+            raise ValueError(resp.text)
         resp.raise_for_status()
 
     @traced("client.remote.upload_trajectory")
@@ -142,6 +146,13 @@ class MegaCodeRemote:
             from mega_code.client.api.sync import sync_trajectories
 
             await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
+
+        if project_path is not None and include_claude:
+            from mega_code.client.api.sync import sync_claude_trajectories
+
+            await asyncio.to_thread(
+                sync_claude_trajectories, project_path, self, project_id
+            )
 
         if include_codex and project_path is not None:
             from mega_code.client.api.codex_sync import sync_codex_trajectories
@@ -223,6 +234,26 @@ class MegaCodeRemote:
             success=data.get("success", True),
             message=data.get("message", ""),
         )
+
+    @traced("client.remote.stop_pipeline", kind="CLIENT", openinference_kind="TOOL")
+    def stop_pipeline(
+        self,
+        *,
+        run_id: str,
+    ) -> PipelineStopResult:
+        """Stop a pipeline run via POST /api/megacode/v1/pipeline/stop/{run_id}."""
+        resp = self._client.post(f"/api/megacode/v1/pipeline/stop/{run_id}")
+        self._check_response(resp)
+        return PipelineStopResult(**resp.json())
+
+    @traced(
+        "client.remote.get_active_pipelines", kind="CLIENT", openinference_kind="TOOL"
+    )
+    def get_active_pipelines(self) -> ActivePipelinesResult:
+        """List active pipelines via GET /api/megacode/v1/pipeline/status."""
+        resp = self._client.get("/api/megacode/v1/pipeline/status")
+        self._check_response(resp)
+        return ActivePipelinesResult(**resp.json())
 
     @traced("client.remote.load_profile", kind="CLIENT", openinference_kind="TOOL")
     def load_profile(self) -> UserProfile:

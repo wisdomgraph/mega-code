@@ -15,10 +15,14 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
 from mega_code.client.api.protocol import MegaCodeBaseClient, UploadResult
 from mega_code.client.models import TurnSet
 from mega_code.client.utils.tracing import traced
+
+if TYPE_CHECKING:
+    from mega_code.client.history.models import Session
 
 logger = logging.getLogger(__name__)
 
@@ -48,51 +52,95 @@ def _save_ledger(ledger_path: Path, ledger: dict) -> None:
     atomic_write(ledger_path, json.dumps(ledger, indent=2))
 
 
-def _load_local_session_as_turnset(
-    session_dir: Path,
-    session_id: str,
+def _session_to_turnset(
+    session: Session,
+    session_dir: Path = Path(""),
 ) -> TurnSet | None:
-    """Load a local session directory as a TurnSet for upload.
-
-    Reads events.jsonl via DataLoader/MegaCodeSource, then extracts
-    turns using the existing extract_turns() function.
-
-    Args:
-        session_dir: Path to the session directory containing events.jsonl.
-        session_id: Session UUID.
-
-    Returns:
-        TurnSet if the session has turns, None otherwise.
-    """
+    """Extract turns from a Session, apply filters, return TurnSet."""
     from mega_code.client.filters import filter_metadata, filter_turns
-    from mega_code.client.history.loader import DataLoader
-    from mega_code.client.history.sources.mega_code import MegaCodeSource
     from mega_code.client.turns import extract_turns
-
-    source = MegaCodeSource()
-    try:
-        loader = DataLoader()
-        loader.register_source(source)
-        session = loader.load_from("mega_code", session_id)
-    except (KeyError, FileNotFoundError):
-        logger.debug("Cannot load session %s from %s", session_id, session_dir)
-        return None
 
     turns, metadata = extract_turns(session)
     if not turns:
         return None
 
-    # Filter sensitive data before upload (use actual project path, not data storage path)
     project_dir = metadata.project_path
     turns = filter_turns(turns, project_dir=project_dir)
     metadata = filter_metadata(metadata, project_dir=project_dir)
 
     return TurnSet(
-        session_id=session_id,
+        session_id=session.metadata.session_id,
         session_dir=session_dir,
         turns=turns,
         metadata=metadata,
     )
+
+
+def _upload_sessions(
+    *,
+    ledger_path: Path,
+    ledger_key: str,
+    sessions: list[tuple[str, Callable[[], TurnSet | None]]],
+    client: MegaCodeBaseClient,
+    project_id: str,
+    label: str = "",
+) -> int:
+    """Upload sessions not yet in the ledger and persist updated ledger.
+
+    Args:
+        ledger_path: Path to sync-ledger.json.
+        ledger_key: Key in the ledger dict ("sessions" or "claude_sessions").
+        sessions: List of (session_id, loader_callable) pairs.
+        client: Authenticated client.
+        project_id: Project identifier for the server.
+        label: Label for log messages (e.g. "" or "Claude ").
+
+    Returns:
+        Number of newly uploaded sessions.
+    """
+    ledger = _load_ledger(ledger_path)
+    synced = set(ledger.get(ledger_key, {}).keys())
+
+    unsynced = [(sid, loader) for sid, loader in sessions if sid not in synced]
+    if not unsynced:
+        logger.info("All %d %ssessions already synced", len(synced), label)
+        return 0
+
+    logger.info(
+        "Syncing %d new %ssessions (%d already synced)",
+        len(unsynced),
+        label,
+        len(synced),
+    )
+
+    uploaded = 0
+    for session_id, loader in unsynced:
+        turn_set = loader()
+        if not turn_set or not turn_set.turns:
+            logger.debug("Skipping empty %ssession: %s", label, session_id)
+            continue
+
+        result: UploadResult = client.upload_trajectory(
+            turn_set=turn_set,
+            project_id=project_id,
+        )
+        logger.info("Uploaded %s%s: %s", label, session_id, result.message)
+
+        ledger.setdefault(ledger_key, {})[session_id] = {
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "turn_count": len(turn_set.turns),
+        }
+        uploaded += 1
+
+    # Save updated ledger
+    from mega_code.client.api.remote import MegaCodeRemote
+
+    if isinstance(client, MegaCodeRemote):
+        ledger["server_url"] = client.server_url
+    _save_ledger(ledger_path, ledger)
+
+    logger.info("%sSync complete: %d new, %d existing", label, uploaded, len(synced))
+    return uploaded
 
 
 @traced("client.sync_trajectories")
@@ -103,65 +151,85 @@ def sync_trajectories(
 ) -> int:
     """Ensure all local sessions are uploaded to the server.
 
-    Compares local session dirs against sync-ledger.json.
-    Uploads any sessions not yet in the ledger.
-
     Args:
-        project_dir: Local mega-code project data folder
-            (e.g. ~/.local/mega-code/projects/mega-code_b39e0992/).
+        project_dir: Local mega-code project data folder.
         client: Authenticated client (typically MegaCodeRemote).
         project_id: Project identifier for the server.
 
     Returns:
         Number of newly uploaded sessions.
     """
-    ledger_path = project_dir / "sync-ledger.json"
-    ledger = _load_ledger(ledger_path)
+    from mega_code.client.history.loader import DataLoader
+    from mega_code.client.history.sources.mega_code import MegaCodeSource
 
-    # Discover all local session dirs (UUID-named subdirectories)
     local_sessions = [d.name for d in project_dir.iterdir() if d.is_dir() and _is_uuid(d.name)]
 
-    # Find sessions not yet in ledger
-    synced = set(ledger.get("sessions", {}).keys())
-    unsynced = [sid for sid in local_sessions if sid not in synced]
+    def _make_loader(session_dir: Path, session_id: str) -> Callable[[], TurnSet | None]:
+        def _load() -> TurnSet | None:
+            source = MegaCodeSource()
+            try:
+                loader = DataLoader()
+                loader.register_source(source)
+                session = loader.load_from("mega_code", session_id)
+            except (KeyError, FileNotFoundError):
+                logger.debug("Cannot load session %s from %s", session_id, session_dir)
+                return None
+            return _session_to_turnset(session, session_dir)
+        return _load
 
-    if not unsynced:
-        logger.info("All %d sessions already synced", len(synced))
-        return 0
+    sessions = [
+        (sid, _make_loader(project_dir / sid, sid))
+        for sid in local_sessions
+    ]
 
-    logger.info(
-        "Syncing %d new sessions (%d already synced)",
-        len(unsynced),
-        len(synced),
+    return _upload_sessions(
+        ledger_path=project_dir / "sync-ledger.json",
+        ledger_key="sessions",
+        sessions=sessions,
+        client=client,
+        project_id=project_id,
     )
 
-    uploaded = 0
-    for session_id in unsynced:
-        session_dir = project_dir / session_id
-        turn_set = _load_local_session_as_turnset(session_dir, session_id)
-        if not turn_set or not turn_set.turns:
-            logger.debug("Skipping empty session: %s", session_id)
-            continue
 
-        result: UploadResult = client.upload_trajectory(
-            turn_set=turn_set,
-            project_id=project_id,
-        )
-        logger.info("Uploaded %s: %s", session_id, result.message)
+@traced("client.sync_claude_trajectories")
+def sync_claude_trajectories(
+    project_dir: Path,
+    client: MegaCodeBaseClient,
+    project_id: str,
+) -> int:
+    """Upload matching Claude Code native sessions as trajectories.
 
-        # Update ledger
-        ledger.setdefault("sessions", {})[session_id] = {
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "turn_count": len(turn_set.turns),
-        }
-        uploaded += 1
+    Args:
+        project_dir: Local mega-code project data folder.
+        client: Authenticated client (typically MegaCodeRemote).
+        project_id: Project identifier for the server.
 
-    # Save updated ledger atomically
-    from mega_code.client.api.remote import MegaCodeRemote
+    Returns:
+        Number of newly uploaded Claude sessions.
+    """
+    from mega_code.client.history.loader import load_sessions_from_project
 
-    if isinstance(client, MegaCodeRemote):
-        ledger["server_url"] = client.server_url
-    _save_ledger(ledger_path, ledger)
+    all_sessions = load_sessions_from_project(
+        project_dir, include_claude=True, include_codex=False,
+    )
 
-    logger.info("Sync complete: %d new, %d existing", uploaded, len(synced))
-    return uploaded
+    claude_sessions = [
+        s for s in all_sessions if s.metadata.source == "claude_native"
+    ]
+    if not claude_sessions:
+        logger.info("No Claude native sessions found for project")
+        return 0
+
+    sessions = [
+        (s.metadata.session_id, lambda s=s: _session_to_turnset(s))
+        for s in claude_sessions
+    ]
+
+    return _upload_sessions(
+        ledger_path=project_dir / "sync-ledger.json",
+        ledger_key="claude_sessions",
+        sessions=sessions,
+        client=client,
+        project_id=project_id,
+        label="Claude ",
+    )

@@ -1,7 +1,4 @@
-"""Path matching utilities for session enrichment.
-
-Pure utility functions with no enterprise dependencies.
-"""
+"""Path matching utilities for session enrichment."""
 
 import logging
 from pathlib import Path
