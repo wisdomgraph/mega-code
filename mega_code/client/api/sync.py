@@ -119,7 +119,9 @@ def sync_trajectories(
     ledger = _load_ledger(ledger_path)
 
     # Discover all local session dirs (UUID-named subdirectories)
-    local_sessions = [d.name for d in project_dir.iterdir() if d.is_dir() and _is_uuid(d.name)]
+    local_sessions = [
+        d.name for d in project_dir.iterdir() if d.is_dir() and _is_uuid(d.name)
+    ]
 
     # Find sessions not yet in ledger
     synced = set(ledger.get("sessions", {}).keys())

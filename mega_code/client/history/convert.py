@@ -79,7 +79,9 @@ def run_converter(
     """
     # Validate tool name
     if tool not in SOURCE_REGISTRY:
-        raise ValueError(f"Unknown tool: {tool}. Available: {', '.join(SOURCE_REGISTRY.keys())}")
+        raise ValueError(
+            f"Unknown tool: {tool}. Available: {', '.join(SOURCE_REGISTRY.keys())}"
+        )
 
     # Instantiate source
     source_cls = SOURCE_REGISTRY[tool]

@@ -84,5 +84,3 @@ class TestParserToSyncIntegration:
         turn_set = call_kwargs.kwargs.get("turn_set") or call_kwargs[1].get("turn_set")
         assert turn_set is not None
         assert len(turn_set.turns) > 0
-
-

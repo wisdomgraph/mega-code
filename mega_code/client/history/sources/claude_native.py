@@ -112,13 +112,17 @@ class ClaudeNativeSource:
                     try:
                         entries.append(json.loads(line))
                     except json.JSONDecodeError as e:
-                        logger.debug(f"Failed to parse line {line_num} in {jsonl_path}: {e}")
+                        logger.debug(
+                            f"Failed to parse line {line_num} in {jsonl_path}: {e}"
+                        )
         except OSError as e:
             logger.warning(f"Failed to read JSONL file {jsonl_path}: {e}")
 
         return entries
 
-    def _parse_entry_to_message(self, entry: dict[str, Any], session_id: str) -> Message | None:
+    def _parse_entry_to_message(
+        self, entry: dict[str, Any], session_id: str
+    ) -> Message | None:
         """Parse a JSONL entry into a Message object.
 
         Args:
@@ -233,12 +237,16 @@ class ClaudeNativeSource:
         ended_at = None
         if entry.get("created"):
             try:
-                started_at = datetime.fromisoformat(entry["created"].replace("Z", "+00:00"))
+                started_at = datetime.fromisoformat(
+                    entry["created"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
         if entry.get("modified"):
             try:
-                ended_at = datetime.fromisoformat(entry["modified"].replace("Z", "+00:00"))
+                ended_at = datetime.fromisoformat(
+                    entry["modified"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
 
@@ -282,7 +290,9 @@ class ClaudeNativeSource:
 
         raise KeyError(f"Session not found: {session_id}")
 
-    def _load_session_from_entry(self, entry: dict[str, Any], project_dir: Path) -> Session:
+    def _load_session_from_entry(
+        self, entry: dict[str, Any], project_dir: Path
+    ) -> Session:
         """Load a session from an index entry.
 
         Args:
@@ -367,7 +377,10 @@ class ClaudeNativeSource:
             return
 
         # Import path utilities
-        from mega_code.client.utils.path_utils import normalize_path, should_include_session
+        from mega_code.client.utils.path_utils import (
+            normalize_path,
+            should_include_session,
+        )
 
         # Normalize target paths
         normalized_targets = {normalize_path(p) for p in project_paths}

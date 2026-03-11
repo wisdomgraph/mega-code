@@ -45,7 +45,9 @@ class ArchivedRun:
     archived_at: str = ""  # ISO format
     project_id: str = ""
     skills: list[dict] = field(default_factory=list)  # Serialized PendingSkillInfo
-    strategies: list[dict] = field(default_factory=list)  # Serialized PendingStrategyInfo
+    strategies: list[dict] = field(
+        default_factory=list
+    )  # Serialized PendingStrategyInfo
     lessons: list[dict] = field(default_factory=list)  # Serialized PendingLessonInfo
     actions: dict[str, str] = field(default_factory=dict)  # item_name -> action_taken
 

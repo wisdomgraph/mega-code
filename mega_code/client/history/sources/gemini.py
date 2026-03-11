@@ -112,7 +112,9 @@ class GeminiSource:
             logger.warning(f"Failed to load chat file {chat_path}: {e}")
             return None
 
-    def _parse_message(self, msg_data: dict[str, Any], session_id: str) -> Message | None:
+    def _parse_message(
+        self, msg_data: dict[str, Any], session_id: str
+    ) -> Message | None:
         """Parse a Gemini message into a Message object.
 
         Args:
@@ -242,12 +244,16 @@ class GeminiSource:
         ended_at = None
         if chat_data.get("startTime"):
             try:
-                started_at = datetime.fromisoformat(chat_data["startTime"].replace("Z", "+00:00"))
+                started_at = datetime.fromisoformat(
+                    chat_data["startTime"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
         if chat_data.get("lastUpdated"):
             try:
-                ended_at = datetime.fromisoformat(chat_data["lastUpdated"].replace("Z", "+00:00"))
+                ended_at = datetime.fromisoformat(
+                    chat_data["lastUpdated"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
 
@@ -260,7 +266,9 @@ class GeminiSource:
                 content = msg.get("content", "")
                 if isinstance(content, list):
                     # Structured content: extract text parts
-                    content = " ".join(p.get("text", "") for p in content if isinstance(p, dict))
+                    content = " ".join(
+                        p.get("text", "") for p in content if isinstance(p, dict)
+                    )
                 first_prompt = content
                 break
 
@@ -312,7 +320,9 @@ class GeminiSource:
             for chat_path in self._iter_chat_files(project_dir):
                 chat_data = self._load_chat_file(chat_path)
                 if chat_data and chat_data.get("sessionId") == session_id:
-                    return self._load_session_from_chat(chat_data, project_dir, chat_path)
+                    return self._load_session_from_chat(
+                        chat_data, project_dir, chat_path
+                    )
 
         raise KeyError(f"Session not found: {session_id}")
 
@@ -348,7 +358,9 @@ class GeminiSource:
                 chat_data = self._load_chat_file(chat_path)
                 if chat_data:
                     try:
-                        yield self._load_session_from_chat(chat_data, project_dir, chat_path)
+                        yield self._load_session_from_chat(
+                            chat_data, project_dir, chat_path
+                        )
                     except Exception as e:
                         session_id = chat_data.get("sessionId", "unknown")
                         logger.warning(f"Failed to load session {session_id}: {e}")

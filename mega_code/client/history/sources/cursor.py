@@ -11,7 +11,12 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterator
 
-from mega_code.client.history.models import HistorySessionMetadata, Message, Session, ToolCall
+from mega_code.client.history.models import (
+    HistorySessionMetadata,
+    Message,
+    Session,
+    ToolCall,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +214,9 @@ class CursorSource:
             cursor = conn.cursor()
 
             # Find checkpoint keys
-            cursor.execute("SELECT key FROM cursorDiskKV WHERE key LIKE 'agentKv:checkpoint:%'")
+            cursor.execute(
+                "SELECT key FROM cursorDiskKV WHERE key LIKE 'agentKv:checkpoint:%'"
+            )
 
             for row in cursor.fetchall():
                 key = row[0]
@@ -502,7 +509,9 @@ class CursorSource:
 
         return processed
 
-    def _build_session(self, db_path: Path, composer_id: str, messages: list[Message]) -> Session:
+    def _build_session(
+        self, db_path: Path, composer_id: str, messages: list[Message]
+    ) -> Session:
         """Build Session object from composer ID and messages.
 
         Args:

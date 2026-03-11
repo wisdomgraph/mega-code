@@ -130,7 +130,9 @@ class TestCrossToolCredentialSharing:
         from mega_code.client.login import _save_api_key
 
         # Simulate Claude Code login
-        _save_api_key("mg_claude_key", "https://console.megacode.ai/api/mega-service/v1")
+        _save_api_key(
+            "mg_claude_key", "https://console.megacode.ai/api/mega-service/v1"
+        )
 
         # Simulate Codex reading the same .env (via the same get_env_path)
         env_path = get_env_path()
@@ -158,7 +160,9 @@ class TestCrossToolCredentialSharing:
         from mega_code.client.login import _save_api_key
 
         _save_api_key("mg_first_key", "https://console.megacode.ai/api/mega-service/v1")
-        _save_api_key("mg_second_key", "https://console.megacode.ai/api/mega-service/v1")
+        _save_api_key(
+            "mg_second_key", "https://console.megacode.ai/api/mega-service/v1"
+        )
 
         loaded = load_env_file(get_env_path())
         assert loaded["MEGA_CODE_API_KEY"] == "mg_second_key"

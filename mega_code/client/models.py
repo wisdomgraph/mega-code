@@ -69,7 +69,9 @@ class Turn(BaseModel):
         if self.command:
             parts.append(f"\n```bash\n{self.command}\n```")
 
-        content_preview = self.content[:500] + "..." if len(self.content) > 500 else self.content
+        content_preview = (
+            self.content[:500] + "..." if len(self.content) > 500 else self.content
+        )
         parts.append(f"\n{content_preview}")
 
         return "\n".join(parts)

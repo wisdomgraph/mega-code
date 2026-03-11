@@ -148,7 +148,9 @@ def get_session_dir(session_id: str, project_dir: str | None = None) -> Path:
         # Search for session in all project directories
         session_dir = find_session_dir(session_id)
         if session_dir is None:
-            raise ValueError(f"Session {session_id} not found and no project_dir provided")
+            raise ValueError(
+                f"Session {session_id} not found and no project_dir provided"
+            )
     session_dir.mkdir(parents=True, exist_ok=True)
     return session_dir
 

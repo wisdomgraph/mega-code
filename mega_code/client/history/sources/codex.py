@@ -86,7 +86,9 @@ class CodexSource:
                     try:
                         entries.append(json.loads(line))
                     except json.JSONDecodeError as e:
-                        logger.debug(f"Failed to parse line {line_num} in {jsonl_path}: {e}")
+                        logger.debug(
+                            f"Failed to parse line {line_num} in {jsonl_path}: {e}"
+                        )
         except OSError as e:
             logger.warning(f"Failed to read JSONL file {jsonl_path}: {e}")
 
@@ -105,7 +107,9 @@ class CodexSource:
             HistorySessionMetadata object.
         """
         # Find session_meta entry
-        session_meta = next((e for e in entries if e.get("type") == "session_meta"), None)
+        session_meta = next(
+            (e for e in entries if e.get("type") == "session_meta"), None
+        )
         if not session_meta:
             raise ValueError(f"No session_meta found in {session_path}")
 
@@ -119,7 +123,10 @@ class CodexSource:
         # Get first user message
         first_prompt = None
         for entry in entries:
-            if entry.get("type") == "event_msg" and entry["payload"].get("type") == "user_message":
+            if (
+                entry.get("type") == "event_msg"
+                and entry["payload"].get("type") == "user_message"
+            ):
                 first_prompt = entry["payload"].get("message", "")
                 break
 
@@ -127,7 +134,9 @@ class CodexSource:
         started_at = None
         if payload.get("timestamp"):
             try:
-                started_at = datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
+                started_at = datetime.fromisoformat(
+                    payload["timestamp"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
 
@@ -136,7 +145,9 @@ class CodexSource:
             last_timestamp = max(e.get("timestamp", "") for e in entries)
             if last_timestamp:
                 try:
-                    ended_at = datetime.fromisoformat(last_timestamp.replace("Z", "+00:00"))
+                    ended_at = datetime.fromisoformat(
+                        last_timestamp.replace("Z", "+00:00")
+                    )
                 except (ValueError, AttributeError):
                     pass
 
@@ -179,7 +190,10 @@ class CodexSource:
         # Collect token usage by index
         token_count_idx = 0
         for entry in entries:
-            if entry.get("type") == "event_msg" and entry["payload"].get("type") == "token_count":
+            if (
+                entry.get("type") == "event_msg"
+                and entry["payload"].get("type") == "token_count"
+            ):
                 info = entry["payload"].get("info")
                 if info and info.get("last_token_usage"):
                     token_usage_map[token_count_idx] = info["last_token_usage"]
@@ -225,7 +239,9 @@ class CodexSource:
             Message object or None if message should be filtered.
         """
         # Find the message entry
-        msg_entry = next((item for item in items if item["payload"]["type"] == "message"), None)
+        msg_entry = next(
+            (item for item in items if item["payload"]["type"] == "message"), None
+        )
         if not msg_entry:
             return None
 
@@ -332,7 +348,9 @@ class CodexSource:
                     continue
 
                 # Extract summary
-                summary_texts = [s.get("text", "") for s in item["payload"].get("summary", [])]
+                summary_texts = [
+                    s.get("text", "") for s in item["payload"].get("summary", [])
+                ]
                 if summary_texts:
                     reasoning.append(
                         {
@@ -391,7 +409,9 @@ class CodexSource:
         for session_path in self._iter_session_files():
             entries = self._load_jsonl_entries(session_path)
             if entries:
-                session_meta = next((e for e in entries if e.get("type") == "session_meta"), None)
+                session_meta = next(
+                    (e for e in entries if e.get("type") == "session_meta"), None
+                )
                 if session_meta and session_meta["payload"].get("id") == session_id:
                     return self._load_session_from_entries(entries, session_path)
 
@@ -458,7 +478,10 @@ class CodexSource:
             return
 
         # Import path utilities
-        from mega_code.client.utils.path_utils import normalize_path, should_include_session
+        from mega_code.client.utils.path_utils import (
+            normalize_path,
+            should_include_session,
+        )
 
         # Normalize target paths
         normalized_targets = {normalize_path(p) for p in project_paths}
@@ -471,7 +494,9 @@ class CodexSource:
                     continue
 
                 # Find session_meta entry
-                session_meta = next((e for e in entries if e.get("type") == "session_meta"), None)
+                session_meta = next(
+                    (e for e in entries if e.get("type") == "session_meta"), None
+                )
                 if not session_meta:
                     continue
 

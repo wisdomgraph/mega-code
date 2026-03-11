@@ -3,8 +3,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from mega_code.client.history.sources.codex import CodexSource
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "codex"
@@ -13,6 +11,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "codex"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _load_fixture(name: str) -> list[dict]:
     path = FIXTURES_DIR / name
@@ -36,6 +35,7 @@ def _source() -> CodexSource:
 # Cycle 1 — Bug 3: Missing session_meta crashes
 # ---------------------------------------------------------------------------
 
+
 class TestNoSessionMeta:
     def test_no_session_meta_returns_none(self):
         """_extract_session_metadata should return None when no session_meta entry."""
@@ -44,7 +44,9 @@ class TestNoSessionMeta:
         result = source._extract_session_metadata(entries, Path("dummy.jsonl"))
         assert result is None
 
-    def test_list_sessions_skips_bad_files(self, codex_base, write_codex_session, golden_session_path):
+    def test_list_sessions_skips_bad_files(
+        self, codex_base, write_codex_session, golden_session_path
+    ):
         """list_sessions should skip files without session_meta."""
         write_codex_session("good.jsonl", golden_session_path)
         write_codex_session("bad.jsonl", FIXTURES_DIR / "no_session_meta.jsonl")
@@ -57,6 +59,7 @@ class TestNoSessionMeta:
 # ---------------------------------------------------------------------------
 # Cycle 2 — Bug 4: Missing payload in turn_context
 # ---------------------------------------------------------------------------
+
 
 class TestNoPayloadTurnContext:
     def test_no_payload_in_turn_context(self):
@@ -71,6 +74,7 @@ class TestNoPayloadTurnContext:
 # ---------------------------------------------------------------------------
 # Cycle 3 — Bug 5: Missing call_id in function_call
 # ---------------------------------------------------------------------------
+
 
 class TestNoCallId:
     def test_no_call_id_skipped(self):
@@ -89,6 +93,7 @@ class TestNoCallId:
 # Cycle 4 — Bug 6: Missing payload key in session_meta
 # ---------------------------------------------------------------------------
 
+
 class TestNoPayloadSessionMeta:
     def test_load_session_no_payload_key(self):
         """load_session should not crash when session_meta has no payload."""
@@ -106,6 +111,7 @@ class TestNoPayloadSessionMeta:
 # Cycle 5 — Bug 7: No timestamps causes max() error
 # ---------------------------------------------------------------------------
 
+
 class TestNoTimestamps:
     def test_no_timestamps_fallback(self):
         """ended_at should be None, not ValueError from max()."""
@@ -119,6 +125,7 @@ class TestNoTimestamps:
 # ---------------------------------------------------------------------------
 # Cycle 6 — Bug 1: Non-deterministic message IDs
 # ---------------------------------------------------------------------------
+
 
 class TestDeterministicIds:
     def test_deterministic_ids(self, golden_session_path):
@@ -147,6 +154,7 @@ class TestDeterministicIds:
 # Cycle 7 — Bug 2: Token mapping misalignment
 # ---------------------------------------------------------------------------
 
+
 class TestTokenMapping:
     def test_token_mapping_with_gaps(self):
         """Missing token_count entries should not crash; unmapped msgs get None."""
@@ -162,14 +170,17 @@ class TestTokenMapping:
         entries = _load_fixture("golden_session.jsonl")
         # Remove all token_count events
         entries_no_tokens = [
-            e for e in entries
+            e
+            for e in entries
             if not (
                 e.get("type") == "event_msg"
                 and isinstance(e.get("payload"), dict)
                 and e["payload"].get("type") == "token_count"
             )
         ]
-        session = source._load_session_from_entries(entries_no_tokens, Path("dummy.jsonl"))
+        session = source._load_session_from_entries(
+            entries_no_tokens, Path("dummy.jsonl")
+        )
         for msg in session.messages:
             assert msg.token_usage is None
 
@@ -177,6 +188,7 @@ class TestTokenMapping:
 # ---------------------------------------------------------------------------
 # Cycle 8 — Hardening (edge cases)
 # ---------------------------------------------------------------------------
+
 
 class TestHardening:
     def test_orphaned_tool_output(self):
@@ -205,7 +217,7 @@ class TestHardening:
 
     def test_truncated_last_line(self):
         """Truncated last line should not crash; complete entries should parse."""
-        source = _source()
+        _source()
         entries = _load_fixture("truncated_last_line.jsonl")
         # Should not crash; at least some entries should parse
         assert len(entries) > 0
@@ -220,6 +232,7 @@ class TestHardening:
 # ---------------------------------------------------------------------------
 # Cycle 9 — Golden validation (capstone)
 # ---------------------------------------------------------------------------
+
 
 class TestGoldenFullParse:
     def test_golden_full_parse(self, golden_session_path):
@@ -236,6 +249,12 @@ class TestGoldenFullParse:
         token_usages = [m for m in session.messages if m.token_usage is not None]
 
         assert len(user_msgs) == 5, f"Expected 5 user msgs, got {len(user_msgs)}"
-        assert len(assistant_msgs) == 8, f"Expected 8 assistant msgs, got {len(assistant_msgs)}"
-        assert len(all_tool_calls) == 6, f"Expected 6 tool calls, got {len(all_tool_calls)}"
-        assert len(token_usages) == 4, f"Expected 4 token usages, got {len(token_usages)}"
+        assert (
+            len(assistant_msgs) == 8
+        ), f"Expected 8 assistant msgs, got {len(assistant_msgs)}"
+        assert (
+            len(all_tool_calls) == 6
+        ), f"Expected 6 tool calls, got {len(all_tool_calls)}"
+        assert (
+            len(token_usages) == 4
+        ), f"Expected 4 token usages, got {len(token_usages)}"

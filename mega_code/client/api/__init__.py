@@ -40,7 +40,9 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
                 raise ValueError("Not logged in. Run /mega-code:login first.")
             kwargs["api_key"] = api_key
         if "server_url" not in kwargs:
-            kwargs["server_url"] = os.environ.get("MEGA_CODE_SERVER_URL", "http://localhost:8000")
+            kwargs["server_url"] = os.environ.get(
+                "MEGA_CODE_SERVER_URL", "http://localhost:8000"
+            )
         return MegaCodeRemote(**kwargs)
     elif mode == "local":
         from mega_code.pipeline.local_client import MegaCodeLocal

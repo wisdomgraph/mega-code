@@ -2,7 +2,7 @@
 #
 # Pipeline structure:
 #   default (every push):
-#     1. Lint & Format Check — ruff format --check + ruff check
+#     1. Lint & Format Check — black --check + flake8
 #     2. Unit Tests          — pytest (when tests exist)
 
 image: python:3.12
@@ -24,10 +24,11 @@ pipelines:
         script:
           - curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
           - uv sync --extra telemetry
+          - uv pip install black flake8
           # Format check (non-destructive)
-          - uv run ruff format mega_code/ --check
+          - uv run black mega_code/ tests/ --check
           # Lint
-          - uv run ruff check mega_code/
+          - uv run flake8 mega_code/ tests/
           # Run tests if any exist
           - |
             if [ -d tests ] && find tests -name "test_*.py" -print -quit | grep -q .; then

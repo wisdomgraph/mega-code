@@ -171,13 +171,17 @@ class MegaCodeSource:
                     try:
                         events.append(json.loads(line))
                     except json.JSONDecodeError as e:
-                        logger.debug(f"Failed to parse line {line_num} in {events_path}: {e}")
+                        logger.debug(
+                            f"Failed to parse line {line_num} in {events_path}: {e}"
+                        )
         except OSError as e:
             logger.warning(f"Failed to read events file {events_path}: {e}")
 
         return events
 
-    def _parse_event_to_message(self, event: dict[str, Any], session_id: str) -> Message | None:
+    def _parse_event_to_message(
+        self, event: dict[str, Any], session_id: str
+    ) -> Message | None:
         """Parse an event entry into a Message object.
 
         Args:
@@ -293,12 +297,16 @@ class MegaCodeSource:
         ended_at = None
         if meta.get("started_at"):
             try:
-                started_at = datetime.fromisoformat(meta["started_at"].replace("Z", "+00:00"))
+                started_at = datetime.fromisoformat(
+                    meta["started_at"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
         if meta.get("ended_at"):
             try:
-                ended_at = datetime.fromisoformat(meta["ended_at"].replace("Z", "+00:00"))
+                ended_at = datetime.fromisoformat(
+                    meta["ended_at"].replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 pass
 
@@ -330,7 +338,8 @@ class MegaCodeSource:
         cost = stats_data.get("cost", {})
 
         return HistorySessionStats(
-            message_count=counts.get("user_prompts", 0) + counts.get("assistant_responses", 0),
+            message_count=counts.get("user_prompts", 0)
+            + counts.get("assistant_responses", 0),
             user_message_count=counts.get("user_prompts", 0),
             assistant_message_count=counts.get("assistant_responses", 0),
             tool_call_count=counts.get("tool_calls", 0),
@@ -457,7 +466,9 @@ class MegaCodeSource:
             return
 
         # Check if this is a project directory (has session subdirectories)
-        session_dirs = [d for d in path.iterdir() if d.is_dir() and (d / "metadata.json").exists()]
+        session_dirs = [
+            d for d in path.iterdir() if d.is_dir() and (d / "metadata.json").exists()
+        ]
         if session_dirs:
             project_path = path.name
             for session_dir in session_dirs:

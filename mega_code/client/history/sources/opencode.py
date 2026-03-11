@@ -94,7 +94,9 @@ class OpenCodeSource:
 
                     # Load project metadata for directory path
                     project_data = self._load_project(project_id)
-                    project_path = project_data.get("worktree") if project_data else None
+                    project_path = (
+                        project_data.get("worktree") if project_data else None
+                    )
 
                     # Parse timestamps
                     created_at = None
@@ -104,9 +106,13 @@ class OpenCodeSource:
                         updated_ms = session_data["time"].get("updated")
 
                         if created_ms:
-                            created_at = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
+                            created_at = datetime.fromtimestamp(
+                                created_ms / 1000, tz=timezone.utc
+                            )
                         if updated_ms:
-                            ended_at = datetime.fromtimestamp(updated_ms / 1000, tz=timezone.utc)
+                            ended_at = datetime.fromtimestamp(
+                                updated_ms / 1000, tz=timezone.utc
+                            )
 
                     yield HistorySessionMetadata(
                         session_id=session_id,
@@ -297,7 +303,8 @@ class OpenCodeSource:
 
             # Process children in creation time order
             child_list = sorted(
-                children.get(msg_id, []), key=lambda m: m.get("time", {}).get("created", 0)
+                children.get(msg_id, []),
+                key=lambda m: m.get("time", {}).get("created", 0),
             )
 
             for child in child_list:
@@ -447,7 +454,9 @@ class OpenCodeSource:
             logger.warning(f"Failed to extract tool call from part: {e}")
             return None
 
-    def _extract_token_usage(self, msg_data: dict, parts: list[dict]) -> TokenUsage | None:
+    def _extract_token_usage(
+        self, msg_data: dict, parts: list[dict]
+    ) -> TokenUsage | None:
         """Extract token usage from message and step-finish parts.
 
         Args:
