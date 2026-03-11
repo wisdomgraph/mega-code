@@ -6,7 +6,7 @@
     "email": "support@megacode.ai"
   },
   "metadata": {
-    "description": "MEGA-Code: Extract reusable Skills and Strategies from Claude Code sessions so AI agents + improve over time"
+    "description": "Self-Evolving AI Coding Infrastructure — Phase 1: Automatic Skill & Strategy Generation"
   },
   "plugins": [
     {
