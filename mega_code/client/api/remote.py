@@ -150,12 +150,9 @@ class MegaCodeRemote:
         if project_path is not None and include_claude:
             from mega_code.client.api.sync import sync_claude_trajectories
 
-            try:
-                await asyncio.to_thread(
-                    sync_claude_trajectories, project_path, self, project_id
-                )
-            except Exception as exc:
-                logger.warning("Claude session sync failed (non-fatal): %s", exc)
+            await asyncio.to_thread(
+                sync_claude_trajectories, project_path, self, project_id
+            )
 
         payload = {
             "project_id": project_id,

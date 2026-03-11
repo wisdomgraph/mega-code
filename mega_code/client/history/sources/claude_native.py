@@ -5,7 +5,7 @@ Loads historical conversation data from Claude Code's native storage format.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
@@ -167,10 +167,10 @@ class ClaudeNativeSource:
                 "gitBranch": git_branch,
                 "isSidechain": False,
                 "created": datetime.fromtimestamp(
-                    stat.st_ctime
+                    stat.st_ctime, tz=timezone.utc
                 ).isoformat(),
                 "modified": datetime.fromtimestamp(
-                    stat.st_mtime
+                    stat.st_mtime, tz=timezone.utc
                 ).isoformat(),
             })
 
