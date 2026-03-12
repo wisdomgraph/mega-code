@@ -14,7 +14,7 @@ import json
 import logging
 import re
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -140,7 +140,7 @@ def _upload_sessions(
         logger.info("Uploaded %s%s: %s", label, session_id, result.message)
 
         entry = {
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_at": datetime.now(UTC).isoformat(),
             "turn_count": len(turn_set.turns),
         }
         if extra_entry is not None:

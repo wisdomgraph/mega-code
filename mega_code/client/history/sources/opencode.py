@@ -7,7 +7,7 @@ import json
 import logging
 from collections import defaultdict
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mega_code.client.history.models import (
@@ -104,9 +104,9 @@ class OpenCodeSource:
                         updated_ms = session_data["time"].get("updated")
 
                         if created_ms:
-                            created_at = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
+                            created_at = datetime.fromtimestamp(created_ms / 1000, tz=UTC)
                         if updated_ms:
-                            ended_at = datetime.fromtimestamp(updated_ms / 1000, tz=timezone.utc)
+                            ended_at = datetime.fromtimestamp(updated_ms / 1000, tz=UTC)
 
                     yield HistorySessionMetadata(
                         session_id=session_id,
@@ -179,9 +179,9 @@ class OpenCodeSource:
         ended_at = None
         if "time" in session_data:
             if created_ms := session_data["time"].get("created"):
-                created_at = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
+                created_at = datetime.fromtimestamp(created_ms / 1000, tz=UTC)
             if updated_ms := session_data["time"].get("updated"):
-                ended_at = datetime.fromtimestamp(updated_ms / 1000, tz=timezone.utc)
+                ended_at = datetime.fromtimestamp(updated_ms / 1000, tz=UTC)
 
         metadata = HistorySessionMetadata(
             session_id=session_id,
@@ -354,7 +354,7 @@ class OpenCodeSource:
         timestamp = None
         if "time" in msg_data:
             if created_ms := msg_data["time"].get("created"):
-                timestamp = datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc)
+                timestamp = datetime.fromtimestamp(created_ms / 1000, tz=UTC)
 
         # Extract model info
         model = None
