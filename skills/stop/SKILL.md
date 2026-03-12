@@ -1,5 +1,6 @@
 ---
-description: Stop a running MEGA-Code pipeline.
+name: mega-code-stop
+description: "Stop a running MEGA-Code pipeline."
 argument-hint: "[run-id]"
 allowed-tools: Bash, Read, AskUserQuestion
 ---
