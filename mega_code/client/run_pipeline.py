@@ -9,12 +9,19 @@ details; this script only deals with:
 3. Saving outputs to local pending folders
 4. Formatting the JSON notification for the Claude Code hook
 
+Exit codes:
+    0 — success
+    1 — fatal error (auth, network, unknown)
+    2 — conflict (pipeline already running for this project)
+    3 — server timeout (pipeline exceeded max runtime)
+
 Usage:
     python -m mega_code.client.run_pipeline
     python -m mega_code.client.run_pipeline --project
     python -m mega_code.client.run_pipeline --project @mega-code
     python -m mega_code.client.run_pipeline --model gemini-3-flash
     python -m mega_code.client.run_pipeline --project --include-claude
+    python -m mega_code.client.run_pipeline --poll-existing <run_id> --project <project_id>
 """
 
 from __future__ import annotations
@@ -24,12 +31,19 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
 from mega_code.client.cli import get_env_path, load_env_file
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_conflict_run_id(detail: str) -> str | None:
+    """Extract run_id from 409 detail string (e.g. 'run_id=abc-123')."""
+    match = re.search(r"run_id=([a-f0-9-]+)", detail)
+    return match.group(1) if match else None
 
 
 def _load_env() -> None:
@@ -155,6 +169,13 @@ Project argument formats:
         ),
     )
     parser.add_argument(
+        "--poll-existing",
+        type=str,
+        default=None,
+        metavar="RUN_ID",
+        help="Poll an already-running pipeline by run_id (skip trigger)",
+    )
+    parser.add_argument(
         "--env-debug",
         action="store_true",
         help="Print key environment variables and exit",
@@ -187,6 +208,8 @@ async def main():
     tracer = get_tracer(__name__)
 
     # Imports (deferred to avoid import cost when --env-debug is used)
+    import httpx
+
     from mega_code.client.api import create_client, resolve_mode
     from mega_code.client.pending import (
         PendingResult,
@@ -294,14 +317,38 @@ async def main():
             else:
                 logger.info(f"Poll timeout: {poll_timeout:.0f}s ({poll_timeout / 60:.0f} min)")
 
-            # Trigger pipeline
-            logger.info("Triggering pipeline via client...")
-            trigger_result = await client.trigger_pipeline_run(**trigger_kwargs)
-            run_id = trigger_result.run_id
-            logger.info(f"Pipeline triggered: run_id={run_id}, status={trigger_result.status}")
+            # Trigger or poll existing pipeline
+            if args.poll_existing:
+                run_id = args.poll_existing
+                logger.info(f"Polling existing pipeline: run_id={run_id}")
+            else:
+                logger.info("Triggering pipeline via client...")
+                trigger_result = await client.trigger_pipeline_run(**trigger_kwargs)
+                run_id = trigger_result.run_id
+                logger.info(f"Pipeline triggered: run_id={run_id}, status={trigger_result.status}")
 
             # Poll for completion
             status = await poll_pipeline_status(client, run_id, timeout=poll_timeout)
+
+            # Check for server-side timeout — exit code 3 tells the run skill
+            # to prompt the user with retry/leave options. The JSON on stdout
+            # provides run_id and error details the skill needs for its prompt.
+            # NOTE: string match is coupled to server's error format in
+            # pipeline.py: "Pipeline timed out after {N}s"
+            if status.status == "failed" and status.error and "timed out" in status.error.lower():
+                timeout_info = {
+                    "additionalContext": (
+                        f"The pipeline timed out on the server ({status.error}).\n"
+                        "You can start a new run with /mega-code:run."
+                    ),
+                    "timeout": {
+                        "run_id": run_id,
+                        "project_id": project_id,
+                        "error": status.error,
+                    },
+                }
+                print(json.dumps(timeout_info))
+                sys.exit(3)
 
             if status.status == "failed":
                 error_msg = status.error or "Unknown error"
@@ -322,9 +369,40 @@ async def main():
             # Format and output notification
             notification = format_pipeline_notification(result)
 
-            # Output JSON for Claude Code hook
+            # JSON on stdout serves two consumers:
+            # 1. The run skill (SKILL.md) parses it for run_id/project_id
+            #    and uses exit code 0 to enter the post-pipeline workflow.
+            # 2. Claude Code hooks use "additionalContext" to inject context.
             output = {"additionalContext": notification.strip()}
             print(json.dumps(output))
+
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 409:
+                # Exit code 2 tells the run skill to prompt the user with
+                # stop/wait/leave options. The JSON on stdout provides the
+                # run_id and project_id the skill needs to act on the choice.
+                detail = exc.response.text
+                conflict_run_id = _parse_conflict_run_id(detail)
+                conflict_info = {
+                    "additionalContext": (
+                        f"A pipeline is already running for this project"
+                        f" (run_id: {conflict_run_id or 'unknown'}).\n"
+                        "Use /mega-code:stop to stop it, or wait for it to finish."
+                    ),
+                    "conflict": {
+                        "run_id": conflict_run_id,
+                        "project_id": project_id,
+                        "detail": detail,
+                    },
+                }
+                print(json.dumps(conflict_info))
+                sys.exit(2)
+            span.record_exception(exc)
+            logger.exception("Pipeline failed")
+            notification = format_error_notification(str(exc))
+            output = {"additionalContext": notification.strip()}
+            print(json.dumps(output))
+            sys.exit(1)
 
         except Exception as e:
             span.record_exception(e)

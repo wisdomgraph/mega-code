@@ -76,6 +76,55 @@ When omitted, server selects based on configured LLM keys (priority: Gemini > Op
 1. **Skills & Strategies** — saved to pending dirs for review/install
 2. **Lesson Learned documents** — saved to `~/.local/share/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged `lesson_learn`)
 
+## Handling Active Pipeline (Exit Code 2)
+
+If the pipeline command exits with code **2**, a pipeline is already running.
+Parse the JSON output to get `conflict.run_id` and `conflict.project_id`.
+
+Use the `AskUserQuestion` tool to present these options:
+
+**Question:** "A pipeline is already running for this project (run_id: {run_id}). What would you like to do?"
+
+**Options:**
+1. "Stop it and start a new one"
+2. "Wait for the existing run to finish"
+3. "Leave it running — exit without action"
+
+**Option 1 — Stop and restart:**
+```bash
+uv run --directory "$MEGA_DIR" python -m mega_code.client.cli pipeline-stop --run-id <RUN_ID>
+```
+Then re-run the pipeline command from "Running the Pipeline" section.
+
+**Option 2 — Wait for existing run:**
+```bash
+uv run --directory "$MEGA_DIR" python -m mega_code.client.run_pipeline \
+  --poll-existing <RUN_ID> --project <PROJECT_ID> [--poll-timeout <seconds>] 2>&1 | tee "$LOG"
+```
+Then follow the Post-Pipeline Workflow as normal.
+
+**Option 3 — Leave it running:**
+Return immediately. Do not print anything or ask further questions.
+
+## Handling Server Timeout (Exit Code 3)
+
+If the pipeline command exits with code **3**, the pipeline exceeded the server's
+max runtime and was terminated. Parse the JSON output for `timeout.error` details.
+
+Use the `AskUserQuestion` tool to present these options:
+
+**Question:** "The pipeline timed out on the server ({error message}). What would you like to do?"
+
+**Options:**
+1. "Run again — start a fresh pipeline run"
+2. "Do nothing — exit without action"
+
+**Option 1 — Run again:**
+Re-execute the pipeline command from "Running the Pipeline" section.
+
+**Option 2 — Do nothing:**
+Return immediately. Do not print anything or ask further questions.
+
 ## Post-Pipeline Workflow (MANDATORY)
 
 The pipeline prints a JSON object with `additionalContext` on completion.
