@@ -12,7 +12,7 @@ Inside a Claude Code session, run:
 **Step 1 — Add the repository to your marketplace:**
 
 ```
-/plugin marketplace add https://github.com/wisdomgraph/mega-code.git#public
+/plugin marketplace add https://github.com/wisdomgraph/mega-code
 ```
 
 **Step 2 — Install the plugin:**
