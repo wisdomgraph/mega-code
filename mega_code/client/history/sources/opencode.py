@@ -6,9 +6,9 @@ Loads historical conversation data from OpenCode's multi-file JSON storage forma
 import json
 import logging
 from collections import defaultdict
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
 
 from mega_code.client.history.models import (
     HistorySessionMetadata,

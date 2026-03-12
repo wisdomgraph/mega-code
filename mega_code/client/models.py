@@ -11,7 +11,7 @@ Server-side code should import from here:
 
 from __future__ import annotations
 
-__all__ = ["Turn", "SessionMetadata", "TurnSet"]
+__all__ = ["SessionMetadata", "Turn", "TurnSet"]
 
 from datetime import datetime
 from pathlib import Path

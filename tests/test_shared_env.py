@@ -10,6 +10,7 @@ Covers:
 import os
 import stat
 from pathlib import Path
+
 import pytest
 
 from mega_code.client.cli import get_env_path, load_env_file, save_env_file

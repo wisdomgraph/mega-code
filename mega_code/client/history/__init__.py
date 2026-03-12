@@ -57,26 +57,26 @@ from mega_code.client.history.sources import (
 )
 
 __all__ = [
-    # Main API
-    "create_loader",
-    "DataLoader",
-    "load_session_by_id",
-    "load_sessions_from_project",
-    # Protocol
-    "DataSource",
-    # Models
-    "Message",
-    "Session",
-    "HistorySessionMetadata",
-    "HistorySessionStats",
-    "TokenUsage",
-    "ToolCall",
     # Sources
     "ClaudeNativeSource",
     "CodexSource",
     "CursorSource",
+    "DataLoader",
+    # Protocol
+    "DataSource",
     "GeminiSource",
+    "HistorySessionMetadata",
+    "HistorySessionStats",
     "MegaCodeSource",
+    # Models
+    "Message",
     "OpenCodeSource",
     "ParquetDatasetSource",
+    "Session",
+    "TokenUsage",
+    "ToolCall",
+    # Main API
+    "create_loader",
+    "load_session_by_id",
+    "load_sessions_from_project",
 ]

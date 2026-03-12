@@ -6,9 +6,10 @@ Loads historical conversation data from Codex CLI's storage format.
 import hashlib
 import json
 import logging
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
 from mega_code.client.history.models import (
     HistorySessionMetadata,
@@ -79,7 +80,7 @@ class CodexSource:
             return entries
 
         try:
-            with open(jsonl_path, "r", encoding="utf-8") as f:
+            with open(jsonl_path, encoding="utf-8") as f:
                 for line_num, line in enumerate(f, 1):
                     line = line.strip()
                     if not line:
@@ -515,8 +516,7 @@ class CodexSource:
                             }
                 except Exception as e:
                     logger.warning(
-                        f"Error checking path match for session "
-                        f"{payload.get('id', 'unknown')}: {e}"
+                        f"Error checking path match for session {payload.get('id', 'unknown')}: {e}"
                     )
             except Exception as e:
                 logger.debug(f"Failed to process session file {jsonl_file}: {e}")

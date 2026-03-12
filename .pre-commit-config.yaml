@@ -5,17 +5,13 @@ default_stages: [pre-commit]
 default_install_hook_types: [pre-commit]
 
 repos:
-  - repo: https://github.com/psf/black
-    rev: 26.3.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.6
     hooks:
-      - id: black
-        language_version: python3.13
+      - id: ruff
+        args: [--fix, --fix-only, --exit-non-zero-on-fix]
         files: ^(mega_code|tests)/
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.1.1
-    hooks:
-      - id: flake8
+      - id: ruff-format
         files: ^(mega_code|tests)/
 
   - repo: https://github.com/pre-commit/pre-commit-hooks

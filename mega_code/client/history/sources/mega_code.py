@@ -5,9 +5,10 @@ Loads historical conversation data collected by MEGA-Code's session collector.
 
 import json
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from mega_code.client.history.models import (
     HistorySessionMetadata,
@@ -75,7 +76,7 @@ class MegaCodeSource:
             return self._mapping
 
         try:
-            with open(mapping_path, "r", encoding="utf-8") as f:
+            with open(mapping_path, encoding="utf-8") as f:
                 self._mapping = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load mapping from {mapping_path}: {e}")
@@ -121,7 +122,7 @@ class MegaCodeSource:
             return {}
 
         try:
-            with open(metadata_path, "r", encoding="utf-8") as f:
+            with open(metadata_path, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load metadata from {metadata_path}: {e}")
@@ -141,7 +142,7 @@ class MegaCodeSource:
             return {}
 
         try:
-            with open(stats_path, "r", encoding="utf-8") as f:
+            with open(stats_path, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load stats from {stats_path}: {e}")
@@ -163,7 +164,7 @@ class MegaCodeSource:
             return events
 
         try:
-            with open(events_path, "r", encoding="utf-8") as f:
+            with open(events_path, encoding="utf-8") as f:
                 for line_num, line in enumerate(f, 1):
                     line = line.strip()
                     if not line:

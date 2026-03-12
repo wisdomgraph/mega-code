@@ -5,9 +5,10 @@ Loads historical conversation data from Gemini CLI's storage format.
 
 import json
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from mega_code.client.history.models import (
     HistorySessionMetadata,
@@ -106,7 +107,7 @@ class GeminiSource:
             return None
 
         try:
-            with open(chat_path, "r", encoding="utf-8") as f:
+            with open(chat_path, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load chat file {chat_path}: {e}")

@@ -9,11 +9,11 @@ from __future__ import annotations
 
 __all__ = [
     "CollectorSessionMetadata",
+    "SessionCost",
     "SessionCounts",
+    "SessionStats",
     "SessionTiming",
     "SessionTokens",
-    "SessionCost",
-    "SessionStats",
     "estimate_cost",
     "utcnow",
     "utcnow_iso",
@@ -62,7 +62,7 @@ class CollectorSessionMetadata:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CollectorSessionMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> CollectorSessionMetadata:
         """Create from dictionary."""
         valid_keys = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in valid_keys})
@@ -161,7 +161,7 @@ class SessionStats:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
     @classmethod
-    def create(cls, session_id: str, started_at: str | None = None) -> "SessionStats":
+    def create(cls, session_id: str, started_at: str | None = None) -> SessionStats:
         """Create new session stats."""
         now = utcnow_iso()
         return cls(
@@ -171,7 +171,7 @@ class SessionStats:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SessionStats":
+    def from_dict(cls, data: dict[str, Any]) -> SessionStats:
         """Create from dictionary."""
         stats = cls(
             session_id=data.get("session_id", ""),

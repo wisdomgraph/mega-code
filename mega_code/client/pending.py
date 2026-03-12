@@ -23,12 +23,12 @@ import logging
 import shutil
 import string
 import time
-
-import httpx
-import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import httpx
+import yaml
 
 from mega_code.client.dirs import data_dir as _data_dir
 
@@ -161,7 +161,7 @@ class PendingResult:
         return self.total_count > 0
 
 
-from mega_code.client.skill_utils import sanitize_name, ensure_skill_frontmatter  # noqa: E402
+from mega_code.client.skill_utils import ensure_skill_frontmatter, sanitize_name
 
 # Backwards-compatible aliases for internal callers
 _sanitize_name = sanitize_name
@@ -464,7 +464,7 @@ def extract_skill_description(content: str, fallback: str = "") -> str:
                     continue
                 return _truncate(val)
             if in_multiline_desc:
-                if line.startswith("  ") or line.startswith("\t"):
+                if line.startswith(("  ", "\t")):
                     desc_lines.append(line.strip())
                     continue
                 else:

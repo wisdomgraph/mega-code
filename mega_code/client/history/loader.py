@@ -10,8 +10,9 @@ Also provides convenience functions for common loading patterns:
 """
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Literal
 
 from mega_code.client.history.models import Session
 from mega_code.client.history.protocol import DataSource

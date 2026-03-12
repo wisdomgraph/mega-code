@@ -13,9 +13,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from mega_code.client.api.protocol import MegaCodeBaseClient, UploadResult
 from mega_code.client.models import TurnSet
@@ -111,9 +112,7 @@ def _upload_sessions(
     to_upload: list[tuple[str, Callable[[], TurnSet | None]]] = []
     for sid, loader in sessions:
         existing = synced.get(sid)
-        if existing is None:
-            to_upload.append((sid, loader))
-        elif needs_resync is not None and needs_resync(sid, existing):
+        if existing is None or (needs_resync is not None and needs_resync(sid, existing)):
             to_upload.append((sid, loader))
 
     if not to_upload:

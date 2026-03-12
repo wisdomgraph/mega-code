@@ -30,18 +30,18 @@ from mega_code.client.api import create_client
 from mega_code.client.filters import filter_metadata, filter_turns
 from mega_code.client.history.sources.mega_code import MegaCodeSource
 from mega_code.client.models import TurnSet
-from mega_code.client.turns import extract_turns
 from mega_code.client.schema import CollectorSessionMetadata, SessionStats, estimate_cost, utcnow
 from mega_code.client.stats import (
-    initialize_session,
     finalize_session,
-    load_stats,
-    save_stats,
-    load_metadata,
-    save_metadata,
-    get_session_dir,
     get_project_folder_name,
+    get_session_dir,
+    initialize_session,
+    load_metadata,
+    load_stats,
+    save_metadata,
+    save_stats,
 )
+from mega_code.client.turns import extract_turns
 from mega_code.client.utils.tracing import get_tracer, setup_tracing
 
 logger = logging.getLogger(__name__)
@@ -204,7 +204,7 @@ def handle_stop(input_data: dict[str, Any]) -> dict[str, Any]:
         # Read new transcript entries
         new_entries = []
         current_line = 0
-        with open(transcript_path, "r", encoding="utf-8") as f:
+        with open(transcript_path, encoding="utf-8") as f:
             for line in f:
                 current_line += 1
                 if current_line <= last_offset:

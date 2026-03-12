@@ -8,13 +8,13 @@ import json
 import re
 from pathlib import Path
 
+from mega_code.client.dirs import data_dir as get_data_dir
 from mega_code.client.schema import (
-    SessionStats,
     CollectorSessionMetadata,
+    SessionStats,
     estimate_cost,
     utcnow_iso,
 )
-from mega_code.client.dirs import data_dir as get_data_dir
 from mega_code.client.utils.io import atomic_write
 
 # =============================================================================
@@ -196,7 +196,7 @@ def load_stats(session_id: str, project_dir: str | None = None) -> SessionStats 
         return None
 
     try:
-        with open(stats_file, "r", encoding="utf-8") as f:
+        with open(stats_file, encoding="utf-8") as f:
             data = json.load(f)
             return SessionStats.from_dict(data)
     except (json.JSONDecodeError, OSError):
@@ -251,7 +251,7 @@ def load_metadata(
         return None
 
     try:
-        with open(metadata_file, "r", encoding="utf-8") as f:
+        with open(metadata_file, encoding="utf-8") as f:
             data = json.load(f)
             return CollectorSessionMetadata.from_dict(data)
     except (json.JSONDecodeError, OSError):

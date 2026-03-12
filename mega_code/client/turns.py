@@ -12,8 +12,8 @@ import logging
 from pathlib import Path
 from typing import Literal, cast
 
-from mega_code.client.history.models import Message, Session
 from mega_code.client.compaction import CodeBlockCompactor
+from mega_code.client.history.models import Message, Session
 from mega_code.client.models import SessionMetadata, Turn, TurnSet
 from mega_code.client.utils.tracing import traced
 
@@ -211,7 +211,7 @@ def load_turns_jsonl(turns_path: Path) -> TurnSet | None:
     turns: list[Turn] = []
     metadata: SessionMetadata | None = None
 
-    with open(turns_path, "r", encoding="utf-8") as f:
+    with open(turns_path, encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line:

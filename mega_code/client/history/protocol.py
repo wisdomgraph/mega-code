@@ -4,7 +4,8 @@ This module defines the protocol interface that all data sources must implement
 to provide a consistent API for loading conversation data.
 """
 
-from typing import Iterator, Protocol, runtime_checkable
+from collections.abc import Iterator
+from typing import Protocol, runtime_checkable
 
 from mega_code.client.history.models import HistorySessionMetadata, Session
 

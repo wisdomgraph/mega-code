@@ -8,8 +8,9 @@ import logging
 import os
 import platform
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from mega_code.client.history.models import HistorySessionMetadata, Message, Session, ToolCall
 

@@ -21,8 +21,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-import dotenv  # noqa: E402
-from mega_code.client.dirs import data_dir  # noqa: E402
+import dotenv
+
+from mega_code.client.dirs import data_dir
 
 # 1. Stable credential store (data_dir()/.env) — always loaded first
 _stable_env = data_dir() / ".env"
@@ -34,12 +35,12 @@ _env_path = project_root / ".env"
 if _env_path.exists():
     dotenv.load_dotenv(_env_path, override=False)
 
-from mega_code.client.pending import (  # noqa: E402
+from mega_code.client.pending import (
     format_review_notification,
     get_pending_skills,
     get_pending_strategies,
 )
-from mega_code.client.utils.tracing import get_tracer, setup_tracing  # noqa: E402
+from mega_code.client.utils.tracing import get_tracer, setup_tracing
 
 setup_tracing(service_name="mega-code-client")
 _tracer = get_tracer(__name__)

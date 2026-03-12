@@ -186,8 +186,7 @@ def archive_pending_items(
         _save_manifest(archive_dir, manifest)
 
         logger.info(
-            f"Archived {len(all_skills)} skills, "
-            f"{len(all_strategies)} strategies -> {archive_dir}"
+            f"Archived {len(all_skills)} skills, {len(all_strategies)} strategies -> {archive_dir}"
         )
         return run_id
 

@@ -6,9 +6,10 @@ such as ZAI CC-Bench and NLILE datasets.
 
 import json
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from mega_code.client.history.models import (
     HistorySessionMetadata,
@@ -289,7 +290,7 @@ class ParquetDatasetSource:
                 else:
                     matching = df.iloc[0:0]  # Empty DataFrame
             except (ValueError, IndexError):
-                raise KeyError(f"Session not found: {session_id}")
+                raise KeyError(f"Session not found: {session_id}") from None
 
         if len(matching) == 0:
             raise KeyError(f"Session not found: {session_id}")
