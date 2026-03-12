@@ -22,13 +22,13 @@ __all__ = [
 import dataclasses
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
 def utcnow() -> datetime:
     """Get current UTC time (timezone-aware then stripped for consistency)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def utcnow_iso() -> str:

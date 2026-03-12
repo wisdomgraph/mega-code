@@ -6,7 +6,7 @@ Loads historical conversation data from Claude Code's native storage format.
 import json
 import logging
 from collections.abc import Callable, Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -166,8 +166,8 @@ class ClaudeNativeSource:
                     "projectPath": cwd,
                     "gitBranch": git_branch,
                     "isSidechain": False,
-                    "created": datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat(),
-                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                    "created": datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
                 }
             )
 
