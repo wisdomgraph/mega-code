@@ -35,6 +35,7 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   fi
   bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
 fi
+export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
