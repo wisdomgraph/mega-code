@@ -136,12 +136,6 @@ Core learning, exports, and Skills/Strategies capture are available in the curre
 /plugin marketplace update mind-ai-mega-code
 ```
 
-**Codex CLI:**
-
-```bash
-npx skills add wisdomgraph/mega-code/codex-skills
-```
-
 ---
 
 ## Development Setup (from main repo)
