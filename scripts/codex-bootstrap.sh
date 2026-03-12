@@ -10,7 +10,7 @@
 set -euo pipefail
 
 MEGA_DIR="${1:?Usage: codex-bootstrap.sh <MEGA_DIR>}"
-DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/mega-code}"
+DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/share/mega-code}"
 BREADCRUMB="$DATA_DIR/codex-initialized"
 
 # ── Fast path: already bootstrapped ──────────────────────────────────

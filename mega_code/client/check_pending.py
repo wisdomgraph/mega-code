@@ -2,7 +2,7 @@
 """Check for pending skills and strategies; output highlighted notification for Claude Code.
 
 This script is called via UserPromptSubmit hook to inject context about pending items.
-It scans ~/.local/mega-code/data/pending-{skills,strategies}/ directories.
+It scans ~/.local/share/mega-code/data/pending-{skills,strategies}/ directories.
 
 Output format follows Claude Code hooks reference:
 https://code.claude.com/docs/en/hooks
@@ -31,12 +31,14 @@ def _load_env():
     """Load credentials from the stable data-root .env, then overlay plugin .env.
 
     Search order (same as collector.py):
-    1. ~/.local/mega-code/.env  — stable credential store (always loaded first)
-    2. CLAUDE_PLUGIN_ROOT/.env  — versioned plugin dir
-    3. Repo root .env           — dev mode fallback
+    1. ~/.local/share/mega-code/.env  — stable credential store (always loaded first)
+    2. CLAUDE_PLUGIN_ROOT/.env       — versioned plugin dir
+    3. Repo root .env                — dev mode fallback
     """
     # 1. Stable credential store (survives plugin updates)
-    stable_env = Path.home() / ".local" / "mega-code" / ".env"
+    from mega_code.client.dirs import data_dir
+
+    stable_env = data_dir() / ".env"
     if stable_env.exists():
         dotenv.load_dotenv(stable_env, override=False)
 

@@ -34,8 +34,10 @@ logger = logging.getLogger(__name__)
 
 def _load_env() -> None:
     """Load environment variables from stable + repo .env files."""
-    # 1. Stable credential store (~/.local/mega-code/.env) — always loaded first
-    stable_env = Path.home() / ".local" / "mega-code" / ".env"
+    # 1. Stable credential store — always loaded first
+    from mega_code.client.dirs import data_dir
+
+    stable_env = data_dir() / ".env"
     if stable_env.exists():
         for key, value in load_env_file(stable_env).items():
             os.environ.setdefault(key, value)

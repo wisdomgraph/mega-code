@@ -12,7 +12,7 @@ which skills are too basic for your experience level.
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
@@ -51,4 +51,4 @@ Profile is saved in two places:
 
 - **Remote server** — authoritative source, persists across machines.
   Requires a valid API key (run `/mega-code:login` first).
-- **Local mirror** `~/.local/mega-code/profile.json` — written only after a successful remote save.
+- **Local mirror** `~/.local/share/mega-code/profile.json` — written only after a successful remote save.

@@ -172,7 +172,7 @@ def create_loader(
 
     Args:
         include_claude_native: Include ~/.claude/projects source.
-        include_mega_code: Include ~/.local/mega-code source.
+        include_mega_code: Include ~/.local/share/mega-code source.
         claude_native_path: Custom path for Claude native data.
         mega_code_path: Custom path for MEGA-Code data.
         dataset_paths: Dict mapping source names to Parquet paths.

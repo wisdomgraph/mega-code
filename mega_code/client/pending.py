@@ -6,13 +6,13 @@ This module handles local file operations for pending pipeline outputs:
 - Clear and delete pending items
 - Format review notifications for Claude Code
 
-Pending data is user-generated content stored at user level (~/.local/mega-code/data/),
-consistent across both local and remote installation modes.
+Pending data is user-generated content stored at user level, consistent across
+both local and remote installation modes.
 
-Directories:
-- ~/.local/mega-code/data/pending-skills/{name}/ - for skills (SKILL.md + metadata)
-- ~/.local/mega-code/data/pending-strategies/{name}.md - for strategies (modular rules)
-- ~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/{slug}.md - for lessons
+Directories (under data_dir()/data/):
+- pending-skills/{name}/ - for skills (SKILL.md + metadata)
+- pending-strategies/{name}.md - for strategies (modular rules)
+- feedback/{project_id}/{run_id}/lessons/{slug}.md - for lessons
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import shutil
 import string
 import time
@@ -30,6 +29,8 @@ import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from mega_code.client.dirs import data_dir as _data_dir
 
 if TYPE_CHECKING:
     from mega_code.client.api.protocol import MegaCodeBaseClient, PipelineStatusResult
@@ -45,15 +46,12 @@ def _load_config() -> dict:
         return yaml.safe_load(f)
 
 
-# Pending directories under user data (~/.local/mega-code/data/).
-# MEGA_CODE_DATA_DIR env var overrides the root (same convention as client/stats.py).
-# Example: MEGA_CODE_DATA_DIR=/tmp/test → pending-skills at /tmp/test/data/pending-skills/
-_DATA_ROOT = Path(os.environ.get("MEGA_CODE_DATA_DIR", str(Path.home() / ".local" / "mega-code")))
-MEGA_CODE_DATA_DIR = _DATA_ROOT / "data"
-PENDING_SKILLS_DIR = MEGA_CODE_DATA_DIR / "pending-skills"
-PENDING_STRATEGIES_DIR = MEGA_CODE_DATA_DIR / "pending-strategies"
-FEEDBACK_DIR = MEGA_CODE_DATA_DIR / "feedback"
-DEDUP_METADATA_PATH = MEGA_CODE_DATA_DIR / "dedup_metadata.json"
+# Pending directories under user data (resolved via dirs.data_dir()).
+_MEGA_CODE_DATA_DIR = _data_dir() / "data"
+PENDING_SKILLS_DIR = _MEGA_CODE_DATA_DIR / "pending-skills"
+PENDING_STRATEGIES_DIR = _MEGA_CODE_DATA_DIR / "pending-strategies"
+FEEDBACK_DIR = _MEGA_CODE_DATA_DIR / "feedback"
+DEDUP_METADATA_PATH = _MEGA_CODE_DATA_DIR / "dedup_metadata.json"
 
 # Maximum length for description truncation
 MAX_DESCRIPTION_LENGTH = 100

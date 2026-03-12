@@ -25,7 +25,7 @@ The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
@@ -74,7 +74,7 @@ When omitted, server selects based on configured LLM keys (priority: Gemini > Op
 ## Pipeline Outputs
 
 1. **Skills & Strategies** — saved to pending dirs for review/install
-2. **Lesson Learned documents** — saved to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged `lesson_learn`)
+2. **Lesson Learned documents** — saved to `~/.local/share/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged `lesson_learn`)
 
 ## Post-Pipeline Workflow (MANDATORY)
 

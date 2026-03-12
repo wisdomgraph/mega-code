@@ -88,8 +88,8 @@ def test_run_skill_includes_codex_flag():
     assert "--include-codex" in content
     # Flag should appear in the bash command template
     lines = content.split("\n")
-    cmd_lines = [l for l in lines if "run_pipeline_async.py" in l]
-    assert any("--include-codex" in l for l in cmd_lines)
+    cmd_lines = [line for line in lines if "run_pipeline_async.py" in line]
+    assert any("--include-codex" in line for line in cmd_lines)
 
 
 # ── Cycle 6 ───────────────────────────────────────────────────────────

@@ -177,7 +177,7 @@ mega-code-oss/
 
 ## Configuration
 
-Configuration is stored in `~/.local/mega-code/` and persists across sessions.
+Configuration is stored in `~/.local/share/mega-code/` and persists across sessions.
 Use `/mega-code:login` to authenticate, or `mega-code configure` CLI for advanced settings.
 
 ## Terms of Service

@@ -3,7 +3,7 @@
 Check for pending skills and strategies; output highlighted notification for Claude Code.
 
 This script is called via UserPromptSubmit hook to inject context about pending items.
-It scans ~/.local/mega-code/data/pending-{skills,strategies}/ directories.
+It scans ~/.local/share/mega-code/data/pending-{skills,strategies}/ directories.
 
 Output format follows Claude Code hooks reference:
 https://code.claude.com/docs/en/hooks
@@ -22,9 +22,10 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import dotenv  # noqa: E402
+from mega_code.client.dirs import data_dir  # noqa: E402
 
-# 1. Stable credential store (~/.local/mega-code/.env) — always loaded first
-_stable_env = Path.home() / ".local" / "mega-code" / ".env"
+# 1. Stable credential store (data_dir()/.env) — always loaded first
+_stable_env = data_dir() / ".env"
 if _stable_env.exists():
     dotenv.load_dotenv(_stable_env, override=False)
 

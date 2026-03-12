@@ -11,7 +11,7 @@ which skills are too basic for your experience level.
 ## Setup
 
 ```bash
-MEGA_DIR="$HOME/.local/mega-code/pkg"
+MEGA_DIR="$HOME/.local/share/mega-code/pkg"
 if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   git clone --depth 1 https://github.com/wisdomgraph/mega-code.git "$MEGA_DIR"
 fi
@@ -51,4 +51,4 @@ Profile is saved in two places:
 
 - **Remote server** — authoritative source, persists across machines.
   Requires a valid API key (run `$mega-code-login` first).
-- **Local mirror** `~/.local/mega-code/profile.json` — written only after a successful remote save.
+- **Local mirror** `~/.local/share/mega-code/profile.json` — written only after a successful remote save.

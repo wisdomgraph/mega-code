@@ -359,9 +359,9 @@ class CodexSource:
                 cache_create_tokens=0,  # Not separately tracked
             )
 
-        content_hash = hashlib.sha256(
-            json.dumps(msg_entry, sort_keys=True).encode()
-        ).hexdigest()[:12]
+        content_hash = hashlib.sha256(json.dumps(msg_entry, sort_keys=True).encode()).hexdigest()[
+            :12
+        ]
         return Message(
             id=f"{msg_entry.get('timestamp', '')}-{content_hash}",
             role=mapped_role,  # type: ignore[arg-type]

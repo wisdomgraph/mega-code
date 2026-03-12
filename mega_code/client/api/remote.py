@@ -81,9 +81,7 @@ class MegaCodeRemote:
         """Raise on auth/config errors, otherwise the default HTTPStatusError."""
         if resp.status_code in (401, 403):
             raise ValueError(
-                _AUTH_ERROR_MSG.format(
-                    status=resp.status_code, reason=resp.reason_phrase
-                )
+                _AUTH_ERROR_MSG.format(status=resp.status_code, reason=resp.reason_phrase)
             )
         if resp.status_code == 400:
             raise ValueError(resp.text)
@@ -150,9 +148,7 @@ class MegaCodeRemote:
         if project_path is not None and include_claude:
             from mega_code.client.api.sync import sync_claude_trajectories
 
-            await asyncio.to_thread(
-                sync_claude_trajectories, project_path, self, project_id
-            )
+            await asyncio.to_thread(sync_claude_trajectories, project_path, self, project_id)
 
         if include_codex and project_path is not None:
             from mega_code.client.api.codex_sync import sync_codex_trajectories
@@ -219,7 +215,7 @@ class MegaCodeRemote:
 
         Order of operations:
           1. PUT /api/megacode/v1/profile  → persists to mega-service Postgres
-          2. Write ~/.local/mega-code/profile.json  → local mirror for inspection
+          2. Write ~/.local/share/mega-code/profile.json  → local mirror for inspection
              (only written when the API call succeeds)
         """
         payload = profile.model_dump(by_alias=True)
@@ -248,9 +244,7 @@ class MegaCodeRemote:
         self._check_response(resp)
         return PipelineStopResult(**resp.json())
 
-    @traced(
-        "client.remote.get_active_pipelines", kind="CLIENT", openinference_kind="TOOL"
-    )
+    @traced("client.remote.get_active_pipelines", kind="CLIENT", openinference_kind="TOOL")
     def get_active_pipelines(self) -> ActivePipelinesResult:
         """List active pipelines via GET /api/megacode/v1/pipeline/status."""
         resp = self._client.get("/api/megacode/v1/pipeline/status")

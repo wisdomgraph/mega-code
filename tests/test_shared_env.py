@@ -1,4 +1,4 @@
-"""Tests for shared local environment (~/.local/mega-code).
+"""Tests for shared local environment (~/.local/share/mega-code).
 
 Covers:
 1. Shared .env credential store (get_env_path, save_env_file, load_env_file)
@@ -14,19 +14,18 @@ import pytest
 
 from mega_code.client.cli import get_env_path, load_env_file, save_env_file
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Unit tests: shared .env path and file operations
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class TestGetEnvPath:
-    """get_env_path() always returns ~/.local/mega-code/.env."""
+    """get_env_path() always returns ~/.local/share/mega-code/.env."""
 
     def test_returns_stable_path(self, tmp_path, monkeypatch):
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = get_env_path()
-        assert result == tmp_path / ".local" / "mega-code" / ".env"
+        assert result == tmp_path / ".local" / "share" / "mega-code" / ".env"
 
     def test_creates_parent_directory(self, tmp_path, monkeypatch):
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -79,7 +78,7 @@ class TestSaveAndLoadEnvFile:
 
 
 class TestLoginSavesToSharedEnv:
-    """_save_api_key writes credentials to ~/.local/mega-code/.env."""
+    """_save_api_key writes credentials to ~/.local/share/mega-code/.env."""
 
     def test_save_api_key_writes_to_stable_path(self, tmp_path, monkeypatch):
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -89,7 +88,7 @@ class TestLoginSavesToSharedEnv:
             "mg_test_api_key",
             "https://console.megacode.ai/api/mega-service/v1",
         )
-        assert env_path == tmp_path / ".local" / "mega-code" / ".env"
+        assert env_path == tmp_path / ".local" / "share" / "mega-code" / ".env"
         assert env_vars["MEGA_CODE_API_KEY"] == "mg_test_api_key"
         assert env_vars["MEGA_CODE_CLIENT_MODE"] == "remote"
         assert env_vars["MEGA_CODE_SERVER_URL"] == "https://console.megacode.ai"
@@ -164,13 +163,13 @@ class TestCrossToolCredentialSharing:
         assert loaded["MEGA_CODE_API_KEY"] == "mg_second_key"
 
     def test_run_pipeline_script_loads_stable_env(self, tmp_path, monkeypatch):
-        """run_pipeline_async.py loads ~/.local/mega-code/.env first."""
+        """run_pipeline_async.py loads ~/.local/share/mega-code/.env first."""
         # The script at module level does:
-        #   _stable_env = Path.home() / ".local" / "mega-code" / ".env"
+        #   _stable_env = Path.home() / ".local" / "share" / "mega-code" / ".env"
         #   if _stable_env.exists(): dotenv.load_dotenv(_stable_env, override=False)
         # We verify the path construction matches get_env_path()
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        stable_env = Path.home() / ".local" / "mega-code" / ".env"
+        stable_env = Path.home() / ".local" / "share" / "mega-code" / ".env"
         assert stable_env == get_env_path()
 
 

@@ -7,8 +7,6 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from mega_code.client.api.codex_sync import sync_codex_trajectories
 from mega_code.client.api.protocol import UploadResult
 
@@ -43,9 +41,12 @@ def _setup_codex_base(tmp_path: Path, session_files: list[tuple[str, str]]) -> P
 class TestFirstSyncUploadsAll:
     def test_first_sync_uploads_all(self, tmp_path, monkeypatch):
         """First sync should upload all matching sessions."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "golden_session.jsonl"),
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
         # Create second session with different id
         entries = []
         with open(FIXTURES_DIR / "golden_session.jsonl") as f:
@@ -86,9 +87,12 @@ class TestFirstSyncUploadsAll:
 class TestIdempotentSync:
     def test_idempotent_sync(self, tmp_path, monkeypatch):
         """Second sync should upload 0 sessions."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "golden_session.jsonl"),
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()
         client = _mock_client()
@@ -120,9 +124,12 @@ class TestIdempotentSync:
 class TestMtimeChangeReuploads:
     def test_mtime_change_reuploads(self, tmp_path, monkeypatch):
         """Touching file after first sync should cause re-upload."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "golden_session.jsonl"),
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()
         client = _mock_client()
@@ -159,9 +166,12 @@ class TestMtimeChangeReuploads:
 class TestNewSessionAdded:
     def test_new_session_added(self, tmp_path, monkeypatch):
         """Adding a new session file after first sync → 1 new upload."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "golden_session.jsonl"),
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()
         client = _mock_client()
@@ -206,9 +216,12 @@ class TestNewSessionAdded:
 class TestProjectCwdFiltering:
     def test_project_cwd_filtering(self, tmp_path, monkeypatch):
         """Session with wrong cwd should not be uploaded."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "multi_project.jsonl"),  # cwd=/home/user/projects/other-project
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "multi_project.jsonl"),  # cwd=/home/user/projects/other-project
+            ],
+        )
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()
         client = _mock_client()
@@ -232,9 +245,12 @@ class TestProjectCwdFiltering:
 class TestCorruptLedgerFreshSync:
     def test_corrupt_ledger_fresh_sync(self, tmp_path, monkeypatch):
         """Corrupt ledger should result in fresh sync, no crash."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "golden_session.jsonl"),
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()
         # Write garbage ledger
@@ -259,9 +275,12 @@ class TestCorruptLedgerFreshSync:
 class TestMissingLedger:
     def test_missing_ledger(self, tmp_path, monkeypatch):
         """No ledger file should behave same as first sync."""
-        codex_base = _setup_codex_base(tmp_path, [
-            ("s1.jsonl", "golden_session.jsonl"),
-        ])
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()
         client = _mock_client()
@@ -288,15 +307,20 @@ class TestEmptySessionSkipped:
         codex_base.mkdir(parents=True)
         # Create session with only session_meta (no messages → 0 turns)
         with open(codex_base / "s1.jsonl", "w") as f:
-            f.write(json.dumps({
-                "type": "session_meta",
-                "timestamp": "2026-03-10T10:00:00Z",
-                "payload": {
-                    "id": "empty-session",
-                    "cwd": "/home/user/projects/test-project",
-                    "timestamp": "2026-03-10T10:00:00Z",
-                },
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "type": "session_meta",
+                        "timestamp": "2026-03-10T10:00:00Z",
+                        "payload": {
+                            "id": "empty-session",
+                            "cwd": "/home/user/projects/test-project",
+                            "timestamp": "2026-03-10T10:00:00Z",
+                        },
+                    }
+                )
+                + "\n"
+            )
 
         project_dir = tmp_path / "project-data"
         project_dir.mkdir()

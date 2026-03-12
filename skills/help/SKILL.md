@@ -19,15 +19,15 @@ allowed-tools: Read
 
 | Type | Pending Location | Installed Location |
 |------|------------------|-------------------|
-| Skills | `~/.local/mega-code/data/pending-skills/{name}/` | `.claude/skills/{name}/SKILL.md` |
-| Strategies | `~/.local/mega-code/data/pending-strategies/{name}.md` | `.claude/rules/mega-code/{name}.md` |
+| Skills | `~/.local/share/mega-code/data/pending-skills/{name}/` | `.claude/skills/{name}/SKILL.md` |
+| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.claude/rules/mega-code/{name}.md` |
 
 ## Skill Structure
 
 Generated skills follow this structure:
 
 ```
-~/.local/mega-code/data/pending-skills/{skill-name}/
+~/.local/share/mega-code/data/pending-skills/{skill-name}/
 ├── SKILL.md        # Main skill content
 ├── injection.json  # Auto-trigger rules
 ├── evidence.json   # Source evidence

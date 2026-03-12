@@ -5,7 +5,7 @@ have been uploaded. Before triggering a remote pipeline run, the caller invokes
 sync_trajectories() to ensure all local sessions are on the server.
 
 Ledger location:
-    ~/.local/mega-code/projects/{project_id}/sync-ledger.json
+    ~/.local/share/mega-code/projects/{project_id}/sync-ledger.json
 """
 
 from __future__ import annotations
@@ -192,12 +192,10 @@ def sync_trajectories(
                 logger.debug("Cannot load session %s from %s", session_id, session_dir)
                 return None
             return _session_to_turnset(session, session_dir)
+
         return _load
 
-    sessions = [
-        (sid, _make_loader(project_dir / sid, sid))
-        for sid in local_sessions
-    ]
+    sessions = [(sid, _make_loader(project_dir / sid, sid)) for sid in local_sessions]
 
     return _upload_sessions(
         ledger_path=project_dir / "sync-ledger.json",
@@ -227,19 +225,18 @@ def sync_claude_trajectories(
     from mega_code.client.history.loader import load_sessions_from_project
 
     all_sessions = load_sessions_from_project(
-        project_dir, include_claude=True, include_codex=False,
+        project_dir,
+        include_claude=True,
+        include_codex=False,
     )
 
-    claude_sessions = [
-        s for s in all_sessions if s.metadata.source == "claude_native"
-    ]
+    claude_sessions = [s for s in all_sessions if s.metadata.source == "claude_native"]
     if not claude_sessions:
         logger.info("No Claude native sessions found for project")
         return 0
 
     sessions = [
-        (s.metadata.session_id, lambda s=s: _session_to_turnset(s))
-        for s in claude_sessions
+        (s.metadata.session_id, lambda s=s: _session_to_turnset(s)) for s in claude_sessions
     ]
 
     return _upload_sessions(

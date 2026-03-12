@@ -17,6 +17,7 @@ import os
 import sys
 from pathlib import Path
 
+from mega_code.client.dirs import data_dir as get_data_dir
 from mega_code.client.profile import get_profile_path
 
 # ═══════════════════════════════════════════════════════════════════
@@ -24,14 +25,9 @@ from mega_code.client.profile import get_profile_path
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _get_mega_code_data_root() -> Path:
-    """Get the base data directory for mega-code."""
-    return Path.home() / ".local" / "mega-code"
-
-
 def get_projects_data_dir() -> Path:
     """Get the data directory for project data storage."""
-    return _get_mega_code_data_root() / "projects"
+    return get_data_dir() / "projects"
 
 
 def _get_plugin_root() -> Path | None:
@@ -39,7 +35,7 @@ def _get_plugin_root() -> Path | None:
 
     Priority:
     1. CLAUDE_PLUGIN_ROOT environment variable (set by Claude Code)
-    2. Breadcrumb file ~/.local/mega-code/plugin-root
+    2. Breadcrumb file <data_dir>/plugin-root
     3. None if not found
     """
     # Check env var first (available inside hook execution)
@@ -48,7 +44,7 @@ def _get_plugin_root() -> Path | None:
         return Path(env_root)
 
     # Check breadcrumb written by session-start.sh
-    breadcrumb = _get_mega_code_data_root() / "plugin-root"
+    breadcrumb = get_data_dir() / "plugin-root"
     if breadcrumb.exists():
         root = breadcrumb.read_text().strip()
         if root and Path(root).is_dir():
@@ -58,13 +54,8 @@ def _get_plugin_root() -> Path | None:
 
 
 def get_env_path() -> Path:
-    """Get the path to the stable .env credential file.
-
-    Always returns ~/.local/mega-code/.env, creating the directory if needed.
-    """
-    stable_path = _get_mega_code_data_root() / ".env"
-    stable_path.parent.mkdir(parents=True, exist_ok=True)
-    return stable_path
+    """Get the path to the stable .env credential file."""
+    return get_data_dir() / ".env"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -111,13 +102,24 @@ def save_env_file(env_path: Path, env_vars: dict[str, str]) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Shared helpers
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _load_env() -> None:
+    """Load .env credentials into os.environ (setdefault, won't override)."""
+    for key, value in load_env_file(get_env_path()).items():
+        os.environ.setdefault(key, value)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Commands
 # ═══════════════════════════════════════════════════════════════════
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     """Check mega-code installation status."""
-    data_root = _get_mega_code_data_root()
+    data_root = get_data_dir()
     data_dir = get_projects_data_dir()
     plugin_root = _get_plugin_root()
 
@@ -242,12 +244,7 @@ def cmd_profile(args: argparse.Namespace) -> int:
     from mega_code.client.api import create_client
     from mega_code.client.api.protocol import UserProfile
 
-    # Load .env into os.environ so create_client() can find MEGA_CODE_API_KEY etc.
-    env_vars = load_env_file(get_env_path())
-    for key, value in env_vars.items():
-        os.environ.setdefault(key, value)
-
-    # Single client instance for all operations in this command.
+    _load_env()
     client = create_client()
 
     # Reset
@@ -305,6 +302,71 @@ def cmd_profile(args: argparse.Namespace) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Pipeline control commands
+# ═══════════════════════════════════════════════════════════════════
+
+
+def cmd_pipeline_status(args: argparse.Namespace) -> int:
+    """Show active pipeline runs."""
+    from mega_code.client.api import create_client
+    from mega_code.client.api.remote import MegaCodeRemote
+
+    _load_env()
+    client = create_client()
+    if not isinstance(client, MegaCodeRemote):
+        print("Pipeline status requires remote mode.")
+        return 0
+
+    try:
+        result = client.get_active_pipelines()
+    except Exception as e:
+        print(f"Could not reach server: {e}")
+        return 1
+
+    if not result.active:
+        print("No active pipeline runs.")
+        return 0
+
+    print("Active pipeline runs:\n")
+    for i, run in enumerate(result.runs, 1):
+        progress_str = ""
+        if run.progress:
+            phase = run.progress.get("current_phase", "")
+            processed = run.progress.get("sessions_processed", "?")
+            total = run.progress.get("sessions_total", "?")
+            if phase:
+                progress_str = f" | Phase: {phase} ({processed}/{total})"
+        started_str = ""
+        if run.started_at:
+            started_str = f" | Started: {run.started_at}"
+        line = f"  [{i}] {run.run_id} | project: {run.project_id}"
+        line += f" | {run.status}{progress_str}{started_str}"
+        print(line)
+
+    return 0
+
+
+def cmd_pipeline_stop(args: argparse.Namespace) -> int:
+    """Stop a running pipeline by run_id."""
+    from mega_code.client.api import create_client
+    from mega_code.client.api.remote import MegaCodeRemote
+
+    _load_env()
+    client = create_client()
+    if not isinstance(client, MegaCodeRemote):
+        print(json.dumps({"error": "pipeline-stop requires remote mode"}))
+        return 1
+
+    try:
+        result = client.stop_pipeline(run_id=args.run_id)
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+        return 1
+    print(json.dumps(result.model_dump(), default=str))
+    return 0
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Main entry point
 # ═══════════════════════════════════════════════════════════════════
 
@@ -326,7 +388,9 @@ def main():
     configure_parser.add_argument("--user-id", "-u", type=str, help="Set your user identifier")
     configure_parser.add_argument("--api-key", "-k", type=str, help="Set MEGA-Code API key")
     configure_parser.add_argument(
-        "--server-url", type=str, help="Set MEGA-Code server URL (e.g. http://localhost:8000)"
+        "--server-url",
+        type=str,
+        help="Set MEGA-Code server URL (e.g. http://localhost:8000)",
     )
     configure_parser.add_argument(
         "--client-mode",
@@ -374,6 +438,13 @@ def main():
     )
     profile_parser.add_argument("--reset", action="store_true", help="Reset profile to defaults")
 
+    # Pipeline status command
+    subparsers.add_parser("pipeline-status", help="Show active pipeline runs")
+
+    # Pipeline stop command
+    pstop_parser = subparsers.add_parser("pipeline-stop", help="Stop a running pipeline")
+    pstop_parser.add_argument("--run-id", required=True, help="Run ID to stop")
+
     args = parser.parse_args()
 
     match args.command:
@@ -388,6 +459,10 @@ def main():
             return cmd_login(args)
         case "profile":
             return cmd_profile(args)
+        case "pipeline-status":
+            return cmd_pipeline_status(args)
+        case "pipeline-stop":
+            return cmd_pipeline_stop(args)
         case _:
             return 0
 

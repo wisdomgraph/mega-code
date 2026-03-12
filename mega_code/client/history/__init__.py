@@ -4,7 +4,7 @@ This module provides a unified interface for loading Claude Code
 conversation data from multiple sources:
 
 - Claude Code native storage (~/.claude/projects/)
-- MEGA-Code collector storage (~/.local/mega-code/)
+- MEGA-Code collector storage (~/.local/share/mega-code/)
 - Parquet datasets (ZAI CC-Bench, NLILE, etc.)
 
 Example:

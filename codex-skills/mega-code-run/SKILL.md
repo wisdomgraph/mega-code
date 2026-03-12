@@ -23,7 +23,7 @@ The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout
 ## Setup
 
 ```bash
-MEGA_DIR="$HOME/.local/mega-code/pkg"
+MEGA_DIR="$HOME/.local/share/mega-code/pkg"
 if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   git clone --depth 1 https://github.com/wisdomgraph/mega-code.git "$MEGA_DIR"
 fi
@@ -76,7 +76,7 @@ When omitted, server selects based on configured LLM keys (priority: Gemini > Op
 ## Pipeline Outputs
 
 1. **Skills & Strategies** — saved to pending dirs for review/install
-2. **Lesson Learned documents** — saved to `~/.local/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged `lesson_learn`)
+2. **Lesson Learned documents** — saved to `~/.local/share/mega-code/data/feedback/{project_id}/{run_id}/lessons/` (from sessions tagged `lesson_learn`)
 
 ## Post-Pipeline Workflow (MANDATORY)
 

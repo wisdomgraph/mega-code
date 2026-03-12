@@ -39,7 +39,7 @@ scripts/           -> session-start.sh, check_pending_skills.py,
 Every Claude skill that runs `uv` must set:
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 Every `uv run` command must include:

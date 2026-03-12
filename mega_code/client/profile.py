@@ -13,7 +13,9 @@ from mega_code.client.utils.io import atomic_write
 
 def get_profile_path() -> Path:
     """Get the path to the user profile file."""
-    return Path.home() / ".local" / "mega-code" / "profile.json"
+    from mega_code.client.dirs import data_dir
+
+    return data_dir() / "profile.json"
 
 
 def load_profile() -> UserProfile:

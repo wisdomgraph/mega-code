@@ -1,4 +1,4 @@
-"""MEGA-Code collector data source (~/.local/mega-code/).
+"""MEGA-Code collector data source (~/.local/share/mega-code/).
 
 Loads historical conversation data collected by MEGA-Code's session collector.
 """
@@ -46,9 +46,13 @@ class MegaCodeSource:
 
         Args:
             base_path: Base directory for MEGA-Code data.
-                      Defaults to ~/.local/mega-code/
+                      Defaults to ~/.local/share/mega-code/
         """
-        self.base_path = base_path or Path.home() / ".local" / "mega-code"
+        if base_path is None:
+            from mega_code.client.dirs import data_dir
+
+            base_path = data_dir()
+        self.base_path = base_path
         self._mapping: dict[str, str] | None = None
 
     @property

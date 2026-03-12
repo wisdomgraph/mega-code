@@ -14,7 +14,17 @@ set -euo pipefail
 
 MEGA_DIR="${CLAUDE_PLUGIN_ROOT}"
 # Allow tests and CI to override the data directory via MEGA_CODE_DATA_DIR.
-DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/mega-code}"
+DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/share/mega-code}"
+
+# ── 0. Migrate legacy data dir (one-time) ──────────────────────────────
+# Old versions stored data in ~/.local/mega-code. Move to XDG-compliant
+# ~/.local/share/mega-code and leave a symlink for backward compatibility.
+LEGACY_DIR="$HOME/.local/mega-code"
+if [ -z "${MEGA_CODE_DATA_DIR:-}" ] && [ -d "$LEGACY_DIR" ] && [ ! -L "$LEGACY_DIR" ] && [ ! -d "$DATA_DIR" ]; then
+    mkdir -p "$(dirname "$DATA_DIR")"
+    mv "$LEGACY_DIR" "$DATA_DIR"
+    ln -s "$DATA_DIR" "$LEGACY_DIR"
+fi
 
 # ── 1. Bootstrap uv if not available ──────────────────────────────────
 if ! command -v uv &>/dev/null; then
@@ -43,7 +53,7 @@ if [ ! -f "$DATA_DIR/profile.json" ]; then
 fi
 
 # ── 4. Ensure stable credential store exists ──────────────────────────
-# Credentials live in ~/.local/mega-code/.env (version-independent, survives
+# Credentials live in ~/.local/share/mega-code/.env (version-independent, survives
 # plugin updates — same pattern as AWS ~/.aws/credentials, gh ~/.config/gh/).
 # The versioned plugin .env is kept as a non-secret config overlay only.
 if [ ! -f "$DATA_DIR/.env" ]; then

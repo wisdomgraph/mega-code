@@ -33,7 +33,7 @@ def sync_codex_trajectories(
 
     Args:
         project_dir: Local mega-code project data folder
-            (e.g. ~/.local/mega-code/projects/mega-code_b39e0992/).
+            (e.g. ~/.local/share/mega-code/projects/mega-code_b39e0992/).
         client: Authenticated client (typically MegaCodeRemote).
         project_id: Project identifier for the server.
         project_path: Actual project cwd for Codex filtering.
@@ -45,9 +45,7 @@ def sync_codex_trajectories(
 
     # Discover Codex sessions matching this project path
     codex_source = CodexSource()
-    matching_entries = list(
-        codex_source.iter_sessions_by_project_paths([project_path])
-    )
+    matching_entries = list(codex_source.iter_sessions_by_project_paths([project_path]))
 
     if not matching_entries:
         logger.debug("No Codex sessions found for project path: %s", project_path)

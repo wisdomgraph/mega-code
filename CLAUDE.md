@@ -19,7 +19,7 @@ scripts/          → session-start.sh, check_pending_skills.py, run_pipeline_as
 ## MEGA_DIR Setup (required in every skill that calls uv run)
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 All `uv run` commands must use `--directory "$MEGA_DIR"`.

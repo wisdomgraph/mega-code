@@ -11,16 +11,22 @@ Show current MEGA-Code status and pending items.
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
 If the auth check fails (non-zero exit), show the output to the user and stop.
 
+## Pipeline Status
+
+```bash
+uv run --directory "$MEGA_DIR" mega-code pipeline-status 2>/dev/null || true
+```
+
 ## Quick Status
 
 ```bash
-ls -la ~/.local/mega-code/data/pending-skills/ ~/.local/mega-code/data/pending-strategies/ 2>/dev/null || echo "No pending items"
+ls -la ~/.local/share/mega-code/data/pending-skills/ ~/.local/share/mega-code/data/pending-strategies/ 2>/dev/null || echo "No pending items"
 ```
 
 ## Detailed Pending Items
@@ -28,8 +34,8 @@ ls -la ~/.local/mega-code/data/pending-skills/ ~/.local/mega-code/data/pending-s
 Uses `ls` checks to avoid zsh glob errors on empty directories.
 
 ```bash
-SKILLS_DIR="$HOME/.local/mega-code/data/pending-skills"
-STRATS_DIR="$HOME/.local/mega-code/data/pending-strategies"
+SKILLS_DIR="$HOME/.local/share/mega-code/data/pending-skills"
+STRATS_DIR="$HOME/.local/share/mega-code/data/pending-strategies"
 
 echo "=== Pending Skills ==="
 if [ -d "$SKILLS_DIR" ] && [ "$(ls -A "$SKILLS_DIR" 2>/dev/null)" ]; then
@@ -58,5 +64,5 @@ fi
 
 | Type | Pending Location | Installed Location |
 |------|------------------|-------------------|
-| Skills | `~/.local/mega-code/data/pending-skills/{name}/` | `.claude/skills/{name}/SKILL.md` |
-| Strategies | `~/.local/mega-code/data/pending-strategies/{name}.md` | `.claude/rules/mega-code/{name}.md` |
+| Skills | `~/.local/share/mega-code/data/pending-skills/{name}/` | `.claude/skills/{name}/SKILL.md` |
+| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.claude/rules/mega-code/{name}.md` |

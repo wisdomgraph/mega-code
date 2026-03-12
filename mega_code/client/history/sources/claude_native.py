@@ -89,9 +89,7 @@ class ClaudeNativeSource:
                     data = json.load(f)
                 entries = data.get("entries", [])
             except (json.JSONDecodeError, OSError) as e:
-                logger.warning(
-                    f"Failed to load sessions index from {index_path}: {e}"
-                )
+                logger.warning(f"Failed to load sessions index from {index_path}: {e}")
 
         # Discover JSONL files not in the index
         indexed_ids = {e.get("sessionId") for e in entries}
@@ -160,19 +158,17 @@ class ClaudeNativeSource:
             except OSError as e:
                 logger.debug(f"Failed to stat {jsonl_path}: {e}")
                 continue
-            discovered.append({
-                "sessionId": session_id,
-                "fullPath": str(jsonl_path),
-                "projectPath": cwd,
-                "gitBranch": git_branch,
-                "isSidechain": False,
-                "created": datetime.fromtimestamp(
-                    stat.st_ctime, tz=timezone.utc
-                ).isoformat(),
-                "modified": datetime.fromtimestamp(
-                    stat.st_mtime, tz=timezone.utc
-                ).isoformat(),
-            })
+            discovered.append(
+                {
+                    "sessionId": session_id,
+                    "fullPath": str(jsonl_path),
+                    "projectPath": cwd,
+                    "gitBranch": git_branch,
+                    "isSidechain": False,
+                    "created": datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                }
+            )
 
         if discovered:
             logger.info(

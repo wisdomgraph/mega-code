@@ -18,7 +18,6 @@ from mega_code.client.api.protocol import (
 )
 from mega_code.client.api.remote import MegaCodeRemote
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Unit tests: client handles pipeline-busy (409) responses
 # ═══════════════════════════════════════════════════════════════════════════
@@ -155,7 +154,10 @@ class TestPipelineStatusPolling:
                     "status": "running",
                     "started_at": "2026-03-11T10:00:00Z",
                 },
-                request=httpx.Request("GET", "https://test.megacode.ai/api/megacode/v1/pipeline/status/run-1"),
+                request=httpx.Request(
+                    "GET",
+                    "https://test.megacode.ai/api/megacode/v1/pipeline/status/run-1",
+                ),
             )
 
             status = client.get_pipeline_status(run_id="run-1")
@@ -173,7 +175,10 @@ class TestPipelineStatusPolling:
                     "status": "failed",
                     "error": "Pipeline already running for this project",
                 },
-                request=httpx.Request("GET", "https://test.megacode.ai/api/megacode/v1/pipeline/status/run-2"),
+                request=httpx.Request(
+                    "GET",
+                    "https://test.megacode.ai/api/megacode/v1/pipeline/status/run-2",
+                ),
             )
 
             status = client.get_pipeline_status(run_id="run-2")

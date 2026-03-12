@@ -1,0 +1,37 @@
+# Bitbucket Pipelines configuration for mega-code-oss
+#
+# Pipeline structure:
+#   default (every push):
+#     1. Lint & Format Check — black --check + flake8
+#     2. Unit Tests          — pytest (when tests exist)
+
+image: python:3.12
+
+definitions:
+  caches:
+    uv-cache:
+      key:
+        files:
+          - pyproject.toml
+      path: .venv
+
+pipelines:
+  default:
+    - step:
+        name: "Lint & Test"
+        caches:
+          - uv-cache
+        script:
+          - curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+          - uv sync --extra telemetry --group dev --group test
+          # Format check (non-destructive)
+          - uv run black mega_code/ tests/ --check
+          # Lint
+          - uv run flake8 mega_code/ tests/
+          # Run tests
+          - |
+            if [ -d tests ] && find tests -name "test_*.py" -print -quit | grep -q .; then
+              uv run pytest tests/ -v --timeout=60
+            else
+              echo "No tests found — skipping"
+            fi

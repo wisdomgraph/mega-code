@@ -52,7 +52,11 @@ def generate() -> None:
             "function_call_output",
         ):
             if removed < 2:
-                e2 = {"type": e["type"], "timestamp": e.get("timestamp", ""), "payload": dict(e["payload"])}
+                e2 = {
+                    "type": e["type"],
+                    "timestamp": e.get("timestamp", ""),
+                    "payload": dict(e["payload"]),
+                }
                 e2["payload"].pop("call_id", None)
                 entries.append(e2)
                 removed += 1

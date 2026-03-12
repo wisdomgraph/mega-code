@@ -68,9 +68,7 @@ class TestCodexOnlyProject:
         project_path.mkdir()
 
         with (
-            patch(
-                "mega_code.client.history.loader.MegaCodeSource"
-            ) as MockMegaSource,
+            patch("mega_code.client.history.loader.MegaCodeSource") as MockMegaSource,
             patch(
                 "mega_code.client.history.sources.codex.CodexSource",
             ) as _,
@@ -139,9 +137,7 @@ class TestCodexNotLoadedWhenFlagFalse:
     def test_codex_not_loaded_when_flag_false(self, codex_base, tmp_path):
         shutil.copy2(FIXTURES_DIR / "golden_session.jsonl", codex_base / "s1.jsonl")
 
-        with (
-            patch("mega_code.client.history.loader.MegaCodeSource") as MockMegaSource,
-        ):
+        with (patch("mega_code.client.history.loader.MegaCodeSource") as MockMegaSource,):
             mock_source = MockMegaSource.return_value
             mock_source.iter_sessions_from_path.return_value = iter([])
 

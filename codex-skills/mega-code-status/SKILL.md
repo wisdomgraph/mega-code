@@ -10,7 +10,7 @@ Show current MEGA-Code status and pending items.
 ## Setup
 
 ```bash
-MEGA_DIR="$HOME/.local/mega-code/pkg"
+MEGA_DIR="$HOME/.local/share/mega-code/pkg"
 if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   git clone --depth 1 https://github.com/wisdomgraph/mega-code.git "$MEGA_DIR"
 fi
@@ -20,7 +20,7 @@ bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
 ## Quick Status
 
 ```bash
-ls -la ~/.local/mega-code/data/pending-skills/ ~/.local/mega-code/data/pending-strategies/ 2>/dev/null || echo "No pending items"
+ls -la ~/.local/share/mega-code/data/pending-skills/ ~/.local/share/mega-code/data/pending-strategies/ 2>/dev/null || echo "No pending items"
 ```
 
 ## Detailed Pending Items
@@ -28,8 +28,8 @@ ls -la ~/.local/mega-code/data/pending-skills/ ~/.local/mega-code/data/pending-s
 Uses `ls` checks to avoid zsh glob errors on empty directories.
 
 ```bash
-SKILLS_DIR="$HOME/.local/mega-code/data/pending-skills"
-STRATS_DIR="$HOME/.local/mega-code/data/pending-strategies"
+SKILLS_DIR="$HOME/.local/share/mega-code/data/pending-skills"
+STRATS_DIR="$HOME/.local/share/mega-code/data/pending-strategies"
 
 echo "=== Pending Skills ==="
 if [ -d "$SKILLS_DIR" ] && [ "$(ls -A "$SKILLS_DIR" 2>/dev/null)" ]; then
@@ -58,5 +58,5 @@ fi
 
 | Type | Pending Location | Installed Location |
 |------|------------------|-------------------|
-| Skills | `~/.local/mega-code/data/pending-skills/{name}/` | `.agents/skills/{name}/SKILL.md` |
-| Strategies | `~/.local/mega-code/data/pending-strategies/{name}.md` | `.agents/rules/mega-code/{name}.md` |
+| Skills | `~/.local/share/mega-code/data/pending-skills/{name}/` | `.agents/skills/{name}/SKILL.md` |
+| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.agents/rules/mega-code/{name}.md` |

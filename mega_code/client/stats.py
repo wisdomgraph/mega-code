@@ -5,7 +5,6 @@ Handles session file I/O: directories, stats, metadata, events.
 
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 
@@ -15,18 +14,8 @@ from mega_code.client.schema import (
     estimate_cost,
     utcnow_iso,
 )
+from mega_code.client.dirs import data_dir as get_data_dir
 from mega_code.client.utils.io import atomic_write
-
-# Default data directory
-DEFAULT_DATA_DIR = Path.home() / ".local" / "mega-code"
-
-
-def get_data_dir() -> Path:
-    """Get the data directory, creating it if necessary."""
-    data_dir = Path(os.environ.get("MEGA_CODE_DATA_DIR", DEFAULT_DATA_DIR))
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir
-
 
 # =============================================================================
 # Project Mapping Functions
@@ -331,11 +320,11 @@ def resolve_project_path(project_arg: str) -> Path:
 
     Supports three input formats:
     1. @prefix or name prefix: fuzzy match against mapping.json keys
-       e.g. '@mega-code' or 'mega-code' -> ~/.local/mega-code/projects/mega-code_b39e0992/
+       e.g. '@mega-code' or 'mega-code' -> ~/.local/share/mega-code/projects/mega-code_b39e0992/
     2. Folder name with hash: direct lookup
-       e.g. 'mega-code_b39e0992' -> ~/.local/mega-code/projects/mega-code_b39e0992/
+       e.g. 'mega-code_b39e0992' -> ~/.local/share/mega-code/projects/mega-code_b39e0992/
     3. Absolute/relative path: resolve via get_project_sessions_dir()
-       e.g. '/Users/foo/my-project' -> ~/.local/mega-code/projects/my-project_a1b2c3d4/
+       e.g. '/Users/foo/my-project' -> ~/.local/share/mega-code/projects/my-project_a1b2c3d4/
 
     Args:
         project_arg: Project identifier (with optional @ prefix).

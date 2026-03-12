@@ -4,7 +4,7 @@ This module handles archiving pending items (instead of deleting) after user rev
 preserving them for cross-run dedup and historical reference.
 
 Storage layout (project-scoped):
-  ~/.local/mega-code/data/feedback/
+  ~/.local/share/mega-code/data/feedback/
   └── {project_id}/
       └── {run_id}/
           ├── manifest.json        # What was in this run (skills + strategies)

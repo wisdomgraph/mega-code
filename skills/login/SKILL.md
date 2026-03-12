@@ -11,7 +11,7 @@ Authenticate with MEGA-Code to obtain an API key using a two-step OAuth flow.
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 ## Step 1: Create session (fast, non-blocking)
@@ -46,7 +46,7 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
 Replace `CLIENT_ID` and `BASE_URL` with values from Step 1.
 Run this **in the background** so the user is not blocked.
 
-On success, saves to `~/.local/mega-code/.env` (stable, version-independent):
+On success, saves to `~/.local/share/mega-code/.env` (stable, version-independent):
 - `MEGA_CODE_API_KEY`, `MEGA_CODE_CLIENT_MODE=remote`, `MEGA_CODE_SERVER_URL`
 - Prints "Login successful!" and exits
 
@@ -58,12 +58,12 @@ Credentials are stored in the stable data directory, not the versioned plugin di
 Do **not** print the raw API key — mask it.
 
 ```bash
-grep -E "MEGA_CODE_(API_KEY|CLIENT_MODE|SERVER_URL)" "$HOME/.local/mega-code/.env" \
+grep -E "MEGA_CODE_(API_KEY|CLIENT_MODE|SERVER_URL)" "$HOME/.local/share/mega-code/.env" \
   | sed -E 's/(MEGA_CODE_API_KEY=.{6}).*/\1***/'
 ```
 
 ## Troubleshooting
 
 - **Timeout**: Session expires after 10 min. Re-run the command.
-- **Connection error**: Check `MEGA_CODE_SERVER_URL` in `~/.local/mega-code/.env`.
+- **Connection error**: Check `MEGA_CODE_SERVER_URL` in `~/.local/share/mega-code/.env`.
 - **Already logged in**: Running login again replaces the existing key.
