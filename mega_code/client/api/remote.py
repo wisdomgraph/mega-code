@@ -7,9 +7,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random as _random
 from pathlib import Path
 
 import httpx
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+)
 
 from mega_code.client.api.protocol import (
     ActivePipelinesResult,
@@ -25,6 +31,41 @@ from mega_code.client.models import TurnSet
 from mega_code.client.utils.tracing import traced
 
 logger = logging.getLogger(__name__)
+
+_MAX_ATTEMPTS = 5
+_INITIAL_RETRY_DELAY = 0.5
+_MAX_RETRY_DELAY = 8.0
+_RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Retry on transient HTTP errors and network failures."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_STATUS_CODES
+    return isinstance(exc, (httpx.NetworkError, httpx.TimeoutException))
+
+
+def _wait_exponential_jitter(retry_state) -> float:
+    """Exponential backoff with multiplicative jitter (Anthropic SDK style).
+
+    Formula: min(0.5 * 2^n, 8.0) * (1 - 0.25 * random())
+    Jitter range: [75%, 100%] of base delay.
+    """
+    n = retry_state.attempt_number - 1
+    delay = min(_INITIAL_RETRY_DELAY * (2.0**n), _MAX_RETRY_DELAY)
+    return delay * (1 - 0.25 * _random.random())
+
+
+def _log_retry(retry_state) -> None:
+    exc = retry_state.outcome.exception()
+    logger.warning(
+        "Retry %d/%d after %s: %s",
+        retry_state.attempt_number,
+        _MAX_ATTEMPTS,
+        exc.__class__.__name__,
+        exc,
+    )
+
 
 _AUTH_ERROR_MSG = (
     "Authentication failed ({status} {reason}). Your API key may be invalid or expired.\n"
@@ -87,6 +128,13 @@ class MegaCodeRemote:
             raise ValueError(resp.text)
         resp.raise_for_status()
 
+    @retry(
+        retry=retry_if_exception(_is_retryable),
+        wait=_wait_exponential_jitter,
+        stop=stop_after_attempt(_MAX_ATTEMPTS),
+        before_sleep=_log_retry,
+        reraise=True,
+    )
     @traced("client.remote.upload_trajectory")
     def upload_trajectory(
         self,
