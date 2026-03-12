@@ -116,6 +116,8 @@ mega-code-oss/
 │   ├── scripts/
 │   │   └── session-start.sh # Bootstrap script
 │   └── pyproject.toml
+├── scripts/
+│   └── session-start.sh     # Bootstrap script
 └── README.md
 ```
 
