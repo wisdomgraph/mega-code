@@ -59,7 +59,7 @@ def _wait_exponential_jitter(retry_state) -> float:
 def _log_retry(retry_state) -> None:
     exc = retry_state.outcome.exception()
     logger.warning(
-        "Retry %d/%d after %s: %s",
+        "upload_trajectory attempt %d/%d failed (%s: %s), retrying…",
         retry_state.attempt_number,
         _MAX_ATTEMPTS,
         exc.__class__.__name__,
