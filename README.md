@@ -76,54 +76,6 @@ Supported providers: **OpenAI** (`OPENAI_API_KEY`) and **Google Gemini** (`GEMIN
 /mega-code:feedback               # Rate the generated skills
 ```
 
-### Codex CLI
-
-MEGA-Code also supports [OpenAI Codex CLI](https://github.com/openai/codex) via
-the [Vercel Skills](https://github.com/vercel-labs/skills) integration.
-
-**Step 1 — Install skills:**
-
-```bash
-npx skills add wisdomgraph/mega-code/codex-skills
-```
-
-**Step 2 — Sign in:**
-
-```
-$mega-code-login
-```
-
-**Step 3 — Add your own LLM API key** at [megacode.ai](https://megacode.ai) under Account → API Keys.
-
-**Step 4 — Run in any project:**
-
-```
-$mega-code-run --include-codex
-```
-
-**Available commands** (invoked with `$` prefix in Codex):
-
-| Command | Description |
-|---------|-------------|
-| `$mega-code-login` | Sign in via GitHub or Google OAuth |
-| `$mega-code-run` | Run skill extraction pipeline |
-| `$mega-code-status` | Show pending items and status |
-| `$mega-code-profile` | View or update developer profile |
-| `$mega-code-help` | Show help and reference |
-
-**Example usage:**
-
-```bash
-# In a Codex CLI session:
-$mega-code-login                          # Sign in (first time)
-$mega-code-run --project --include-codex  # Extract skills from Codex sessions
-$mega-code-run --project --include-all    # Extract from all sources (Claude + Codex)
-$mega-code-status                         # See what was generated
-```
-
-> **Note:** The first run triggers a bootstrap step (`codex-bootstrap.sh`) that
-> installs Python dependencies via `uv`. This may take 30–60 seconds on first use.
-
 ## Development Setup (from main repo)
 
 If you are developing from the main `mega-code` repository (which includes this
@@ -164,14 +116,8 @@ mega-code-oss/
 │   ├── scripts/
 │   │   └── session-start.sh # Bootstrap script
 │   └── pyproject.toml
-├── codex-skills/             # Codex CLI skill definitions
-│   ├── mega-code-login/      # $mega-code-login
-│   ├── mega-code-run/        # $mega-code-run
-│   ├── mega-code-status/     # $mega-code-status
-│   ├── mega-code-profile/    # $mega-code-profile
-│   └── mega-code-help/       # $mega-code-help
 ├── scripts/
-│   └── codex-bootstrap.sh   # First-run dependency installer
+│   └── session-start.sh     # Bootstrap script
 └── README.md
 ```
 
