@@ -1,6 +1,6 @@
 ---
 name: mega-code-status
-description: Show MEGA-Code status including pending skills, strategies, and recent pipeline runs.
+description: "Show MEGA-Code status including pending skills, strategies, and recent pipeline runs."
 ---
 
 # MEGA-Code Status

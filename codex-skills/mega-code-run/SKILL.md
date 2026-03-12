@@ -1,6 +1,6 @@
 ---
 name: mega-code-run
-description: Run the MEGA-Code skill extraction pipeline to analyze coding sessions and generate reusable skills and strategies.
+description: "Run the MEGA-Code skill extraction pipeline to analyze coding sessions and generate reusable skills and strategies."
 ---
 
 # Run Skill Extraction Pipeline

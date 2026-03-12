@@ -1,6 +1,6 @@
 ---
 name: mega-code-login
-description: Sign in to MEGA-Code via GitHub or Google OAuth to get an API key.
+description: "Sign in to MEGA-Code via GitHub or Google OAuth to get an API key."
 ---
 
 # Login to MEGA-Code

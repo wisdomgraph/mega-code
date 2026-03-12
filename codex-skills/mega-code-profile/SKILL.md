@@ -1,6 +1,6 @@
 ---
 name: mega-code-profile
-description: View or update your MEGA-Code developer profile (language, level, style) to personalise skill extraction.
+description: "View or update your MEGA-Code developer profile (language, level, style) to personalise skill extraction."
 ---
 
 # Developer Profile

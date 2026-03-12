@@ -1,5 +1,5 @@
 ---
-description: Show MEGA-Code help — available commands, output locations, skill and strategy structure, and usage tips.
+description: Show MEGA-Code help -- available commands, output locations, skill and strategy structure, and usage tips.
 argument-hint: ""
 allowed-tools: Read
 ---
