@@ -51,6 +51,12 @@ fi
 - Codex (first run): env var unset, `pkg-breadcrumb` empty, clones + bootstraps, `codex-bootstrap.sh` writes `pkg-breadcrumb`.
 - Codex (subsequent): `pkg-breadcrumb` resolves, bootstrap skipped.
 
+Before any `uv run`, set the cache dir to avoid sandbox permission issues:
+
+```bash
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
+```
+
 Every `uv run` command must include:
 
 ```bash

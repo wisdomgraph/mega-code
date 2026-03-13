@@ -15,6 +15,7 @@ venv/
 
 # uv
 uv.lock
+.uv-cache/
 
 # IDE
 .idea/

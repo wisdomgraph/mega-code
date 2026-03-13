@@ -59,6 +59,9 @@ def test_unified_setup_block(skill_name):
     assert "CLAUDE_PLUGIN_ROOT" in content, f"{skill_name}: missing CLAUDE_PLUGIN_ROOT primary"
     assert "pkg-breadcrumb" in content, f"{skill_name}: missing pkg-breadcrumb codex fallback"
     assert "codex-bootstrap.sh" in content, f"{skill_name}: missing codex-bootstrap.sh"
+    assert "UV_CACHE_DIR" in content, (
+        f"{skill_name}: missing UV_CACHE_DIR for sandbox-safe uv cache"
+    )
 
 
 # ── Cycle 4 ───────────────────────────────────────────────────────────

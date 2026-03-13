@@ -20,13 +20,18 @@ scripts/          → session-start.sh, check_pending_skills.py, run_pipeline_as
 
 ```bash
 if [ -n "$CLAUDE_PLUGIN_ROOT" ]; then
-  MEGA_DIR="$CLAUDE_PLUGIN_ROOT"            # Claude Code → plugin-root
+  MEGA_DIR="$CLAUDE_PLUGIN_ROOT"            # Claude Code → env var
 else
   MEGA_DIR="$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)"  # Codex → pkg-breadcrumb
 fi
 ```
 
 All `uv run` commands must use `--directory "$MEGA_DIR"`.
+Before any `uv run`, set the cache dir to avoid sandbox permission issues:
+
+```bash
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
+```
 
 ## Environment Loading
 

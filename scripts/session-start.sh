@@ -13,6 +13,7 @@
 set -euo pipefail
 
 MEGA_DIR="${CLAUDE_PLUGIN_ROOT}"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
 # Allow tests and CI to override the data directory via MEGA_CODE_DATA_DIR.
 DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/share/mega-code}"
 

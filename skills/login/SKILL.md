@@ -26,6 +26,7 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
 fi
 export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
 ```
 
 ## Step 1: Create session (fast, non-blocking)
