@@ -145,7 +145,7 @@ class TestPipelineStatusPolling:
 
     def test_status_returns_running(self, client):
         """Pipeline status shows 'running' while in progress."""
-        with patch.object(client._client, "get") as mock_get:
+        with patch("httpx.get") as mock_get:
             mock_get.return_value = httpx.Response(
                 200,
                 json={
@@ -166,7 +166,7 @@ class TestPipelineStatusPolling:
 
     def test_status_returns_failed_with_error(self, client):
         """Failed pipeline status includes error message."""
-        with patch.object(client._client, "get") as mock_get:
+        with patch("httpx.get") as mock_get:
             mock_get.return_value = httpx.Response(
                 200,
                 json={

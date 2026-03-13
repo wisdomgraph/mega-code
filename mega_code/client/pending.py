@@ -598,6 +598,7 @@ async def poll_pipeline_status(
     start = time.monotonic()
     last_phase = ""
     consecutive_errors = 0
+    poll_count = 0
 
     def _retry_wait(label: str) -> float | None:
         """Increment error counter, log warning, return wait seconds or None if budget exhausted."""
@@ -616,6 +617,7 @@ async def poll_pipeline_status(
         return wait
 
     while True:
+        poll_count += 1
         try:
             status = await asyncio.to_thread(client.get_pipeline_status, run_id=run_id)
             consecutive_errors = 0  # reset on success
@@ -636,17 +638,39 @@ async def poll_pipeline_status(
                 continue
             raise
 
-        if status.status in TERMINAL_STATUSES:
-            return status
-
-        # Log progress on phase change
+        # Per-poll diagnostic logging
+        phase = ""
+        processed = 0
+        total = 0
         if status.progress:
             phase = status.progress.get("current_phase", "")
             processed = status.progress.get("sessions_processed", 0)
             total = status.progress.get("sessions_total", 0)
-            if phase and phase != last_phase:
-                logger.info("  Progress: %s (%d/%d)", phase, processed, total)
-                last_phase = phase
+
+        logger.debug(
+            "  Poll #%d: status=%s phase=%s (%d/%d)",
+            poll_count, status.status, phase or "-", processed, total,
+        )
+
+        # INFO heartbeat every 6th poll (~60s at default 10s interval)
+        if poll_count % 6 == 0:
+            elapsed = time.monotonic() - start
+            logger.info(
+                "  Heartbeat: poll #%d (%.0fs elapsed) — status=%s phase=%s (%d/%d)",
+                poll_count, elapsed, status.status, phase or "-", processed, total,
+            )
+
+        if status.status in TERMINAL_STATUSES:
+            logger.info(
+                "  Terminal status detected: %s (after %d polls, %.0fs)",
+                status.status, poll_count, time.monotonic() - start,
+            )
+            return status
+
+        # Log progress on phase change
+        if phase and phase != last_phase:
+            logger.info("  Progress: %s (%d/%d)", phase, processed, total)
+            last_phase = phase
 
         # Sleep before next poll; respect remaining timeout to avoid overshoot
         if timeout is not None:

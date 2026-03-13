@@ -242,8 +242,18 @@ class MegaCodeRemote:
         *,
         run_id: str,
     ) -> PipelineStatusResult:
-        """Poll pipeline status via GET /api/megacode/v1/pipeline/status/{run_id}."""
-        resp = self._client.get(f"/api/megacode/v1/pipeline/status/{run_id}")
+        """Poll pipeline status via GET /api/megacode/v1/pipeline/status/{run_id}.
+
+        Uses a one-shot httpx.get() (fresh TCP connection) instead of the
+        persistent self._client to avoid stale connections during long polling.
+        """
+        base = str(self._client.base_url).rstrip("/")
+        url = f"{base}/api/megacode/v1/pipeline/status/{run_id}"
+        resp = httpx.get(
+            url,
+            headers={**self._client.headers, "Cache-Control": "no-cache"},
+            timeout=self._client.timeout,
+        )
         self._check_response(resp)
         data = resp.json()
 
