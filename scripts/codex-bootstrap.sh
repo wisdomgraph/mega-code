@@ -60,3 +60,6 @@ fi
 
 # ── 6. Write breadcrumb (stores MEGA_DIR path for fast-path check) ───
 echo "$MEGA_DIR" > "$BREADCRUMB"
+
+# ── 7. Write plugin-root breadcrumb (used by skills to locate MEGA_DIR) ──
+echo "$MEGA_DIR" > "$DATA_DIR/plugin-root"
