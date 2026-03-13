@@ -1,45 +1,70 @@
-# MEGA-Code 1.0.0-beta — Open Source Edition
+# MEGA Code 1.0.1-beta
 
-MEGA Code is an AI coding infrastructure where AI agents evolve autonomously
-and developers never stop learning.
+**AI agents that evolve autonomously. Developers that never stop learning.**
 
-## What MEGA Code Does
+MEGA Code automatically captures your real coding sessions and converts them into durable, reusable knowledge — Skills and Strategies — so your AI agent gets smarter every session.
 
-Today's AI coding agents start every session from zero — same errors, same
-rework, no memory of what worked before. MEGA Code solves this with
-**Compound Intelligence**: automatically capturing high-signal execution logs
-and converting them into durable, reusable knowledge.
+---
 
-### Current Release — Autonomous Skill & Strategy Generation
+## Why MEGA Code
 
-This first release focuses on the **AI agent evolution** layer:
+Today's AI coding agents start every session from zero — same errors, same rework, no memory of what worked before.
 
-- **Skills** — Reusable know-how extracted from real coding sessions that agents
-  can execute again and again, eliminating repeated mistakes.
-- **Strategies** — Decision guidance that resurfaces in similar situations,
-  so agents make better choices over time.
+MEGA Code solves this with **Compound Intelligence**:
 
-The extraction pipeline runs locally, uses your own LLM key (BYOK), and
-produces assets that dramatically lower repeated errors across sessions.
+- **Skills** — Reusable know-how extracted from real coding sessions that agents can execute again and again, eliminating repeated mistakes.
+- **Strategies** — Decision guidance that resurfaces in similar situations, so agents make better choices over time.
 
-### What's Next
+The extraction pipeline runs remotely, uses your own LLM key (BYOK), and produces assets that dramatically lower repeated errors across sessions.
 
-Future releases will add the **developer learning** layer — contextual
-explanations, decision visibility, and structured insight cards that build
-transparent understanding of what AI is doing and why.
+---
 
-> Learn more at **[megacode.ai](https://megacode.ai)**
+## Real Work. Real Results.
+
+Measured head-to-head against 5 leading systems on tasks developers actually ship.
+
+<table>
+<tr>
+<td align="center"><h3>1/5</h3><b>Token Usage</b><br><sub>vs no-skill baseline</sub><br><sub>169K tokens vs 897K baseline</sub></td>
+<td align="center"><h3>#1</h3><b>Highest Score</b><br><sub>against 5 competing systems</sub><br><sub>78% combined avg — 4 skills x 2 models</sub></td>
+<td align="center"><h3>3x</h3><b>Structural Quality</b><br><sub>vs competitor average</sub><br><sub>16/16 score across 8 structural dimensions</sub></td>
+</tr>
+</table>
+
+### Token Usage
+
+```
+MEGA Code        ████░░░░░░░░░░░░░░░░  169K   ← 81% reduction
+HF Upskill       ████████████████░░░░  763K
+anthropic-skill  █████████████████░░░  826K
+Baseline         ██████████████████░░  897K
+skill-factory    ██████████████████████████████  1,448K
+```
+
+### Combined Score
+
+```
+MEGA Code        ████████████████  78%   ← #1
+HF Upskill       ██████████████░░  70%
+anthropic-skill  █████████████░░░  65%
+Baseline         █████████████░░░  65%
+skill-factory    █████████░░░░░░░  43%
+```
+
+> [See the full benchmark →](https://www.megacode.ai/performance)
+
+---
 
 ## Quick Start
 
-### Install via Claude Code Plugin Marketplace
+### Step 1 — Install the plugin
 
-Inside a Claude Code session, run:
+**Claude Code**
 
-**Step 1 — Add the repository to your marketplace:**
+In a Claude Code session, run:
 
 ```
-/plugin marketplace add https://github.com/wisdomgraph/mega-code.git
+/plugin marketplace add https://github.com/wisdomgraph/mega-code
 ```
 
 **Step 2 — Install the plugin:**
@@ -48,60 +73,70 @@ Inside a Claude Code session, run:
 /plugin install mega-code@mind-ai-mega-code
 ```
 
-Then restart Claude Code to load the plugin. The slash commands will be available in your next session.
+Restart Claude Code to load the plugin.
 
-### Update to Latest Version
-
-```
-/plugin marketplace update mind-ai-mega-code
-```
-
-### First Steps After Install
-
-**Step 1 — Sign in:**
+### Step 2 — Sign in
 
 ```
 /mega-code:login
 ```
 
-This opens a browser-based OAuth flow (GitHub or Google). Once signed in,
-your API key is saved automatically.
+Authenticates via GitHub or Google. Your API key is saved automatically.
 
-**Step 2 — Add your own LLM API key (required):**
+### Step 3 — Add your own LLM API key
 
-MEGA-Code uses a **Bring Your Own Key (BYOK)** model — you supply your own
-OpenAI or Gemini key. The server never holds platform-level credentials.
+MEGA Code uses a **Bring Your Own Key (BYOK)** model — you supply your own Gemini or OpenAI key.
 
-Visit the web UI and add your key under **Account → API Keys**:
+Visit [console.megacode.ai](https://console.megacode.ai) → **Account → API Keys** to register your key.
 
-👉 **[https://megacode.ai](https://megacode.ai)**
-
-Supported providers: **OpenAI** (`OPENAI_API_KEY`) and **Google Gemini** (`GEMINI_API_KEY`).
-
-> Without a key registered, `/mega-code:run` will prompt you to add one at
-> [https://megacode.ai](https://megacode.ai).
-
-### Available Slash Commands
-
-| Command                 | Description                                                    |
-| ----------------------- | -------------------------------------------------------------- |
-| `/mega-code:login`    | Sign in via GitHub or Google OAuth                             |
-| `/mega-code:run`      | Run skill extraction pipeline                                  |
-| `/mega-code:status`   | Show pending items and status                                  |
-| `/mega-code:feedback` | Provide feedback on generated items                            |
-| `/mega-code:profile`  | View or update your developer profile (language, level, style) |
-| `/mega-code:help`     | Show help and reference                                        |
-
-### Example Usage
+### Step 4 — Run in any project
 
 ```
-# In a Claude Code session:
-/mega-code:login                  # Sign in and get API key (first time)
+/mega-code:run                    # Extract skills from your sessions
+/mega-code:status                 # Check results
+```
+
+---
+
+## Free to Start
+
+MEGA Code is currently free to use — just bring your own LLM API key (Gemini or OpenAI).
+Core learning, exports, and Skills/Strategies capture are available in the current release.
+
+---
+
+## Available Commands
+
+| Command | Description |
+|---|---|
+| `/mega-code:login` | Sign in via GitHub or Google OAuth |
+| `/mega-code:run` | Run skill extraction pipeline |
+| `/mega-code:status` | Show pending items and status |
+| `/mega-code:feedback` | Provide feedback on generated items |
+| `/mega-code:profile` | View or update your developer profile (language, level, style) |
+| `/mega-code:help` | Show help and reference |
+
+### Example Session
+
+```bash
+/mega-code:login                  # Sign in (first time)
 /mega-code:profile                # Set your language, level, and style
 /mega-code:run --project          # Extract skills from all project sessions
 /mega-code:status                 # See what was generated
 /mega-code:feedback               # Rate the generated skills
 ```
+
+---
+
+## Update
+
+**Claude Code:**
+
+```
+/plugin marketplace update mind-ai-mega-code
+```
+
+---
 
 ## Development Setup (from main repo)
 
@@ -114,7 +149,7 @@ bash scripts/setup-oss-test.sh
 
 # This syncs skills/, hooks/, client code, and installs deps.
 # Then test locally with:
-claude --plugin-dir mega-code-github/plugin
+claude --plugin-dir mega-code-oss/plugin
 ```
 
 The sync script copies the latest code from the main repo into this submodule
@@ -123,41 +158,33 @@ so you can iterate quickly without any git commits to GitHub.
 ## Project Structure
 
 ```
-mega-code-github/
+plugin/
 ├── .claude-plugin/
-│   └── marketplace.json     # Marketplace listing (source: ./plugin)
-├── plugin/                  # Plugin root (installed by Claude Code)
-│   ├── .claude-plugin/
-│   │   └── plugin.json      # Plugin metadata
-│   ├── hooks/
-│   │   └── hooks.json       # Lifecycle hooks (SessionStart, etc.)
-│   ├── skills/
-│   │   ├── login/SKILL.md    # /mega-code:login
-│   │   ├── run/SKILL.md      # /mega-code:run
-│   │   ├── status/SKILL.md   # /mega-code:status
-│   │   ├── feedback/SKILL.md # /mega-code:feedback
-│   │   ├── profile/SKILL.md  # /mega-code:profile
-│   │   └── help/SKILL.md     # /mega-code:help
-│   ├── mega_code/
-│   │   └── client/          # Python client modules
-│   ├── scripts/
-│   │   └── session-start.sh # Bootstrap script
-│   └── pyproject.toml
-└── README.md
+│   └── plugin.json          # Plugin metadata
+├── hooks/
+│   └── hooks.json           # Lifecycle hooks (SessionStart, etc.)
+├── skills/
+│   ├── login/SKILL.md       # /mega-code:login
+│   ├── run/SKILL.md         # /mega-code:run
+│   ├── status/SKILL.md      # /mega-code:status
+│   ├── feedback/SKILL.md    # /mega-code:feedback
+│   ├── profile/SKILL.md     # /mega-code:profile
+│   └── help/SKILL.md        # /mega-code:help
+├── mega_code/
+│   └── client/              # Python client modules
+├── scripts/
+│   └── session-start.sh     # Bootstrap script
+└── pyproject.toml
 ```
 
 ## Configuration
 
-Configuration is stored in `~/.local/mega-code/` and persists across sessions.
+Configuration is stored in `~/.local/share/mega-code/` and persists across sessions.
 Use `/mega-code:login` to authenticate, or `mega-code configure` CLI for advanced settings.
 
 ## Terms of Service
 
-This plugin requires use of the Mega Code API.
-
-By using this plugin, you agree to:
-
-https://megacode.ai/terms
+By using this plugin, you agree to the [Terms of Service](https://megacode.ai/terms).
 
 ## License
 

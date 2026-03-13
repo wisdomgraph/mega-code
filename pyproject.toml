@@ -1,0 +1,122 @@
+[project]
+name = "mega-code"
+version = "1.0.1b1"
+description = "Open-source Claude Code plugin — collect interaction data, extract skills, and optimize AI workflows"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+authors = [
+    { name = "Mind AI", email = "support@megacode.ai" }
+]
+keywords = ["claude-code", "plugin", "skills", "optimization", "data-collection"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "httpcore>=1.0.9",
+    "tenacity>=8.2.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+parquet = ["pyarrow>=12.0"]
+telemetry = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
+
+[project.urls]
+Homepage = "https://www.megacode.ai"
+Repository = "https://github.com/wisdomgraph/mega-code"
+
+[project.scripts]
+mega-code = "mega_code.client.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mega_code"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "mega_code/",
+    ".claude-plugin/",
+    "hooks/",
+    "skills/",
+    "scripts/",
+    "README.md",
+    "pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",         # pyflakes
+    "I",         # isort
+    "B",         # flake8-bugbear
+    "UP",        # pyupgrade
+    "C4",        # flake8-comprehensions
+    "PIE",       # flake8-pie
+    "SIM",       # flake8-simplify
+    "RUF",       # ruff-specific rules
+]
+ignore = [
+    "E501",    # line length — handled by formatter
+    "E402",    # module-level imports not at top (load_dotenv)
+    "E741",    # ambiguous variable name (l, O)
+    "B007",    # unused loop control variable
+    "B017",    # assert-raises-exception
+    "B905",    # zip-without-explicit-strict
+    "UP028",   # yield-in-for-loop
+    "SIM102",  # collapsible-if — readability preference
+    "SIM103",  # needless-bool — readability preference
+    "SIM105",  # suppressible-exception — contextlib.suppress less readable
+    "SIM108",  # if-else-block-instead-of-if-exp — readability preference
+    "SIM110",  # reimplemented-builtin — readability preference
+    "SIM113",  # enumerate-for-loop — not always cleaner
+    "SIM117",  # multiple-with-statements — readability preference
+    "RUF001",  # ambiguous unicode character in string
+    "RUF003",  # ambiguous unicode character in comment (math notation)
+    "RUF005",  # collection-literal-concatenation
+    "RUF012",  # mutable-class-default (Pydantic models)
+    "RUF034",  # useless-if-else
+    "RUF059",  # unused-unpacked-variable
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ARG001", "RUF012"]
+"**/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mega_code"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.0",
+]
+test = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-timeout>=2.3.0",
+]

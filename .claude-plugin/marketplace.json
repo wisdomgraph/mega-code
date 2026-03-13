@@ -11,9 +11,9 @@
   "plugins": [
     {
       "name": "mega-code",
-      "source": "./plugin",
+      "source": "./",
       "description": "Automatically creates Skills and Strategies by capturing execution logs from coding sessions. The AI agents learn from past mistakes instead of starting from zero every session. BYOK model with local extraction pipeline.",
-      "version": "1.0.0-beta",
+      "version": "1.0.1-beta",
       "author": {
         "name": "Mind AI",
         "email": "support@megacode.ai"

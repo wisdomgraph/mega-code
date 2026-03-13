@@ -1,0 +1,132 @@
+# Client-side configuration for mega-code notifications and prompts.
+# Templates use Python string.Template syntax: ${var} for substitution.
+
+no_outputs_notification: |
+  ╔═══════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  MEGA-CODE: PIPELINE COMPLETE - NO NEW OUTPUTS                 ║
+  ╚═══════════════════════════════════════════════════════════════════╝
+
+  The pipeline completed but did not generate any new skills, strategies, or lessons.
+  This may happen if:
+  - The session(s) didn't contain learnable patterns
+  - Quality gates filtered out low-quality outputs
+  - No new patterns were detected
+
+  Try running on more sessions with: /mega-code:run --project
+
+error_notification: |
+  ═══════════════════════════════════════════════════════════════════════
+  ❌ MEGA-CODE: PIPELINE ERROR
+  ═══════════════════════════════════════════════════════════════════════
+
+  The pipeline encountered an error:
+
+  ${error}
+
+  Please check the logs for more details.
+  You can try again with: /mega-code:run
+
+review_notification:
+  workflow_template: |
+    ┌───────────────────────────────────────────────────────────────────┐
+    │                    MANDATORY WORKFLOW FOR CLAUDE                   │
+    └───────────────────────────────────────────────────────────────────┘
+
+    You MUST execute this workflow IMMEDIATELY:
+
+    ══════════════════════════════════════════════════════════════════════
+    STEP 1: READ & ANALYZE (do this silently)
+    ══════════════════════════════════════════════════════════════════════
+    For EACH pending item, use the Read tool to:
+    - Read full content from the paths listed above
+    - Analyze quality, clarity, and completeness
+    - Identify potential improvements
+
+    ══════════════════════════════════════════════════════════════════════
+    STEP 2: PRESENT REVIEW & ASK USER
+    ══════════════════════════════════════════════════════════════════════
+    For EACH item, show the user:
+
+    ┌─────────────────────────────────────────────────────────┐
+    │ 📦 SKILL: <name>                                    │
+    ├─────────────────────────────────────────────────────────┤
+    │ **Summary**: <what this skill does>                 │
+    │ **Quality**: ✅ Good / ⚠️ Needs improvement         │
+    │                                                     │
+    │ **Original Content** (collapsed or summarized):    │
+    │ <key points from SKILL.md>                         │
+    │                                                     │
+    │ **Suggested Improvements**:                         │
+    │ - <improvement 1>                                   │
+    │ - <improvement 2>                                   │
+    │                                                     │
+    │ **Enhanced Version** (if improvements needed):     │
+    │ <your improved version of the skill>               │
+    └─────────────────────────────────────────────────────────┘
+
+    ══════════════════════════════════════════════════════════════════════
+    STEP 2 (continued): ASK USER (use AskUserQuestion tool)
+    ══════════════════════════════════════════════════════════════════════
+    Then immediately call AskUserQuestion in the **same response** to ask what to install.
+
+    **Rules for AskUserQuestion:**
+    - Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
+    - If an answer comes back **empty/blank**, re-ask that same question once more
+    - After **2 consecutive empty responses**, ask the user in plain text what to do
+
+    **Question flow (one at a time, separate calls):**
+    1. "Which skills to install?" (multiSelect: true,
+       options: [...pending skill names, "None — skip all"]) — skip if no pending skills
+    2. "Which strategies to install?" (multiSelect: true,
+       options: [...pending strategy names, "None — skip all"]) — skip if no pending strategies
+    3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
+    4. "Installation location?" — only ask if items were selected. Options:
+       - "Project level" (description: .claude/skills/ and .claude/rules/ in current project)
+       - "User level" (description: ~/.claude/skills/ and ~/.claude/rules/ shared across all projects)
+
+    If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 3.
+
+    ══════════════════════════════════════════════════════════════════════
+    STEP 3: INSTALL APPROVED ITEMS
+    ══════════════════════════════════════════════════════════════════════
+    Based on user's choices:
+    - Skills → <location>/skills/<name>/SKILL.md
+    - Strategies → .claude/rules/mega-code/<name>.md
+
+    Use Write tool to create the files.
+
+    ══════════════════════════════════════════════════════════════════════
+    STEP 4: ARCHIVE
+    ══════════════════════════════════════════════════════════════════════
+    After successful installation, ARCHIVE (not delete) all pending items.
+
+    Run this command EXACTLY as shown (do NOT change imports):
+
+    ```bash
+    MEGA_DIR=$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
+    [ -f "${{HOME}}/.local/share/mega-code/.env" ] && set -a && . "${{HOME}}/.local/share/mega-code/.env" && set +a
+    cd "$MEGA_DIR" && set -a && . ./.env && set +a && uv run python -c "
+    # IMPORTANT: archive_pending_items is in feedback module, NOT pending module
+    from mega_code.client.feedback import archive_pending_items
+    # IMPORTANT: listing functions are get_pending_*, NOT list_pending_*
+    from mega_code.client.pending import get_pending_skills, get_pending_strategies
+    skills = get_pending_skills()
+    strategies = get_pending_strategies()
+    # Build installed_names set from the items user chose to install in Step 3
+    installed_names = ${{installed_names}}  # <-- fill with set of installed item names from Step 2
+    run_id = archive_pending_items(
+        run_id='${{run_id}}',
+        project_id='${{project_id}}',
+        installed_skills=[s for s in skills if s.name in installed_names],
+        skipped_skills=[s for s in skills if s.name not in installed_names],
+        installed_strategies=[s for s in strategies if s.name in installed_names],
+        skipped_strategies=[s for s in strategies if s.name not in installed_names],
+    )
+    print(f'ARCHIVED_RUN_ID={{run_id}}')
+    "
+    ```
+
+    Parse ARCHIVED_RUN_ID from the output.
+    Report summary of what was installed and where.
+
+    ⚡ START STEP 1 NOW - READ THE PENDING FILES IMMEDIATELY ⚡

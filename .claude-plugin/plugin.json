@@ -1,0 +1,19 @@
+{
+  "name": "mega-code",
+  "description": "Self-Evolving AI Coding Infrastructure \u2014 Phase 1: Automatic Skill & Strategy Generation",
+  "author": {
+    "name": "Mind AI",
+    "email": "support@megacode.ai"
+  },
+  "homepage": "https://www.megacode.ai",
+  "repository": "https://github.com/wisdomgraph/mega-code",
+  "license": "Apache-2.0",
+  "keywords": [
+    "mega",
+    "optimization",
+    "skills",
+    "data-collection",
+    "analytics",
+    "trajectories"
+  ]
+}
