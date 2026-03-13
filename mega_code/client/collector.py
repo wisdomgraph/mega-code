@@ -377,7 +377,7 @@ def _load_env():
 
     Search order:
     1. ~/.local/share/mega-code/.env  — stable credential store (always loaded first)
-    2. CLAUDE_PLUGIN_ROOT/.env       — versioned plugin dir (loaded after, so it can
+    2. MEGA_CODE_PLUGIN_ROOT/.env       — versioned plugin dir (loaded after, so it can
        override non-secret config without clobbering credentials)
     3. Repo root .env                — dev mode fallback
     """
@@ -389,7 +389,7 @@ def _load_env():
         dotenv.load_dotenv(stable_env, override=False)  # don't override existing env vars
 
     # 2. Versioned plugin dir (may add non-secret config on top)
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    plugin_root = os.environ.get("MEGA_CODE_PLUGIN_ROOT")
     if plugin_root:
         plugin_env = Path(plugin_root) / ".env"
         if plugin_env.exists():

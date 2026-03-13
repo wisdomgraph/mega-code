@@ -34,12 +34,12 @@ def _get_plugin_root() -> Path | None:
     """Get the plugin root directory.
 
     Priority:
-    1. CLAUDE_PLUGIN_ROOT environment variable (set by Claude Code)
+    1. MEGA_CODE_PLUGIN_ROOT environment variable (set by Claude Code)
     2. Breadcrumb file <data_dir>/plugin-root
     3. None if not found
     """
     # Check env var first (available inside hook execution)
-    env_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    env_root = os.environ.get("MEGA_CODE_PLUGIN_ROOT")
     if env_root:
         return Path(env_root)
 

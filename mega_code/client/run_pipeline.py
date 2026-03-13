@@ -76,7 +76,7 @@ Project argument formats:
     parser.add_argument(
         "--session-id",
         type=str,
-        help="Specific session ID to process (overrides CLAUDE_SESSION_ID)",
+        help="Specific session ID to process (overrides MEGA_CODE_SESSION_ID)",
     )
     parser.add_argument(
         "--model",
@@ -211,8 +211,8 @@ async def main():
     include_codex = args.include_codex or args.include_all
 
     # Get environment variables
-    session_id = args.session_id or os.environ.get("CLAUDE_SESSION_ID")
-    project_dir_env = Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
+    session_id = args.session_id or os.environ.get("MEGA_CODE_SESSION_ID")
+    project_dir_env = Path(os.environ.get("MEGA_CODE_PROJECT_DIR", ".")).resolve()
     storage = args.storage or os.environ.get("MEGA_CODE_PIPELINE_STORAGE", "local")
 
     # Determine execution mode

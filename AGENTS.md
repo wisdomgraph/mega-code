@@ -32,7 +32,7 @@ scripts/           -> session-start.sh, check_pending_skills.py,
 Every skill that runs `uv` must use the unified setup block:
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)}"
+MEGA_DIR="${MEGA_CODE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)}"
 if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   MEGA_DIR="$HOME/.local/share/mega-code/pkg"
   if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
@@ -43,7 +43,7 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
 fi
 ```
 
-- Claude Code: `CLAUDE_PLUGIN_ROOT` is set, first line resolves, bootstrap skipped.
+- Claude Code: `MEGA_CODE_PLUGIN_ROOT` is set, first line resolves, bootstrap skipped.
 - Codex (first run): both vars empty, clones + bootstraps, writes `pkg-breadcrumb`.
 - Codex (subsequent): `pkg-breadcrumb` resolves, bootstrap skipped.
 
@@ -89,7 +89,7 @@ Authoring rules:
 - Prefer the smallest `allowed-tools:` set that still works.
 - Use `Bash, Read` by default; add `Write`, `Edit`, or `AskUserQuestion` only when needed.
 - Keep command examples copy-pastable.
-- Do not hardcode plugin install paths; use `${CLAUDE_PLUGIN_ROOT}` in hooks and `MEGA_DIR` in skills.
+- Do not hardcode plugin install paths; use `${MEGA_CODE_PLUGIN_ROOT}` in hooks and `MEGA_DIR` in skills.
 - If a skill invokes Python entry points, prefer existing modules in `mega_code.client` or scripts in `scripts/`.
 - Use `python -m mega_code.client.*` module entry points (not `scripts/*.py`).
 - When referencing commands in docs, show both syntaxes where helpful (`/mega-code:run` / `$mega-code-run`).
@@ -100,7 +100,7 @@ Hook config lives in `hooks/hooks.json`.
 
 Required rules:
 
-- Reference `${CLAUDE_PLUGIN_ROOT}` in every hook command.
+- Reference `${MEGA_CODE_PLUGIN_ROOT}` in every hook command.
 - Every hook entry must include a `timeout`.
 - Use at most `30` seconds for collection/data hooks and at most `5` seconds for quick checks.
 - Supported events in this repo are `SessionStart`, `SessionEnd`, `UserPromptSubmit`, and `Stop`.
@@ -126,7 +126,7 @@ Before finishing a change, verify:
 - referenced files and commands actually exist in this repo
 - skills use the unified `MEGA_DIR` setup block
 - skills have both `name:` and `allowed-tools:` in frontmatter
-- hook commands use `${CLAUDE_PLUGIN_ROOT}`
+- hook commands use `${MEGA_CODE_PLUGIN_ROOT}`
 - new server-facing commands document the required auth/env assumptions
 - instructions do not mention commands or skills that are absent from this repo
 - `grep -r "codex-skills" .` returns no matches

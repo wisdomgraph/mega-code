@@ -198,7 +198,7 @@ class TestBootstrapConsistency:
         (tmp_path / "home").mkdir(exist_ok=True)
 
         if script_name == "session-start.sh":
-            env["CLAUDE_PLUGIN_ROOT"] = str(mega_dir)
+            env["MEGA_CODE_PLUGIN_ROOT"] = str(mega_dir)
         subprocess.run(
             ["bash", str(script)] + ([str(mega_dir)] if "codex" in script_name else []),
             env=env,

@@ -26,7 +26,7 @@ The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)}"
+MEGA_DIR="${MEGA_CODE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)}"
 if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
   MEGA_DIR="$HOME/.local/share/mega-code/pkg"
   if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
@@ -69,7 +69,7 @@ Check for pending items first, then run the pipeline. All variables must be in
 uv run --directory "$MEGA_DIR" python -m mega_code.client.pending review < /dev/null 2>/dev/null || true
 LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log" && \
   echo "Pipeline log: $LOG" && \
-  export CLAUDE_PROJECT_DIR="$PWD" && \
+  export MEGA_CODE_PROJECT_DIR="$PWD" && \
   uv run --directory "$MEGA_DIR" python -m mega_code.client.run_pipeline [FLAGS] 2>&1 | tee "$LOG"
 ```
 

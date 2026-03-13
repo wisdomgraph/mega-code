@@ -8,11 +8,11 @@
 #   4. Ensure Python environment is ready (uv sync on first run)
 #   5. Run the session collector
 #
-# Called from hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT} set by Claude Code.
+# Called from hooks/hooks.json with ${MEGA_CODE_PLUGIN_ROOT} set by Claude Code.
 
 set -euo pipefail
 
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT}"
+MEGA_DIR="${MEGA_CODE_PLUGIN_ROOT}"
 # Allow tests and CI to override the data directory via MEGA_CODE_DATA_DIR.
 DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/share/mega-code}"
 

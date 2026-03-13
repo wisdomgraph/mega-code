@@ -19,7 +19,7 @@ scripts/          → session-start.sh, check_pending_skills.py, run_pipeline_as
 ## MEGA_DIR Setup (required in every skill that calls uv run)
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
+MEGA_DIR="${MEGA_CODE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
 ```
 
 All `uv run` commands must use `--directory "$MEGA_DIR"`.
@@ -42,6 +42,6 @@ before making server calls.
 
 ## Hook Conventions
 
-- All hook commands reference `${CLAUDE_PLUGIN_ROOT}` — never hardcode paths
+- All hook commands reference `${MEGA_CODE_PLUGIN_ROOT}` — never hardcode paths
 - Every hook entry must have a `timeout` field (max 30s for data hooks, 5s for checks)
 - Required events: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`

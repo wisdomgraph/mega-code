@@ -4,14 +4,14 @@
     "SessionStart": [{
       "hooks": [{
         "type": "command",
-        "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh",
+        "command": "bash ${MEGA_CODE_PLUGIN_ROOT}/scripts/session-start.sh",
         "timeout": 30
       }]
     }],
     "SessionEnd": [{
       "hooks": [{
         "type": "command",
-        "command": "uv run --directory ${CLAUDE_PLUGIN_ROOT} python mega_code/client/collector.py --event SessionEnd",
+        "command": "uv run --directory ${MEGA_CODE_PLUGIN_ROOT} python mega_code/client/collector.py --event SessionEnd",
         "timeout": 30
       }]
     }],
@@ -19,14 +19,14 @@
       {
         "hooks": [{
           "type": "command",
-          "command": "uv run --directory ${CLAUDE_PLUGIN_ROOT} python mega_code/client/collector.py --event UserPromptSubmit",
+          "command": "uv run --directory ${MEGA_CODE_PLUGIN_ROOT} python mega_code/client/collector.py --event UserPromptSubmit",
           "timeout": 5
         }]
       },
       {
         "hooks": [{
           "type": "command",
-          "command": "uv run --directory ${CLAUDE_PLUGIN_ROOT} python mega_code/client/check_pending.py",
+          "command": "uv run --directory ${MEGA_CODE_PLUGIN_ROOT} python mega_code/client/check_pending.py",
           "timeout": 5,
           "statusMessage": "Checking for pending skills..."
         }]
@@ -35,7 +35,7 @@
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "uv run --directory ${CLAUDE_PLUGIN_ROOT} python mega_code/client/collector.py --event Stop",
+        "command": "uv run --directory ${MEGA_CODE_PLUGIN_ROOT} python mega_code/client/collector.py --event Stop",
         "timeout": 5
       }]
     }]
