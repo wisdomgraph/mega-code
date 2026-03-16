@@ -1,6 +1,6 @@
 # mega-code plugin
 
-Claude Code plugin for session collection and skill extraction.
+Multi-CLI plugin (Claude Code + Gemini CLI) for session collection and skill extraction.
 All Python logic lives in `mega_code/` (the parent repo). This directory owns
 only slash commands, lifecycle hooks, and plugin configuration.
 
@@ -14,7 +14,22 @@ skills/login/     → /mega-code:login    OAuth flow
 skills/help/      → /mega-code:help     list available commands
 hooks/hooks.json  → SessionStart / SessionEnd / UserPromptSubmit / Stop
 scripts/          → session-start.sh, check_pending_skills.py, run_pipeline_async.py
+
+gemini-extension.json → Gemini CLI extension manifest
+GEMINI.md             → Gemini CLI system instructions
 ```
+
+## Installation
+
+This repo can be installed as a plugin/extension via multiple channels:
+
+- **Claude Code** — marketplace (`/plugin marketplace install mind-ai-mega-code`)
+- **Gemini CLI** — marketplace (`gemini extensions install wisdomgraph/mega-code`)
+- **Codex** — `npx skills add wisdomgraph/mega-code -a codex`
+
+Skills in `skills/` and hooks in `hooks/hooks.json` are shared across all CLIs.
+Hook commands use `${CLAUDE_PLUGIN_ROOT:-${extensionPath}}` so the correct
+template variable is expanded regardless of which CLI runs the hook.
 
 ## MEGA_DIR Setup (required in every skill that calls uv run)
 
