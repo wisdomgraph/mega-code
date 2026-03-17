@@ -12,7 +12,7 @@ skills/status/    → /mega-code:status   show pending items
 skills/profile/   → /mega-code:profile  set language/level/style
 skills/login/     → /mega-code:login    OAuth flow
 skills/help/      → /mega-code:help     list available commands
-hooks/hooks.json  → SessionStart / SessionEnd / UserPromptSubmit / Stop
+hooks/hooks.json  → SessionStart / SessionEnd / UserPromptSubmit / Stop / BeforeAgent
 scripts/          → session-start.sh, check_pending_skills.py, run_pipeline_async.py
 
 gemini-extension.json → Gemini CLI extension manifest
@@ -66,6 +66,18 @@ before making server calls.
 
 ## Hook Conventions
 
-- All hook commands reference `${CLAUDE_PLUGIN_ROOT}` — never hardcode paths
-- Every hook entry must have a `timeout` field (max 30s for data hooks, 5s for checks)
-- Required events: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`
+`hooks/hooks.json` is a single file read by both Claude Code and Gemini CLI.
+Each CLI silently skips event names it doesn't recognise, so both sets coexist.
+
+- Hook commands use the fallback pattern
+  `CC=${CLAUDE_PLUGIN_ROOT} GEM=${extensionPath} bash -c 'D="${CC:-$GEM}"; ...'`
+  so the correct root directory resolves regardless of which CLI runs the hook
+- Every hook entry must have a `timeout` field in **milliseconds** (max 30000
+  for data hooks, 5000 for checks). Claude Code interprets these as seconds,
+  making the values meaninglessly large — but hooks complete in under 1 s so the
+  timeout is never hit. Gemini CLI interprets them as milliseconds (correct).
+  Using millisecond values is the only direction that works for both CLIs.
+- Claude Code events: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`
+- Gemini CLI events: `SessionStart`, `SessionEnd`, `BeforeAgent`
+- `BeforeAgent` mirrors `UserPromptSubmit` — both entries should carry the same
+  command list so behaviour is consistent across CLIs

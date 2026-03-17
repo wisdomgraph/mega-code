@@ -89,4 +89,4 @@ if [ ! -x "$MEGA_DIR/.venv/bin/python" ]; then
 fi
 
 # ── 6. Run collector ──────────────────────────────────────────────────
-uv run --directory "$MEGA_DIR" python mega_code/client/collector.py --event SessionStart
+uv run --directory "$MEGA_DIR" python mega_code/client/collector.py --event SessionStart < /dev/null
