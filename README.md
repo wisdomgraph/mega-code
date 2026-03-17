@@ -39,6 +39,7 @@ HF Upskill       ████████████████░░░░  7
 anthropic-skill  █████████████████░░░  826K
 Baseline         ██████████████████░░  897K
 skill-factory    ██████████████████████████████  1,448K
+skill-builder    ██████████████████████████████████████████  2,024K
 ```
 
 ### Combined Score
@@ -48,6 +49,7 @@ MEGA Code        ████████████████  78%   ← #1
 HF Upskill       ██████████████░░  70%
 anthropic-skill  █████████████░░░  65%
 Baseline         █████████████░░░  65%
+skill-builder    ██████████░░░░░░  50%
 skill-factory    █████████░░░░░░░  43%
 ```
 
