@@ -43,12 +43,33 @@ def sync_codex_trajectories(
     """
     from mega_code.client.history.sources.codex import CodexSource
 
+    logger.info("Codex sync: matching sessions against project_path=%s", project_path)
+
     # Discover Codex sessions matching this project path
     codex_source = CodexSource()
     matching_entries = list(codex_source.iter_sessions_by_project_paths([project_path]))
 
+    logger.info(
+        "Codex sync: %d session(s) matched project_path=%s", len(matching_entries), project_path
+    )
+
     if not matching_entries:
-        logger.debug("No Codex sessions found for project path: %s", project_path)
+        # Log all available cwds for diagnostics
+        all_cwds: list[str] = []
+        for jsonl_file in codex_source._iter_session_files():
+            try:
+                entries = codex_source._load_jsonl_entries(jsonl_file)
+                meta = next((e for e in entries if e.get("type") == "session_meta"), None)
+                if meta:
+                    cwd = meta.get("payload", {}).get("cwd", "<missing>")
+                    all_cwds.append(cwd)
+            except Exception:
+                pass
+        logger.info(
+            "Codex sync: 0 matches — total sessions found: %d, cwds: %s",
+            len(all_cwds),
+            all_cwds[:20],
+        )
         return 0
 
     # Build session list and mtime map
@@ -78,12 +99,18 @@ def sync_codex_trajectories(
             try:
                 entries = source._load_jsonl_entries(sf)
                 if not entries:
+                    logger.debug("Codex session %s: no entries in %s", sid, sf)
                     return None
                 session = source._load_session_from_entries(entries, sf)
             except Exception:
                 logger.debug("Cannot load Codex session %s from %s", sid, sf)
                 return None
-            return _session_to_turnset(session, sf.parent)
+            turn_set = _session_to_turnset(session, sf.parent)
+            if turn_set is None:
+                logger.debug("Codex session %s: TurnSet is None (0 turns)", sid)
+            else:
+                logger.debug("Codex session %s: %d turn(s)", sid, len(turn_set.turns))
+            return turn_set
 
         sessions.append((codex_session_id, _make_loader))
 

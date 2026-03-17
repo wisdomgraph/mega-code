@@ -342,6 +342,165 @@ class TestEmptySessionSkipped:
         assert client.upload_trajectory.call_count == 0
 
 
+class TestPathEdgeCases:
+    """Regression tests for path matching edge cases that cause 'no turn data'."""
+
+    def _write_session_with_cwd(self, codex_base: Path, cwd: str) -> None:
+        """Write a minimal golden session with a custom cwd."""
+        entries = []
+        with open(FIXTURES_DIR / "golden_session.jsonl") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entries.append(json.loads(line))
+        for e in entries:
+            if e.get("type") == "session_meta":
+                e["payload"]["cwd"] = cwd
+        with open(codex_base / "s1.jsonl", "w") as f:
+            for e in entries:
+                f.write(json.dumps(e) + "\n")
+
+    def test_trailing_slash_mismatch(self, tmp_path, monkeypatch):
+        """Session cwd has trailing slash, project_path does not."""
+        codex_base = _setup_codex_base(tmp_path, [])
+        self._write_session_with_cwd(codex_base, "/home/user/projects/test-project/")
+
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+        client = _mock_client()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _make_codex_source(codex_base),
+        )
+
+        result = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=client,
+            project_id="test-project",
+            project_path="/home/user/projects/test-project",
+        )
+
+        assert result == 1, "Trailing slash should not prevent matching"
+
+    def test_case_sensitivity(self, tmp_path, monkeypatch):
+        """Session cwd has different case than project_path."""
+        codex_base = _setup_codex_base(tmp_path, [])
+        self._write_session_with_cwd(codex_base, "/Users/Reeyan/Dev/proj")
+
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+        client = _mock_client()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _make_codex_source(codex_base),
+        )
+
+        result = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=client,
+            project_id="test-project",
+            project_path="/users/reeyan/dev/proj",
+        )
+
+        assert result == 1, "Case-insensitive matching should find the session"
+
+    def test_symlink_resolution(self, tmp_path, monkeypatch):
+        """Session cwd is a symlink target, project_path is the symlink."""
+        # Create real directory and symlink
+        real_dir = tmp_path / "real-project"
+        real_dir.mkdir()
+        symlink_dir = tmp_path / "linked-project"
+        symlink_dir.symlink_to(real_dir)
+
+        codex_base = _setup_codex_base(tmp_path, [])
+        # Session records the real path
+        self._write_session_with_cwd(codex_base, str(real_dir))
+
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+        client = _mock_client()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _make_codex_source(codex_base),
+        )
+
+        # Match using symlink path — should resolve to same real path
+        result = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=client,
+            project_id="test-project",
+            project_path=str(symlink_dir),
+        )
+
+        assert result == 1, "Symlink should resolve and match the real path"
+
+    def test_no_match_different_project(self, tmp_path, monkeypatch):
+        """Sanity check: genuinely different paths should not match."""
+        codex_base = _setup_codex_base(tmp_path, [])
+        self._write_session_with_cwd(codex_base, "/home/user/projects/alpha")
+
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+        client = _mock_client()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _make_codex_source(codex_base),
+        )
+
+        result = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=client,
+            project_id="test-project",
+            project_path="/home/user/projects/beta",
+        )
+
+        assert result == 0
+
+
+class TestPathUtils:
+    """Unit tests for path_utils edge cases."""
+
+    def test_normalize_path_trailing_slash(self):
+        from mega_code.client.utils.path_utils import normalize_path
+
+        assert normalize_path("/home/user/project/") == normalize_path("/home/user/project")
+
+    def test_normalize_path_case_insensitive(self):
+        from mega_code.client.utils.path_utils import normalize_path
+
+        assert normalize_path("/Users/Foo/Bar") == normalize_path("/users/foo/bar")
+
+    def test_should_include_session_trailing_slash(self):
+        from mega_code.client.utils.path_utils import normalize_path, should_include_session
+
+        targets = {normalize_path("/home/user/project")}
+        assert should_include_session("/home/user/project/", targets) is True
+
+    def test_should_include_session_case_mismatch(self):
+        from mega_code.client.utils.path_utils import normalize_path, should_include_session
+
+        targets = {normalize_path("/users/foo/project")}
+        assert should_include_session("/Users/Foo/Project", targets) is True
+
+    def test_should_include_session_subdirectory(self):
+        from mega_code.client.utils.path_utils import normalize_path, should_include_session
+
+        targets = {normalize_path("/home/user/project")}
+        assert should_include_session("/home/user/project/backend", targets) is True
+
+    def test_should_include_session_exact_match_rejects_subdir(self):
+        from mega_code.client.utils.path_utils import normalize_path, should_include_session
+
+        targets = {normalize_path("/home/user/project")}
+        assert (
+            should_include_session("/home/user/project/backend", targets, exact_match=True) is False
+        )
+
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------

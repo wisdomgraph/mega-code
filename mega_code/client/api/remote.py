@@ -211,9 +211,13 @@ class MegaCodeRemote:
             # mega-code data dir. The codex sessions record the real working
             # directory in their 'cwd' field.
             codex_match_path = project_cwd or str(project_path)
-            await asyncio.to_thread(
+            logger.info(
+                "Codex sync: codex_match_path=%s (project_cwd=%s)", codex_match_path, project_cwd
+            )
+            synced = await asyncio.to_thread(
                 sync_codex_trajectories, project_path, self, project_id, codex_match_path
             )
+            logger.info("Codex sync: uploaded %d session(s)", synced)
 
         payload = {
             "project_id": project_id,

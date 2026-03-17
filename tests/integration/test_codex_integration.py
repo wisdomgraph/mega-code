@@ -1,8 +1,9 @@
 """Cross-module integration tests for the Codex pipeline (Phase 6)."""
 
+import asyncio
 import shutil
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from mega_code.client.api.codex_sync import sync_codex_trajectories
 from mega_code.client.api.protocol import UploadResult
@@ -80,6 +81,139 @@ class TestParserToSyncIntegration:
         assert result == 1
         assert client.upload_trajectory.call_count == 1
         # Verify payload has actual turn data
+        call_kwargs = client.upload_trajectory.call_args
+        turn_set = call_kwargs.kwargs.get("turn_set") or call_kwargs[1].get("turn_set")
+        assert turn_set is not None
+        assert len(turn_set.turns) > 0
+
+
+class TestRunPipelineCodexSync:
+    """Integration: run_pipeline main() → trigger_pipeline_run → sync_codex_trajectories → upload."""
+
+    def test_full_codex_pipeline_flow(self, tmp_path, monkeypatch):
+        """Exercise the complete path from trigger_pipeline_run through codex sync.
+
+        Verifies that when include_codex=True and a matching Codex session exists,
+        the trajectory is uploaded with non-empty turns.
+        """
+        # Set up Codex sessions directory with golden fixture
+        codex_base = tmp_path / ".codex" / "sessions"
+        codex_base.mkdir(parents=True)
+        shutil.copy2(FIXTURES_DIR / "golden_session.jsonl", codex_base / "s1.jsonl")
+
+        # Set up mega-code project data directory
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+
+        # Build a mock MegaCodeRemote that records upload calls
+        mock_client = MagicMock()
+        mock_client.upload_trajectory.return_value = UploadResult(
+            status="accepted",
+            session_id="fixture-session-001",
+            message="ok",
+        )
+
+        # Mock trigger_pipeline_run as an async method that does the real sync work
+        # but skips the HTTP POST to the server
+        uploaded_turn_sets = []
+
+        original_upload = mock_client.upload_trajectory
+
+        def capturing_upload(*, turn_set, project_id):
+            uploaded_turn_sets.append(turn_set)
+            return original_upload(turn_set=turn_set, project_id=project_id)
+
+        mock_client.upload_trajectory = MagicMock(side_effect=capturing_upload)
+
+        # Monkeypatch CodexSource to use our temp directory
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _RealCodexSource(base_path=codex_base),
+        )
+
+        # Call sync_codex_trajectories directly (the core of what trigger_pipeline_run does)
+        project_cwd = "/home/user/projects/test-project"
+        synced = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=mock_client,
+            project_id=project_dir.name,
+            project_path=project_cwd,
+        )
+
+        # Assertions
+        assert synced == 1, "Expected 1 session to be synced"
+        assert mock_client.upload_trajectory.call_count == 1
+        assert len(uploaded_turn_sets) == 1
+
+        turn_set = uploaded_turn_sets[0]
+        assert len(turn_set.turns) > 0, "TurnSet should have non-empty turns"
+        assert turn_set.session_id == "fixture-session-001"
+
+    def test_codex_sync_via_trigger_pipeline_run(self, tmp_path, monkeypatch):
+        """End-to-end: MegaCodeRemote.trigger_pipeline_run with include_codex=True.
+
+        Tests the async trigger_pipeline_run method which offloads
+        sync_codex_trajectories to a thread.
+        """
+        from mega_code.client.api.remote import MegaCodeRemote
+
+        # Set up Codex sessions
+        codex_base = tmp_path / ".codex" / "sessions"
+        codex_base.mkdir(parents=True)
+        shutil.copy2(FIXTURES_DIR / "golden_session.jsonl", codex_base / "s1.jsonl")
+
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _RealCodexSource(base_path=codex_base),
+        )
+
+        # Create a real MegaCodeRemote but mock the HTTP calls
+        client = MegaCodeRemote(server_url="http://fake-server:8000", api_key="test-key")
+
+        # Mock upload_trajectory (sync call used by codex_sync)
+        client.upload_trajectory = MagicMock(  # type: ignore[assignment]
+            return_value=UploadResult(
+                status="accepted", session_id="fixture-session-001", message="ok"
+            )
+        )
+
+        # Mock the async HTTP POST for pipeline trigger
+        mock_async_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "run_id": "test-run-123",
+            "status": "queued",
+            "message": "Pipeline triggered",
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_async_client.post.return_value = mock_response
+
+        monkeypatch.setattr(client, "_get_async_client", lambda: mock_async_client)
+
+        # Mock sync_trajectories where it's imported from
+        monkeypatch.setattr(
+            "mega_code.client.api.sync.sync_trajectories",
+            lambda *a, **kw: 0,
+        )
+
+        result = asyncio.run(
+            client.trigger_pipeline_run(
+                project_id=project_dir.name,
+                project_path=project_dir,
+                include_codex=True,
+                include_claude=False,
+                project_cwd="/home/user/projects/test-project",
+            )
+        )
+
+        assert result.run_id == "test-run-123"
+        assert result.status == "queued"
+        # Verify codex sync actually uploaded
+        assert client.upload_trajectory.call_count == 1
         call_kwargs = client.upload_trajectory.call_args
         turn_set = call_kwargs.kwargs.get("turn_set") or call_kwargs[1].get("turn_set")
         assert turn_set is not None

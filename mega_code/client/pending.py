@@ -649,7 +649,11 @@ async def poll_pipeline_status(
 
         logger.debug(
             "  Poll #%d: status=%s phase=%s (%d/%d)",
-            poll_count, status.status, phase or "-", processed, total,
+            poll_count,
+            status.status,
+            phase or "-",
+            processed,
+            total,
         )
 
         # INFO heartbeat every 6th poll (~60s at default 10s interval)
@@ -657,13 +661,20 @@ async def poll_pipeline_status(
             elapsed = time.monotonic() - start
             logger.info(
                 "  Heartbeat: poll #%d (%.0fs elapsed) — status=%s phase=%s (%d/%d)",
-                poll_count, elapsed, status.status, phase or "-", processed, total,
+                poll_count,
+                elapsed,
+                status.status,
+                phase or "-",
+                processed,
+                total,
             )
 
         if status.status in TERMINAL_STATUSES:
             logger.info(
                 "  Terminal status detected: %s (after %d polls, %.0fs)",
-                status.status, poll_count, time.monotonic() - start,
+                status.status,
+                poll_count,
+                time.monotonic() - start,
             )
             return status
 
