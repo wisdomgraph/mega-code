@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import mega_code.client.utils.ndjson_tracing as _ndjson_mod
 from mega_code.client.utils.ndjson_tracing import (
     SPAN_KIND_CLIENT,
     STATUS_ERROR,
@@ -22,6 +23,14 @@ from mega_code.client.utils.ndjson_tracing import (
     flush_traces,
     format_traceparent,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clean_global_span_stack():
+    """Ensure the global span stack is empty before/after each test."""
+    _ndjson_mod._global_span_stack.clear()
+    yield
+    _ndjson_mod._global_span_stack.clear()
 
 
 @pytest.fixture
@@ -215,6 +224,26 @@ class TestNdjsonTracer:
             assert tracer.current_span_id == outer.span_id
 
         assert tracer.current_span_id is None
+
+    def test_cross_tracer_parent_child(self, writer):
+        """Spans from different tracer instances share the global context stack."""
+        tracer_a = NdjsonTracer(writer, "t" * 32, name="module_a")
+        tracer_b = NdjsonTracer(writer, "t" * 32, name="module_b")
+
+        with tracer_a.start_as_current_span("parent_from_a") as parent_span:
+            with tracer_b.start_as_current_span("child_from_b"):
+                pass
+
+        # Parse spans from file
+        lines = writer.file_path.read_text().strip().split("\n")
+        spans_by_name = {}
+        for line in lines:
+            s = json.loads(line)
+            spans_by_name[s["name"]] = s  # last-wins dedup
+
+        # Child from tracer_b should have parent from tracer_a
+        assert spans_by_name["child_from_b"]["parentSpanId"] == parent_span.span_id
+        assert spans_by_name["parent_from_a"]["parentSpanId"] == ""
 
 
 # ---- Deduplication ----

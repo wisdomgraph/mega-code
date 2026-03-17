@@ -230,25 +230,35 @@ class NdjsonSpan:
 
 
 # ---------------------------------------------------------------------------
-# NdjsonTracer — creates spans with in-memory parent context stack
+# Global span context stack (shared across all tracers in this process)
+# ---------------------------------------------------------------------------
+
+_global_span_stack: list[str] = []
+
+
+# ---------------------------------------------------------------------------
+# NdjsonTracer — creates spans with shared global context stack
 # ---------------------------------------------------------------------------
 
 
 class NdjsonTracer:
-    """Creates NDJSON spans with automatic parent-child linking."""
+    """Creates NDJSON spans with automatic parent-child linking.
+
+    All NdjsonTracer instances share a single global span stack so that
+    parent-child relationships work correctly across module boundaries
+    (e.g. run_pipeline.py -> remote.py -> sync.py).
+    """
 
     def __init__(self, writer: NdjsonSpanWriter, trace_id: str, name: str = "") -> None:
         self._writer = writer
         self._trace_id = trace_id
         self._name = name
-        # Stack of active span IDs for parent-child linking within this process
-        self._span_stack: list[str] = []
 
     @contextmanager
     def start_as_current_span(self, name: str, *, kind: int = SPAN_KIND_INTERNAL, **kw):
         """Context manager that creates a span and makes it current."""
         span_id = _new_span_id()
-        parent_span_id = self._span_stack[-1] if self._span_stack else ""
+        parent_span_id = _global_span_stack[-1] if _global_span_stack else ""
         span = NdjsonSpan(
             writer=self._writer,
             name=name,
@@ -257,18 +267,18 @@ class NdjsonTracer:
             parent_span_id=parent_span_id,
             kind=kind,
         )
-        self._span_stack.append(span_id)
+        _global_span_stack.append(span_id)
         try:
             with span:
                 yield span
         finally:
-            if self._span_stack and self._span_stack[-1] == span_id:
-                self._span_stack.pop()
+            if _global_span_stack and _global_span_stack[-1] == span_id:
+                _global_span_stack.pop()
 
     def start_span(self, name: str, **kw) -> NdjsonSpan:
         """Create a span without making it current (for manual lifecycle)."""
         span_id = _new_span_id()
-        parent_span_id = self._span_stack[-1] if self._span_stack else ""
+        parent_span_id = _global_span_stack[-1] if _global_span_stack else ""
         return NdjsonSpan(
             writer=self._writer,
             name=name,
@@ -280,7 +290,7 @@ class NdjsonTracer:
     @property
     def current_span_id(self) -> str | None:
         """Return the current span ID, or None if no span is active."""
-        return self._span_stack[-1] if self._span_stack else None
+        return _global_span_stack[-1] if _global_span_stack else None
 
 
 # ---------------------------------------------------------------------------
