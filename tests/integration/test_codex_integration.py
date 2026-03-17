@@ -218,3 +218,144 @@ class TestRunPipelineCodexSync:
         turn_set = call_kwargs.kwargs.get("turn_set") or call_kwargs[1].get("turn_set")
         assert turn_set is not None
         assert len(turn_set.turns) > 0
+
+    def test_project_cwd_none_resolves_from_mapping(self, tmp_path, monkeypatch):
+        """FIX VERIFICATION: when project_cwd is None, the real project path
+        is resolved from the mapping file instead of falling back to the
+        mega-code data dir.
+
+        Previously this was the bug: codex_match_path fell back to
+        str(project_path) (the data dir), which never matched any session cwd.
+        """
+        import json
+
+        from mega_code.client.api.remote import MegaCodeRemote
+
+        # Set up Codex sessions with a real project cwd
+        codex_base = tmp_path / ".codex" / "sessions"
+        codex_base.mkdir(parents=True)
+        shutil.copy2(FIXTURES_DIR / "golden_session.jsonl", codex_base / "s1.jsonl")
+
+        # The mega-code DATA dir (NOT the project dir)
+        folder_name = "test-project_a1b2c3d4"
+        data_dir = tmp_path / "mega-code-data" / "projects" / folder_name
+        data_dir.mkdir(parents=True)
+
+        # Write mapping file so the fix can resolve the real project path
+        mapping_dir = tmp_path / "mega-code-data"
+        mapping_file = mapping_dir / "mapping.json"
+        mapping_file.write_text(json.dumps({folder_name: "/home/user/projects/test-project"}))
+        monkeypatch.setattr(
+            "mega_code.client.stats.get_mapping_file",
+            lambda: mapping_file,
+        )
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _RealCodexSource(base_path=codex_base),
+        )
+
+        client = MegaCodeRemote(server_url="http://fake-server:8000", api_key="test-key")
+        client.upload_trajectory = MagicMock(  # type: ignore[assignment]
+            return_value=UploadResult(
+                status="accepted", session_id="fixture-session-001", message="ok"
+            )
+        )
+
+        mock_async_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "run_id": "test-run-123",
+            "status": "queued",
+            "message": "",
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_async_client.post.return_value = mock_response
+        monkeypatch.setattr(client, "_get_async_client", lambda: mock_async_client)
+        monkeypatch.setattr(
+            "mega_code.client.api.sync.sync_trajectories",
+            lambda *a, **kw: 0,
+        )
+
+        result = asyncio.run(
+            client.trigger_pipeline_run(
+                project_id=data_dir.name,
+                project_path=data_dir,
+                include_codex=True,
+                include_claude=False,
+                project_cwd=None,  # <-- was the bug condition, now resolved via mapping
+            )
+        )
+
+        assert result.run_id == "test-run-123"
+        assert client.upload_trajectory.call_count == 1, (
+            "Codex sessions should be uploaded after resolving real project "
+            "path from mapping when project_cwd is None"
+        )
+
+    def test_project_cwd_empty_string_resolves_from_mapping(self, tmp_path, monkeypatch):
+        """FIX VERIFICATION: empty string project_cwd also resolves from mapping."""
+        import json
+
+        from mega_code.client.api.remote import MegaCodeRemote
+
+        codex_base = tmp_path / ".codex" / "sessions"
+        codex_base.mkdir(parents=True)
+        shutil.copy2(FIXTURES_DIR / "golden_session.jsonl", codex_base / "s1.jsonl")
+
+        folder_name = "test-project_a1b2c3d4"
+        data_dir = tmp_path / "mega-code-data" / "projects" / folder_name
+        data_dir.mkdir(parents=True)
+
+        mapping_dir = tmp_path / "mega-code-data"
+        mapping_file = mapping_dir / "mapping.json"
+        mapping_file.write_text(json.dumps({folder_name: "/home/user/projects/test-project"}))
+        monkeypatch.setattr(
+            "mega_code.client.stats.get_mapping_file",
+            lambda: mapping_file,
+        )
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _RealCodexSource(base_path=codex_base),
+        )
+
+        client = MegaCodeRemote(server_url="http://fake-server:8000", api_key="test-key")
+        client.upload_trajectory = MagicMock(  # type: ignore[assignment]
+            return_value=UploadResult(
+                status="accepted", session_id="fixture-session-001", message="ok"
+            )
+        )
+
+        mock_async_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "run_id": "test-run-123",
+            "status": "queued",
+            "message": "",
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_async_client.post.return_value = mock_response
+        monkeypatch.setattr(client, "_get_async_client", lambda: mock_async_client)
+        monkeypatch.setattr(
+            "mega_code.client.api.sync.sync_trajectories",
+            lambda *a, **kw: 0,
+        )
+
+        result = asyncio.run(
+            client.trigger_pipeline_run(
+                project_id=data_dir.name,
+                project_path=data_dir,
+                include_codex=True,
+                include_claude=False,
+                project_cwd="",  # <-- falsy, resolved via mapping
+            )
+        )
+
+        assert result.run_id == "test-run-123"
+        assert client.upload_trajectory.call_count == 1, (
+            "Codex sessions should be uploaded after resolving real project "
+            "path from mapping when project_cwd is empty string"
+        )

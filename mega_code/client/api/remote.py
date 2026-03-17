@@ -210,14 +210,33 @@ class MegaCodeRemote:
             # Use the actual project CWD for codex session matching, not the
             # mega-code data dir. The codex sessions record the real working
             # directory in their 'cwd' field.
-            codex_match_path = project_cwd or str(project_path)
-            logger.info(
-                "Codex sync: codex_match_path=%s (project_cwd=%s)", codex_match_path, project_cwd
-            )
-            synced = await asyncio.to_thread(
-                sync_codex_trajectories, project_path, self, project_id, codex_match_path
-            )
-            logger.info("Codex sync: uploaded %d session(s)", synced)
+            #
+            # If project_cwd is not provided, resolve the real project path
+            # from the mapping file. Falling back to str(project_path) would
+            # use the mega-code data dir which never matches any session cwd.
+            codex_match_path = project_cwd or None
+            if not codex_match_path:
+                from mega_code.client.stats import load_mapping
+
+                mapping = load_mapping()
+                codex_match_path = mapping.get(project_path.name)
+
+            if not codex_match_path:
+                logger.warning(
+                    "Codex sync skipped: project_cwd not provided and could not "
+                    "resolve real project path from mapping for %s",
+                    project_path.name,
+                )
+            else:
+                logger.info(
+                    "Codex sync: codex_match_path=%s (project_cwd=%s)",
+                    codex_match_path,
+                    project_cwd,
+                )
+                synced = await asyncio.to_thread(
+                    sync_codex_trajectories, project_path, self, project_id, codex_match_path
+                )
+                logger.info("Codex sync: uploaded %d session(s)", synced)
 
         payload = {
             "project_id": project_id,
