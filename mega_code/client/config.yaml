@@ -40,29 +40,69 @@ review_notification:
     For EACH pending item, use the Read tool to:
     - Read full content from the paths listed above
     - Analyze quality, clarity, and completeness
-    - Identify potential improvements
+    - Identify potential refinements
 
     ══════════════════════════════════════════════════════════════════════
     STEP 2: PRESENT REVIEW & ASK USER
     ══════════════════════════════════════════════════════════════════════
-    For EACH item, show the user:
+    First, review ALL candidate skills and strategies internally.
+
+    Classify each item as:
+    - RECOMMENDED = good quality, useful, and worth installing
+    - NOT RECOMMENDED = not good enough, redundant, conflicting, risky, or not worth installing
+
+    Mark an item as NOT RECOMMENDED if it:
+    - has low quality or weak usefulness
+    - is substantially redundant with existing content
+    - conflicts with existing files, conventions, or patterns
+    - has meaningful overwrite or merge risk
+    - requires significant refinement before installation
+
+    ══════════════════════════════════════════════════════════════════════
+    RECOMMENDATION FILTER (STRICT)
+    ══════════════════════════════════════════════════════════════════════
+    After classification:
+
+    - Build RECOMMENDED_ITEMS = all items marked as RECOMMENDED
+    - Build EXCLUDED_ITEMS = all items marked as NOT RECOMMENDED
+
+    CRITICAL RULES:
+    - Show the user ONLY RECOMMENDED_ITEMS
+    - Use ONLY RECOMMENDED_ITEMS in AskUserQuestion options
+    - It is strictly forbidden to include EXCLUDED_ITEMS in any user-facing list or options
+    - Do NOT fallback to using all items or pending items under any condition
+
+    If RECOMMENDED_ITEMS is empty:
+    - Tell the user that no items are recommended for installation
+    - Proceed directly to Step 3
+
+    ══════════════════════════════════════════════════════════════════════
+    PRESENT RECOMMENDED ITEMS
+    ══════════════════════════════════════════════════════════════════════
+    For EACH item in RECOMMENDED_ITEMS, show the user:
 
     ┌─────────────────────────────────────────────────────────┐
-    │ 📦 SKILL: <name>                                    │
+    │ 📦 SKILL: <name>                                        │
     ├─────────────────────────────────────────────────────────┤
-    │ **Summary**: <what this skill does>                 │
-    │ **Quality**: ✅ Good / ⚠️ Needs improvement         │
-    │                                                     │
-    │ **Original Content** (collapsed or summarized):    │
-    │ <key points from SKILL.md>                         │
-    │                                                     │
-    │ **Suggested Improvements**:                         │
-    │ - <improvement 1>                                   │
-    │ - <improvement 2>                                   │
-    │                                                     │
-    │ **Enhanced Version** (if improvements needed):     │
-    │ <your improved version of the skill>               │
+    │ **Summary**: <what this skill does>                     │
+    │ **Quality**: ✅ Good / ⚠️ Needs refinement              │
+    │                                                         │
+    │ **Original Content** (collapsed or summarized):         │
+    │ <key points from SKILL.md>                              │
+    │                                                         │
+    │ **Refinement Suggestions**:                             │
+    │ - <refinement suggestion 1>                             │
+    │ - <refinement suggestion 2>                             │
+    │                                                         │
+    │ **Refined Version** (if refinement is suggested):       │
+    │ <your refined version of the skill>                     │
     └─────────────────────────────────────────────────────────┘
+
+    Use the same structure for strategies.
+
+    You may optionally add one short summary line such as:
+    "<N> items were excluded because they were not recommended for installation."
+    Do NOT list excluded items unless the user explicitly asks.
 
     ══════════════════════════════════════════════════════════════════════
     STEP 2 (continued): ASK USER (use AskUserQuestion tool)
@@ -73,17 +113,23 @@ review_notification:
     - Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
     - If an answer comes back **empty/blank**, re-ask that same question once more
     - After **2 consecutive empty responses**, ask the user in plain text what to do
+    - Use ONLY RECOMMENDED_ITEMS as selectable options
+    - Do NOT include EXCLUDED_ITEMS in any options
 
     **Question flow (one at a time, separate calls):**
     1. "Which skills to install?" (multiSelect: true,
-       options: [...pending skill names, "None — skip all"]) — skip if no pending skills
-    2. "Which strategies to install?" (multiSelect: true,
-       options: [...pending strategy names, "None — skip all"]) — skip if no pending strategies
-    3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
-    4. "Installation location?" — only ask if items were selected. Options:
-       - "Project level" (description: .claude/skills/ and .claude/rules/ in current project)
-       - "User level" (description: ~/.claude/skills/ and ~/.claude/rules/ shared across all projects)
+      options: [...RECOMMENDED_ITEMS (skills only), "None — skip all"]) — skip if no recommended skills
 
+    2. "Which strategies to install?" (multiSelect: true,
+      options: [...RECOMMENDED_ITEMS (strategies only), "None — skip all"]) — skip if no recommended strategies
+
+    3. "Which version?" (Refined/Original) — only ask if items were selected in Q1 or Q2
+
+    4. "Installation location?" — only ask if items were selected. Options:
+      - "Project level" (description: .claude/skills/ and .claude/rules/ in current project)
+      - "User level" (description: ~/.claude/skills/ and ~/.claude/rules/ shared across all projects)
+
+    If no items are recommended, skip Q1-Q4 entirely and proceed to Step 3.
     If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 3.
 
     ══════════════════════════════════════════════════════════════════════
