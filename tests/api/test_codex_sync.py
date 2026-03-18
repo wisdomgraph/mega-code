@@ -342,6 +342,70 @@ class TestEmptySessionSkipped:
         assert client.upload_trajectory.call_count == 0
 
 
+class TestLedgerDir:
+    """Tests for the ledger_dir parameter — ledger written to project CWD."""
+
+    def test_ledger_written_to_ledger_dir(self, tmp_path, monkeypatch):
+        """When ledger_dir is provided, ledger should be written there, not project_dir."""
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
+        project_dir = tmp_path / "internal-data"
+        project_dir.mkdir()
+        ledger_dir = tmp_path / "actual-project-cwd"
+        ledger_dir.mkdir()
+        client = _mock_client()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _make_codex_source(codex_base),
+        )
+
+        result = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=client,
+            project_id="test-project",
+            project_path="/home/user/projects/test-project",
+            ledger_dir=ledger_dir,
+        )
+
+        assert result == 1
+        # Ledger should be in ledger_dir, not project_dir
+        assert (ledger_dir / "codex-sync-ledger.json").exists()
+        assert not (project_dir / "codex-sync-ledger.json").exists()
+
+    def test_ledger_dir_none_falls_back_to_project_dir(self, tmp_path, monkeypatch):
+        """When ledger_dir is None, ledger should fall back to project_dir."""
+        codex_base = _setup_codex_base(
+            tmp_path,
+            [
+                ("s1.jsonl", "golden_session.jsonl"),
+            ],
+        )
+        project_dir = tmp_path / "project-data"
+        project_dir.mkdir()
+        client = _mock_client()
+
+        monkeypatch.setattr(
+            "mega_code.client.history.sources.codex.CodexSource",
+            lambda *a, **kw: _make_codex_source(codex_base),
+        )
+
+        result = sync_codex_trajectories(
+            project_dir=project_dir,
+            client=client,
+            project_id="test-project",
+            project_path="/home/user/projects/test-project",
+            ledger_dir=None,
+        )
+
+        assert result == 1
+        assert (project_dir / "codex-sync-ledger.json").exists()
+
+
 class TestPathEdgeCases:
     """Regression tests for path matching edge cases that cause 'no turn data'."""
 

@@ -81,8 +81,8 @@ review_notification:
        options: [...pending strategy names, "None — skip all"]) — skip if no pending strategies
     3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
     4. "Installation location?" — only ask if items were selected. Options:
-       - "Project level" (description: .claude/skills/ and .claude/rules/ in current project)
-       - "User level" (description: ~/.claude/skills/ and ~/.claude/rules/ shared across all projects)
+       - "Project level" (description: .agents/skills/ and .agents/rules/ in current project)
+       - "User level" (description: ~/.codex/skills/ and ~/.codex/rules/ shared across all projects)
 
     If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 3.
 
@@ -91,7 +91,7 @@ review_notification:
     ══════════════════════════════════════════════════════════════════════
     Based on user's choices:
     - Skills → <location>/skills/<name>/SKILL.md
-    - Strategies → .claude/rules/mega-code/<name>.md
+    - Strategies → .agents/rules/mega-code/<name>.md
 
     Use Write tool to create the files.
 

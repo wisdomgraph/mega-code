@@ -97,8 +97,13 @@ class TurnExtractor:
         if msg.tool_calls:
             tc = msg.tool_calls[0]  # Primary tool call
             tool_name = tc.tool_name
-            tool_target = tc.input.get("file_path") or tc.input.get("path")
-            command = tc.input.get("command")
+            tool_target = tc.input.get("file_path") or tc.input.get("path") or tc.input.get("target_file")
+            command = tc.input.get("cmd")
+
+            if tool_name == "exec_command" and command is None:
+                raise ValueError(
+                    f"exec_command turn {index} has no 'cmd' in input: {list(tc.input.keys())}"
+                )
 
         if msg.tool_results:
             is_error = any(tr.is_error for tr in msg.tool_results)

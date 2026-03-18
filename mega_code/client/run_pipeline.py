@@ -499,14 +499,16 @@ async def main():
             sys.exit(1)
 
         finally:
-            # Export accumulated trace spans (best-effort)
-            try:
-                from mega_code.client.utils.ndjson_tracing import export_traces
-                from mega_code.client.utils.tracing import get_span_writer
+            pass
 
-                export_traces(writer=get_span_writer())
-            except Exception:
-                pass
+    # Export after root span closes — all spans are in the file
+    try:
+        from mega_code.client.utils.ndjson_tracing import export_traces
+        from mega_code.client.utils.tracing import get_span_writer
+
+        export_traces(writer=get_span_writer())
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

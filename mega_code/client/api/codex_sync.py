@@ -25,6 +25,7 @@ def sync_codex_trajectories(
     client: MegaCodeBaseClient,
     project_id: str,
     project_path: str,
+    ledger_dir: Path | None = None,
 ) -> int:
     """Upload Codex CLI sessions matching the project path to the server."""
     from mega_code.client.history.sources.codex import CodexSource
@@ -121,8 +122,9 @@ def sync_codex_trajectories(
     def _extra_entry(sid: str) -> dict:
         return {"file_mtime": mtime_map[sid]}
 
+    actual_ledger_dir = ledger_dir or project_dir
     return _upload_sessions(
-        ledger_path=project_dir / "codex-sync-ledger.json",
+        ledger_path=actual_ledger_dir / "codex-sync-ledger.json",
         ledger_key="sessions",
         sessions=sessions,
         client=client,

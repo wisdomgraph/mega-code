@@ -235,7 +235,8 @@ class MegaCodeRemote:
                 project_cwd,
             )
             synced = await asyncio.to_thread(
-                sync_codex_trajectories, project_path, self, project_id, codex_match_path
+                sync_codex_trajectories, project_path, self, project_id, codex_match_path,
+                ledger_dir=Path(codex_match_path),
             )
             logger.info("Codex sync: uploaded %d session(s)", synced)
 
