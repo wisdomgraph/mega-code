@@ -97,7 +97,9 @@ class TurnExtractor:
         if msg.tool_calls:
             tc = msg.tool_calls[0]  # Primary tool call
             tool_name = tc.tool_name
-            tool_target = tc.input.get("file_path") or tc.input.get("path") or tc.input.get("target_file")
+            tool_target = (
+                tc.input.get("file_path") or tc.input.get("path") or tc.input.get("target_file")
+            )
             command = tc.input.get("cmd")
 
             if tool_name == "exec_command" and command is None:
