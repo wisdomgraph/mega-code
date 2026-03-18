@@ -1,0 +1,61 @@
+# copy.bara.sky
+# Copybara config for syncing mega-code-oss (Bitbucket) → GitHub public OSS repo.
+#
+# Push:  copybara copy.bara.sky   — Bitbucket main → GitHub fork (SQUASH)
+#
+# Workflow: jt → main (Bitbucket PR, publish gate) → GitHub fork → GitHub official (GitHub PR)
+# After push, update local `public` branch to mirror GitHub:
+#   git fetch github main && git update-ref refs/heads/public FETCH_HEAD
+
+BB_URL = "git@bitbucket.org:mindai/mega-code-oss.git"
+GH_URL = "git@github.com:jingtao-wisdomgraph/mega-code.git"
+
+_EXCLUDE = [
+    "CLAUDE.md",
+    ".env",
+    ".env.*",
+    "copy.bara.sky",
+    "Makefile",
+    "scripts/publish-oss.py",
+    "bitbucket-pipelines.yml",
+    ".pre-commit-config.yaml",
+    ".venv/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+]
+
+# ── PUSH: Bitbucket main → GitHub fork ───────────────────────────────────────
+core.workflow(
+    name = "default",
+    origin = git.origin(
+        url = BB_URL,
+        ref = "main",
+    ),
+    origin_files = glob(["**"], exclude = _EXCLUDE),
+    destination = git.destination(
+        url = GH_URL,
+        push = "main",
+    ),
+    # SQUASH collapses internal WIP commits into one clean release commit per publish.
+    mode = "SQUASH",
+    transformations = [
+        # Update this message before each publish (reviewed by human)
+        metadata.replace_message("PLACEHOLDER: update before publish"),
+        core.replace(
+            before = "git@bitbucket.org:mindai/mega-code-oss.git",
+            after  = "https://github.com/wisdomgraph/mega-code",
+            paths  = glob(["**/*.md", "**/*.toml", "**/*.json"]),
+        ),
+        core.replace(
+            before = "bitbucket.org/mindai/",
+            after  = "github.com/wisdomgraph/",
+            paths  = glob(["**/*.md"]),
+        ),
+    ],
+    authoring = authoring.pass_thru("mega-code-team <support@megacode.ai>"),
+)
+
+# ── PULL: GitHub contributions → Bitbucket (manual) ─────────────────────────
+# Copybara's github_pr_destination requires a GitHub URL, so the pull workflow
+# cannot target Bitbucket directly. Import OSS contributions manually:
+#   git fetch github main && git checkout main && git merge github/main

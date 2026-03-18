@@ -11,8 +11,6 @@ from __future__ import annotations
 import os
 import sys
 
-import httpx
-
 from mega_code.client.cli import get_env_path, load_env_file
 
 _NOT_LOGGED_IN = "Not logged in. Run /mega-code:login first."
@@ -24,7 +22,8 @@ def check_auth() -> bool:
 
     Returns True if authenticated. Prints a friendly message and returns
     False when the key is missing or rejected by the server.
-    Connection errors are treated as "probably OK" (key exists, server down).
+    Connection errors propagate — if we can't verify the key, we don't
+    pretend it's valid.
     """
     # Load .env so create_client() can find MEGA_CODE_API_KEY
     for key, value in load_env_file(get_env_path()).items():
@@ -44,9 +43,6 @@ def check_auth() -> bool:
         # 401/403 from _check_response, or missing key in create_client
         print(_KEY_EXPIRED)
         return False
-    except (httpx.ConnectError, httpx.TimeoutException):
-        # Server unreachable — key exists, don't block offline dev
-        return True
 
 
 def main() -> int:

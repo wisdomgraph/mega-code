@@ -32,3 +32,4 @@ htmlcov/
 # Local data
 .local/
 .env
+.copybara-tmp/
