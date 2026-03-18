@@ -87,7 +87,7 @@ def test_module_entry_points(skill_name):
 def test_run_skill_includes_codex_flag():
     content = (SKILLS_DIR / "run" / "SKILL.md").read_text()
     assert "--include-codex" in content
-    assert "--include-all" in content
+    assert "--include-claude" in content
 
 
 def test_help_skill_shows_both_syntaxes():

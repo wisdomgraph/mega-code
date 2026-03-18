@@ -5,8 +5,10 @@ Covers:
 2. Different projects can run pipelines concurrently
 3. Force flag behaviour
 4. Client handles pipeline-busy errors gracefully
+5. Agent-scoped session sync gating
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -323,3 +325,163 @@ class TestPipelineConstraintsAcceptance:
         sig = inspect.signature(MegaCodeRemote.trigger_pipeline_run)
         assert "force" in sig.parameters
         assert sig.parameters["force"].default is False
+
+    def test_agent_param_in_protocol(self):
+        """The protocol defines agent parameter for scoped session sync."""
+        import inspect
+
+        sig = inspect.signature(MegaCodeRemote.trigger_pipeline_run)
+        assert "agent" in sig.parameters
+        assert sig.parameters["agent"].default == ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Unit tests: agent-scoped session sync
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestAgentScopedSync:
+    """Verify that sync calls are gated by the agent parameter."""
+
+    @pytest.fixture
+    def client(self):
+        return MegaCodeRemote(
+            server_url="https://test.megacode.ai",
+            api_key="mg_test_key",
+        )
+
+    @pytest.fixture
+    def success_response(self):
+        return httpx.Response(
+            200,
+            json={"run_id": "r1", "status": "queued", "message": ""},
+            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_codex_agent_does_not_call_sync_trajectories(self, client, success_response):
+        """Codex agent should NOT call sync_trajectories (mega-code sessions)."""
+        with (
+            patch.object(client, "_get_async_client") as mock_ac,
+            patch.object(client, "_sync_codex", new_callable=AsyncMock) as mock_codex,
+            patch("mega_code.client.api.remote.sync_trajectories", create=True) as mock_sync,
+            patch(
+                "mega_code.client.api.remote.sync_claude_trajectories", create=True
+            ) as mock_claude,
+        ):
+            mock_async = AsyncMock()
+            mock_async.post.return_value = success_response
+            mock_ac.return_value = mock_async
+
+            await client.trigger_pipeline_run(
+                project_id="test-proj",
+                project_path=Path("/tmp/test"),
+                agent="codex",
+            )
+
+            # sync_trajectories should NOT be called for codex agent
+            mock_sync.assert_not_called()
+            mock_claude.assert_not_called()
+            # _sync_codex SHOULD be called
+            mock_codex.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_claude_agent_does_not_call_sync_codex(self, client, success_response):
+        """Claude agent should NOT call _sync_codex by default."""
+        with (
+            patch.object(client, "_get_async_client") as mock_ac,
+            patch.object(client, "_sync_codex", new_callable=AsyncMock) as mock_codex,
+            patch(
+                "mega_code.client.api.remote.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_to_thread,
+        ):
+            mock_async = AsyncMock()
+            mock_async.post.return_value = success_response
+            mock_ac.return_value = mock_async
+
+            await client.trigger_pipeline_run(
+                project_id="test-proj",
+                project_path=Path("/tmp/test"),
+                agent="claude-code",
+            )
+
+            # _sync_codex should NOT be called for claude agent
+            mock_codex.assert_not_called()
+            # sync_trajectories and sync_claude_trajectories should be called
+            assert mock_to_thread.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_unknown_agent_syncs_mega_code_sessions_only(self, client, success_response):
+        """Unknown/empty agent syncs only mega-code sessions (backward compat)."""
+        with (
+            patch.object(client, "_get_async_client") as mock_ac,
+            patch.object(client, "_sync_codex", new_callable=AsyncMock) as mock_codex,
+            patch(
+                "mega_code.client.api.remote.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_to_thread,
+        ):
+            mock_async = AsyncMock()
+            mock_async.post.return_value = success_response
+            mock_ac.return_value = mock_async
+
+            await client.trigger_pipeline_run(
+                project_id="test-proj",
+                project_path=Path("/tmp/test"),
+                agent="",
+            )
+
+            mock_codex.assert_not_called()
+            # Only sync_trajectories called (1 call)
+            assert mock_to_thread.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_cross_agent_include_claude_from_codex(self, client, success_response):
+        """From Codex, --include-claude adds Claude sessions on top of Codex default."""
+        with (
+            patch.object(client, "_get_async_client") as mock_ac,
+            patch.object(client, "_sync_codex", new_callable=AsyncMock) as mock_codex,
+            patch(
+                "mega_code.client.api.remote.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_to_thread,
+        ):
+            mock_async = AsyncMock()
+            mock_async.post.return_value = success_response
+            mock_ac.return_value = mock_async
+
+            await client.trigger_pipeline_run(
+                project_id="test-proj",
+                project_path=Path("/tmp/test"),
+                agent="codex",
+                include_claude=True,
+            )
+
+            # _sync_codex for default codex sessions
+            mock_codex.assert_called_once()
+            # sync_claude_trajectories called via to_thread for cross-agent opt-in
+            assert mock_to_thread.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_cross_agent_include_codex_from_claude(self, client, success_response):
+        """From Claude, --include-codex adds Codex sessions on top of Claude default."""
+        with (
+            patch.object(client, "_get_async_client") as mock_ac,
+            patch.object(client, "_sync_codex", new_callable=AsyncMock) as mock_codex,
+            patch(
+                "mega_code.client.api.remote.asyncio.to_thread", new_callable=AsyncMock
+            ) as mock_to_thread,
+        ):
+            mock_async = AsyncMock()
+            mock_async.post.return_value = success_response
+            mock_ac.return_value = mock_async
+
+            await client.trigger_pipeline_run(
+                project_id="test-proj",
+                project_path=Path("/tmp/test"),
+                agent="claude-code",
+                include_codex=True,
+            )
+
+            # Default claude syncs (sync_trajectories + sync_claude_trajectories)
+            assert mock_to_thread.call_count == 2
+            # Cross-agent codex sync
+            mock_codex.assert_called_once()

@@ -20,7 +20,7 @@ Usage:
     python -m mega_code.client.run_pipeline --project
     python -m mega_code.client.run_pipeline --project @mega-code
     python -m mega_code.client.run_pipeline --model gemini-3-flash
-    python -m mega_code.client.run_pipeline --project --include-claude
+    python -m mega_code.client.run_pipeline --project --include-claude --include-codex
     python -m mega_code.client.run_pipeline --poll-existing <run_id> --project <project_id>
 """
 
@@ -153,11 +153,6 @@ Project argument formats:
         help="Include related Codex CLI sessions when loading from project (default: False)",
     )
     parser.add_argument(
-        "--include-all",
-        action="store_true",
-        help="Include sessions from all sources (Claude + Codex + future integrations)",
-    )
-    parser.add_argument(
         "--poll-timeout",
         type=int,
         default=None,
@@ -231,8 +226,11 @@ async def main():
         logger.info("Model not specified — server will select based on configured LLM keys")
 
     # Resolve include flags
-    include_claude = args.include_claude or args.include_all
-    include_codex = args.include_codex or args.include_all
+    include_claude = args.include_claude
+    include_codex = args.include_codex
+
+    # Agent identity (set by SKILL.md setup block)
+    agent = os.environ.get("MEGA_CODE_AGENT", "")
 
     # Get environment variables
     # session_id already resolved above for tracing setup
@@ -254,8 +252,12 @@ async def main():
         span.set_attribute("env.MEGA_CODE_CLIENT_MODE", os.environ.get("MEGA_CODE_CLIENT_MODE", ""))
         span.set_attribute("env.MEGA_CODE_API_KEY_SET", bool(os.environ.get("MEGA_CODE_API_KEY")))
         span.set_attribute("env.MEGA_CODE_SERVER_URL", os.environ.get("MEGA_CODE_SERVER_URL", ""))
-        span.set_attribute("env.MEGA_CODE_PIPELINE_STORAGE", os.environ.get("MEGA_CODE_PIPELINE_STORAGE", ""))
-        span.set_attribute("env.MEGA_CODE_POLL_TIMEOUT", os.environ.get("MEGA_CODE_POLL_TIMEOUT", ""))
+        span.set_attribute(
+            "env.MEGA_CODE_PIPELINE_STORAGE", os.environ.get("MEGA_CODE_PIPELINE_STORAGE", "")
+        )
+        span.set_attribute(
+            "env.MEGA_CODE_POLL_TIMEOUT", os.environ.get("MEGA_CODE_POLL_TIMEOUT", "")
+        )
 
         # --- CLI args ---
         span.set_attribute("args.project", str(args.project) if args.project is not None else "")
@@ -269,6 +271,7 @@ async def main():
         span.set_attribute("args.concurrency", args.concurrency)
         span.set_attribute("args.include_claude", include_claude)
         span.set_attribute("args.include_codex", include_codex)
+        span.set_attribute("args.agent", agent)
         span.set_attribute("args.poll_existing", args.poll_existing or "")
 
         # --- Resolved values ---
@@ -324,6 +327,7 @@ async def main():
                 "include_claude": include_claude,
                 "include_codex": include_codex,
                 "model": model_name,
+                "agent": agent,
             }
 
             if include_codex:
@@ -386,7 +390,9 @@ async def main():
                 logger.info(f"Pipeline triggered: run_id={run_id}, status={trigger_result.status}")
                 span.set_attribute("trigger.response.run_id", run_id)
                 span.set_attribute("trigger.response.status", trigger_result.status)
-                span.set_attribute("trigger.response.message", getattr(trigger_result, "message", ""))
+                span.set_attribute(
+                    "trigger.response.message", getattr(trigger_result, "message", "")
+                )
                 if _server:
                     logger.info(f"Polling URL: {_server}/api/megacode/v1/pipeline/status/{run_id}")
 
@@ -401,7 +407,9 @@ async def main():
             if status.completed_at:
                 span.set_attribute("poll.server_completed_at", status.completed_at)
             if status.progress:
-                span.set_attribute("poll.sessions_processed", status.progress.get("sessions_processed", 0))
+                span.set_attribute(
+                    "poll.sessions_processed", status.progress.get("sessions_processed", 0)
+                )
                 span.set_attribute("poll.sessions_total", status.progress.get("sessions_total", 0))
                 span.set_attribute("poll.current_phase", status.progress.get("current_phase", ""))
 
@@ -446,9 +454,13 @@ async def main():
                 span.set_attribute("output.skill_names", ",".join(s.name for s in result.skills))
                 span.set_attribute("output.skill_paths", ",".join(s.path for s in result.skills))
             if result.strategies:
-                span.set_attribute("output.strategy_names", ",".join(s.name for s in result.strategies))
+                span.set_attribute(
+                    "output.strategy_names", ",".join(s.name for s in result.strategies)
+                )
             if result.lessons:
-                span.set_attribute("output.lesson_slugs", ",".join(ls.slug for ls in result.lessons))
+                span.set_attribute(
+                    "output.lesson_slugs", ",".join(ls.slug for ls in result.lessons)
+                )
             if result.errors:
                 span.set_attribute("output.errors", ",".join(result.errors))
 

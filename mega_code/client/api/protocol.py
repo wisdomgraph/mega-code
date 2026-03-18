@@ -256,6 +256,7 @@ class MegaCodeBaseClient(Protocol):
         include_claude: bool = False,
         include_codex: bool = False,
         project_cwd: str | None = None,
+        agent: str = "",
     ) -> TriggerPipelineResult: ...
 
     def get_pipeline_status(
