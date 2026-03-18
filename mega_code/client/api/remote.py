@@ -177,12 +177,16 @@ class MegaCodeRemote:
                 "turns": [t.model_dump() for t in turn_set.turns],
                 "metadata": turn_set.metadata.model_dump(mode="json"),
             }
-            http_span.set_attribute("upload.payload_size_bytes", len(json.dumps(payload)))
+            payload_json = json.dumps(payload)
+            http_span.set_attribute("upload.payload_size_bytes", len(payload_json))
+            http_span.set_attribute("upload.payload_json", payload_json)
 
             resp = self._client.post("/api/megacode/v1/trajectory", json=payload)
             http_span.set_attribute("http.status_code", resp.status_code)
+            resp_data = resp.json()
+            http_span.set_attribute("upload.response_json", json.dumps(resp_data))
             self._check_response(resp)
-            result = UploadResult(**resp.json())
+            result = UploadResult(**resp_data)
             http_span.set_attribute("upload.response.status", getattr(result, "status", ""))
             http_span.set_attribute("upload.response.message", getattr(result, "message", ""))
             return result
@@ -240,7 +244,7 @@ class MegaCodeRemote:
                 self,
                 project_id,
                 codex_match_path,
-                ledger_dir=Path(codex_match_path),
+                ledger_dir=project_path,
             )
             logger.info("Codex sync: uploaded %d session(s)", synced)
 

@@ -460,17 +460,12 @@ def export_traces(
             spans, new_offset = _read_spans_from_file(ndjson_file, offset)
 
             if not spans:
-                # No new spans — clean up if file fully read
-                if new_offset > 0 and offset > 0:
-                    _cleanup_trace_file(ndjson_file, checkpoints, file_key, trace_dir)
                 continue
 
             ok = _send_spans(spans, svc_name, svc_version, endpoint, headers)
             if ok:
                 checkpoints[file_key] = new_offset
                 _write_checkpoint(trace_dir, checkpoints)
-                # Clean up after successful final export
-                _cleanup_trace_file(ndjson_file, checkpoints, file_key, trace_dir)
             else:
                 all_ok = False
 
@@ -521,6 +516,27 @@ def flush_traces(writer: NdjsonSpanWriter | None = None) -> bool:
         return False
 
 
+def _truncate_span_for_export(span_dict: dict, max_attr_bytes: int = 1024) -> dict:
+    """Return a deep copy of *span_dict* with large string attributes truncated.
+
+    Only ``stringValue`` entries whose length exceeds *max_attr_bytes* are
+    touched.  The on-disk NDJSON file keeps the originals; this copy is what
+    gets sent to Honeycomb (which has attribute size limits and charges per
+    byte).
+    """
+    import copy
+
+    out = copy.deepcopy(span_dict)
+    for attr in out.get("attributes", []):
+        val = attr.get("value", {})
+        sv = val.get("stringValue")
+        if sv is not None and len(sv) > max_attr_bytes:
+            original_len = len(sv)
+            suffix = f"… [truncated, {original_len} chars]"
+            val["stringValue"] = sv[:max_attr_bytes] + suffix
+    return out
+
+
 def _send_spans(
     spans: list[dict],
     service_name: str,
@@ -538,7 +554,8 @@ def _send_spans(
         reraise=True,
     )
     def _post(batch: list[dict]) -> None:
-        envelope = _build_otlp_envelope(batch, service_name, service_version)
+        truncated = [_truncate_span_for_export(s) for s in batch]
+        envelope = _build_otlp_envelope(truncated, service_name, service_version)
         resp = httpx.post(endpoint, json=envelope, headers=headers, timeout=10.0)
         resp.raise_for_status()
 
@@ -551,21 +568,6 @@ def _send_spans(
     except Exception:
         logger.debug("Failed to send spans to %s", endpoint, exc_info=True)
         return False
-
-
-def _cleanup_trace_file(
-    file_path: Path,
-    checkpoints: dict[str, int],
-    file_key: str,
-    trace_dir: Path,
-) -> None:
-    """Remove NDJSON file and its checkpoint entry after successful export."""
-    try:
-        file_path.unlink(missing_ok=True)
-        checkpoints.pop(file_key, None)
-        _write_checkpoint(trace_dir, checkpoints)
-    except Exception:
-        pass
 
 
 # ---------------------------------------------------------------------------

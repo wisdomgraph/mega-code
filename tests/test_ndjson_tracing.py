@@ -19,6 +19,7 @@ from mega_code.client.utils.ndjson_tracing import (
     _build_otlp_envelope,
     _make_trace_id,
     _read_spans_from_file,
+    _truncate_span_for_export,
     export_traces,
     flush_traces,
     format_traceparent,
@@ -358,8 +359,8 @@ class TestExport:
         posted_headers = call_kwargs.kwargs["headers"]
         assert posted_headers["x-honeycomb-team"] == "test123"
 
-    def test_export_cleans_up_file(self, writer):
-        """Successful export removes the NDJSON file."""
+    def test_export_preserves_file(self, writer):
+        """Successful export keeps the NDJSON file on disk."""
         span = NdjsonSpan(writer, "test", writer.trace_id, "s1")
         with span:
             pass
@@ -378,7 +379,7 @@ class TestExport:
         ):
             export_traces(writer.file_path.parent, writer=writer)
 
-        assert not writer.file_path.exists()
+        assert writer.file_path.exists()
 
     def test_flush_does_not_delete_file(self, writer):
         """Flush exports but keeps the NDJSON file."""
@@ -492,3 +493,119 @@ class TestTracingModuleIntegration:
 
         # Reset
         mod._initialized = False
+
+
+# ---- Truncation for Honeycomb export ----
+
+
+class TestTruncateSpanForExport:
+    def test_short_attributes_unchanged(self):
+        """Attributes under the limit are not modified."""
+        span = {
+            "spanId": "s1",
+            "attributes": [
+                {"key": "small", "value": {"stringValue": "hello"}},
+                {"key": "num", "value": {"intValue": "42"}},
+            ],
+        }
+        result = _truncate_span_for_export(span, max_attr_bytes=1024)
+        assert result["attributes"][0]["value"]["stringValue"] == "hello"
+        assert result["attributes"][1]["value"]["intValue"] == "42"
+
+    def test_long_string_truncated(self):
+        """String attributes exceeding max_attr_bytes are truncated."""
+        long_val = "x" * 2000
+        span = {
+            "spanId": "s1",
+            "attributes": [
+                {"key": "big", "value": {"stringValue": long_val}},
+            ],
+        }
+        result = _truncate_span_for_export(span, max_attr_bytes=100)
+        truncated = result["attributes"][0]["value"]["stringValue"]
+        assert truncated.startswith("x" * 100)
+        assert "truncated" in truncated
+        assert "2000 chars" in truncated
+        assert len(truncated) < len(long_val)
+
+    def test_original_not_mutated(self):
+        """The original span dict is not modified (deep copy)."""
+        long_val = "y" * 500
+        span = {
+            "spanId": "s1",
+            "attributes": [
+                {"key": "big", "value": {"stringValue": long_val}},
+            ],
+        }
+        _truncate_span_for_export(span, max_attr_bytes=100)
+        assert span["attributes"][0]["value"]["stringValue"] == long_val
+
+    def test_non_string_attributes_unchanged(self):
+        """Bool, int, float attributes are never truncated."""
+        span = {
+            "spanId": "s1",
+            "attributes": [
+                {"key": "b", "value": {"boolValue": True}},
+                {"key": "i", "value": {"intValue": "999"}},
+                {"key": "f", "value": {"doubleValue": 3.14}},
+            ],
+        }
+        result = _truncate_span_for_export(span, max_attr_bytes=1)
+        assert result["attributes"][0]["value"]["boolValue"] is True
+        assert result["attributes"][1]["value"]["intValue"] == "999"
+        assert result["attributes"][2]["value"]["doubleValue"] == 3.14
+
+    def test_exact_limit_not_truncated(self):
+        """A string exactly at the limit is not truncated."""
+        val = "a" * 100
+        span = {
+            "spanId": "s1",
+            "attributes": [{"key": "k", "value": {"stringValue": val}}],
+        }
+        result = _truncate_span_for_export(span, max_attr_bytes=100)
+        assert result["attributes"][0]["value"]["stringValue"] == val
+
+    def test_export_sends_truncated_spans(self, writer):
+        """Spans sent to Honeycomb are truncated while on-disk file keeps originals."""
+        long_payload = "z" * 5000
+        span = NdjsonSpan(writer, "test", writer.trace_id, "span456")
+        with span:
+            span.set_attribute("upload.payload_json", long_payload)
+
+        # Verify on-disk file has the full value
+        lines = writer.file_path.read_text().strip().split("\n")
+        final_on_disk = json.loads(lines[-1])
+        payload_attr = [a for a in final_on_disk["attributes"] if a["key"] == "upload.payload_json"]
+        assert payload_attr[0]["value"]["stringValue"] == long_payload
+
+        # Now export and verify truncation in the POST body
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        posted_bodies = []
+
+        def capture_post(*args, **kwargs):
+            posted_bodies.append(kwargs.get("json"))
+            return mock_resp
+
+        with (
+            patch("httpx.post", side_effect=capture_post),
+            patch.dict(
+                os.environ,
+                {
+                    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "https://test.example.com/v1/traces",
+                },
+            ),
+        ):
+            export_traces(writer.file_path.parent, writer=writer)
+
+        assert len(posted_bodies) == 1
+        sent_spans = posted_bodies[0]["resourceSpans"][0]["scopeSpans"][0]["spans"]
+        # Find the final span (deduped, so only one per spanId)
+        sent_payload_attr = None
+        for s in sent_spans:
+            for a in s.get("attributes", []):
+                if a["key"] == "upload.payload_json":
+                    sent_payload_attr = a["value"]["stringValue"]
+        assert sent_payload_attr is not None
+        assert len(sent_payload_attr) < len(long_payload)
+        assert "truncated" in sent_payload_attr
