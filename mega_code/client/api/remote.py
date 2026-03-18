@@ -387,6 +387,7 @@ class MegaCodeRemote:
             http_span.set_attribute("http.status_code", resp.status_code)
             self._check_response(resp)
             data = resp.json()
+            http_span.set_attribute("status_poll.response_json", json.dumps(data))
 
             http_span.set_attribute("status_poll.status", data.get("status", ""))
             http_span.set_attribute("status_poll.project_id", data.get("project_id", ""))
