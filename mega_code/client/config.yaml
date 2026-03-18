@@ -103,7 +103,8 @@ review_notification:
     Run this command EXACTLY as shown (do NOT change imports):
 
     ```bash
-    MEGA_DIR=$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null || echo ~/.claude/mega-code)
+    MEGA_DIR=$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null || cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null || echo ~/.claude/mega-code)
+    export UV_CACHE_DIR="${{UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}}"
     [ -f "${{HOME}}/.local/share/mega-code/.env" ] && set -a && . "${{HOME}}/.local/share/mega-code/.env" && set +a
     cd "$MEGA_DIR" && set -a && . ./.env && set +a && uv run python -c "
     # IMPORTANT: archive_pending_items is in feedback module, NOT pending module

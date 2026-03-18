@@ -39,7 +39,6 @@ HF Upskill       ████████████████░░░░  7
 anthropic-skill  █████████████████░░░  826K
 Baseline         ██████████████████░░  897K
 skill-factory    ██████████████████████████████  1,448K
-skill-builder    ██████████████████████████████████████████  2,024K
 ```
 
 ### Combined Score
@@ -49,7 +48,6 @@ MEGA Code        ████████████████  78%   ← #1
 HF Upskill       ██████████████░░  70%
 anthropic-skill  █████████████░░░  65%
 Baseline         █████████████░░░  65%
-skill-builder    ██████████░░░░░░  50%
 skill-factory    █████████░░░░░░░  43%
 ```
 
@@ -114,7 +112,7 @@ Core learning, exports, and Skills/Strategies capture are available in the curre
 | `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:run` | Run skill extraction pipeline |
 | `/mega-code:status` | Show pending items and status |
-| `/mega-code:stop` | Stop a running pipeline |
+| `/mega-code:feedback` | Provide feedback on generated items |
 | `/mega-code:profile` | View or update your developer profile (language, level, style) |
 | `/mega-code:help` | Show help and reference |
 
@@ -125,7 +123,7 @@ Core learning, exports, and Skills/Strategies capture are available in the curre
 /mega-code:profile                # Set your language, level, and style
 /mega-code:run --project          # Extract skills from all project sessions
 /mega-code:status                 # See what was generated
-/mega-code:stop                   # Stop a pipeline if needed
+/mega-code:feedback               # Rate the generated skills
 ```
 
 ---
@@ -136,6 +134,12 @@ Core learning, exports, and Skills/Strategies capture are available in the curre
 
 ```
 /plugin marketplace update mind-ai-mega-code
+```
+
+**Codex CLI:**
+
+```bash
+npx skills add wisdomgraph/mega-code -a codex
 ```
 
 ---
@@ -162,18 +166,24 @@ so you can iterate quickly without any git commits to GitHub.
 ```
 plugin/
 ├── .claude-plugin/
-│   └── plugin.json          # Plugin metadata
-├── hooks/
-│   └── hooks.json           # Lifecycle hooks (SessionStart, etc.)
-├── skills/
-│   ├── login/SKILL.md       # /mega-code:login
-│   ├── run/SKILL.md         # /mega-code:run
-│   ├── status/SKILL.md      # /mega-code:status
-│   ├── stop/SKILL.md        # /mega-code:stop
-│   ├── profile/SKILL.md     # /mega-code:profile
-│   └── help/SKILL.md        # /mega-code:help
-├── mega_code/
-│   └── client/              # Python client modules
+│   └── marketplace.json     # Marketplace listing (source: ./plugin)
+├── plugin/                  # Plugin root (installed by Claude Code)
+│   ├── .claude-plugin/
+│   │   └── plugin.json      # Plugin metadata
+│   ├── hooks/
+│   │   └── hooks.json       # Lifecycle hooks (SessionStart, etc.)
+│   ├── skills/              # Unified skills (Claude Code + Codex)
+│   │   ├── login/SKILL.md    # /mega-code:login / $mega-code-login
+│   │   ├── run/SKILL.md      # /mega-code:run / $mega-code-run
+│   │   ├── status/SKILL.md   # /mega-code:status / $mega-code-status
+│   │   ├── feedback/SKILL.md # /mega-code:feedback
+│   │   ├── profile/SKILL.md  # /mega-code:profile / $mega-code-profile
+│   │   └── help/SKILL.md     # /mega-code:help / $mega-code-help
+│   ├── mega_code/
+│   │   └── client/          # Python client modules
+│   ├── scripts/
+│   │   └── session-start.sh # Bootstrap script
+│   └── pyproject.toml
 ├── scripts/
 │   └── session-start.sh     # Bootstrap script
 └── pyproject.toml

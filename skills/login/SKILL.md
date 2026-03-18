@@ -1,6 +1,7 @@
 ---
-description: Sign in to MEGA-Code via GitHub or Google OAuth to get an API key.
-argument-hint: [--provider github|google] [--url https://console.megacode.ai]
+name: mega-code-login
+description: "Sign in to MEGA-Code via GitHub or Google OAuth to get an API key."
+argument-hint: "[--provider github|google] [--url https://console.megacode.ai]"
 allowed-tools: Bash, Read, AskUserQuestion
 ---
 
@@ -11,7 +12,21 @@ Authenticate with MEGA-Code to obtain an API key using a two-step OAuth flow.
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
+if [ -n "$CLAUDE_PLUGIN_ROOT" ]; then
+  MEGA_DIR="$CLAUDE_PLUGIN_ROOT"
+else
+  MEGA_DIR="$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)"
+fi
+if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+  MEGA_DIR="$HOME/.local/share/mega-code/pkg"
+  if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+    rm -rf "$MEGA_DIR"
+    git clone --depth 1 "${MEGA_CODE_REPO_URL:-https://github.com/wisdomgraph/mega-code.git}" "$MEGA_DIR"
+  fi
+  bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
+fi
+export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
 ```
 
 ## Step 1: Create session (fast, non-blocking)
@@ -36,7 +51,7 @@ On error, the JSON has an `error` field instead.
 2. Show `login_url` to the user — tell them to open it in their browser
 3. Save `client_id` and `base_url` for Step 2
 
-## Step 2: Poll for completion (run in background)
+## Step 2: Poll for completion
 
 ```bash
 uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
@@ -44,7 +59,9 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.login \
 ```
 
 Replace `CLIENT_ID` and `BASE_URL` with values from Step 1.
-Run this **in the background** so the user is not blocked.
+
+- **Claude Code**: run this **in the background** so the user is not blocked.
+- **Codex**: run this **in the foreground** — background processes do not survive in Codex's sandbox.
 
 On success, saves to `~/.local/share/mega-code/.env` (stable, version-independent):
 - `MEGA_CODE_API_KEY`, `MEGA_CODE_CLIENT_MODE=remote`, `MEGA_CODE_SERVER_URL`

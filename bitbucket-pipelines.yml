@@ -23,7 +23,7 @@ pipelines:
           - uv-cache
         script:
           - curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
-          - uv sync --extra telemetry --group dev --group test
+          - uv sync --group dev --group test
           # Lint
           - uv run ruff check mega_code/ tests/
           # Format check (non-destructive)

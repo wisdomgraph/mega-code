@@ -1,0 +1,7 @@
+{
+  "name": "mega-code",
+  "version": "1.0.1",
+  "description": "Self-Evolving AI Coding Infrastructure — Automatic skill and strategy extraction from your coding sessions.",
+  "contextFileName": "GEMINI.md",
+  "settings": []
+}

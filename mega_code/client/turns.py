@@ -143,17 +143,38 @@ def extract_turns(
     session: Session,
     compact_code: bool = True,
 ) -> tuple[list[Turn], SessionMetadata]:
-    """Convenience function to extract turns from a session.
+    """Convenience function to extract turns from a session."""
+    from mega_code.client.utils.tracing import get_tracer
 
-    Args:
-        session: Session object with messages.
-        compact_code: Whether to replace code blocks with placeholders.
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span("extract_turns.detail") as span:
+        span.set_attribute("extract.session_id", session.metadata.session_id)
+        span.set_attribute("extract.message_count", len(session.messages))
+        span.set_attribute("extract.compact_code", compact_code)
+        span.set_attribute("extract.source", session.metadata.source or "")
+        span.set_attribute("extract.project_path", session.metadata.project_path or "")
+        span.set_attribute("extract.git_branch", session.metadata.git_branch or "")
+        span.set_attribute("extract.model_id", session.metadata.model_id or "")
+        if session.metadata.started_at:
+            span.set_attribute("extract.started_at", str(session.metadata.started_at))
 
-    Returns:
-        Tuple of (turns, metadata).
-    """
-    extractor = TurnExtractor(compact_code=compact_code)
-    return extractor.extract(session)
+        extractor = TurnExtractor(compact_code=compact_code)
+        turns, metadata = extractor.extract(session)
+
+        span.set_attribute("extract.turn_count", len(turns))
+        span.set_attribute("extract.user_turns", sum(1 for t in turns if t.role == "user"))
+        span.set_attribute(
+            "extract.assistant_turns", sum(1 for t in turns if t.role == "assistant")
+        )
+        span.set_attribute("extract.tool_calls", sum(1 for t in turns if t.tool_name))
+        span.set_attribute("extract.errors", sum(1 for t in turns if t.is_error))
+
+        # Record tool usage breakdown
+        tool_names = [t.tool_name for t in turns if t.tool_name]
+        if tool_names:
+            span.set_attribute("extract.tool_names_used", ",".join(sorted(set(tool_names))))
+
+        return turns, metadata
 
 
 # =============================================================================

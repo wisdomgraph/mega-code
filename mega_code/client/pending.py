@@ -179,27 +179,35 @@ def save_outputs_to_pending(
     project_id: str = "",
     run_id: str = "",
 ) -> PendingResult:
-    """Save pipeline outputs to local pending folders.
+    """Save pipeline outputs to local pending folders."""
+    from mega_code.client.utils.tracing import get_tracer
 
-    Works for both local and remote pipeline results. Takes a
-    PipelineStatusResult and writes pending skills/strategies to
-    the standard pending directories.
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span("save_outputs_to_pending") as span:
+        return _save_outputs_impl(status, project_id, run_id, span)
 
-    Args:
-        status: PipelineStatusResult with outputs.
-        project_id: Project identifier (overrides status.project_id if given).
-        run_id: Pipeline run identifier (overrides status.run_id if given).
 
-    Returns:
-        PendingResult with local file paths.
-    """
+def _save_outputs_impl(status, project_id, run_id, span):
+    """Inner implementation for save_outputs_to_pending with tracing span."""
     resolved_run_id = run_id or getattr(status, "run_id", "")
     resolved_project_id = project_id or getattr(status, "project_id", "")
+
+    span.set_attribute("save.run_id", resolved_run_id)
+    span.set_attribute("save.project_id", resolved_project_id)
+    span.set_attribute("save.pending_skills_dir", str(PENDING_SKILLS_DIR))
+    span.set_attribute("save.pending_strategies_dir", str(PENDING_STRATEGIES_DIR))
+    span.set_attribute("save.feedback_dir", str(FEEDBACK_DIR))
 
     result = PendingResult(run_id=resolved_run_id, project_id=resolved_project_id)
 
     if not status.outputs:
+        span.set_attribute("save.has_outputs", False)
         return result
+
+    span.set_attribute("save.has_outputs", True)
+    span.set_attribute("save.raw_skills_count", len(status.outputs.pending_skills or []))
+    span.set_attribute("save.raw_strategies_count", len(status.outputs.pending_strategies or []))
+    span.set_attribute("save.raw_lessons_count", len(status.outputs.pending_lessons or []))
 
     # Save pending skills
     for skill_data in status.outputs.pending_skills or []:
@@ -257,6 +265,18 @@ def save_outputs_to_pending(
             result.lessons.append(
                 PendingLessonInfo(slug=lesson.slug, title=lesson.title, path=str(lesson_path))
             )
+
+    # Record what we saved
+    span.set_attribute("save.saved_skills_count", result.skill_count)
+    span.set_attribute("save.saved_strategies_count", result.strategy_count)
+    span.set_attribute("save.saved_lessons_count", result.lesson_count)
+    if result.skills:
+        span.set_attribute("save.skill_names", ",".join(s.name for s in result.skills))
+        span.set_attribute("save.skill_paths", ",".join(s.path for s in result.skills))
+    if result.strategies:
+        span.set_attribute("save.strategy_names", ",".join(s.name for s in result.strategies))
+    if result.lessons:
+        span.set_attribute("save.lesson_slugs", ",".join(ls.slug for ls in result.lessons))
 
     return result
 
@@ -567,33 +587,26 @@ async def poll_pipeline_status(
     timeout: float | None = 1200.0,
     max_retries: int = 5,
 ) -> PipelineStatusResult:
-    """Poll client.get_pipeline_status() until completed/failed or timeout.
+    """Poll client.get_pipeline_status() until completed/failed or timeout."""
+    from mega_code.client.utils.tracing import get_tracer
 
-    For MegaCodeLocal: returns immediately (status is already 'completed').
-    For MegaCodeRemote: polls server every poll_interval seconds with retry
-    on transient HTTP errors (502/503/504) and network failures.
+    tracer = get_tracer(__name__)
+    poll_span_ctx = tracer.start_as_current_span("poll_pipeline_status")
+    poll_span = poll_span_ctx.__enter__()
+    poll_span.set_attribute("poll.run_id", run_id)
+    poll_span.set_attribute("poll.poll_interval", poll_interval)
+    poll_span.set_attribute("poll.timeout", timeout or 0)
+    poll_span.set_attribute("poll.max_retries", max_retries)
 
-    Args:
-        client: MegaCodeBaseClient implementation.
-        run_id: Pipeline run identifier.
-        poll_interval: Seconds between polls (default: 10s).
-        timeout: Maximum seconds to wait. None means wait indefinitely
-            until the pipeline completes or fails (default: 1200s = 20 min).
-        max_retries: Max consecutive retries on transient errors before
-            raising. Uses exponential backoff capped at 120s (default: 5).
+    _server = getattr(client, "server_url", None)
+    if _server:
+        poll_span.set_attribute("poll.server_url", _server)
+        logger.info(f"Polling: {_server}/api/megacode/v1/pipeline/status/{run_id}")
 
-    Returns:
-        PipelineStatusResult with final status.
-
-    Raises:
-        TimeoutError: If pipeline doesn't finish within timeout (when set).
-        httpx.HTTPStatusError: On non-retryable HTTP errors or after
-            max_retries consecutive transient errors.
-        httpx.NetworkError: After max_retries consecutive network failures.
-    """
     start = time.monotonic()
     last_phase = ""
     consecutive_errors = 0
+    poll_count = 0
 
     def _retry_wait(label: str) -> float | None:
         """Increment error counter, log warning, return wait seconds or None if budget exhausted."""
@@ -612,6 +625,7 @@ async def poll_pipeline_status(
         return wait
 
     while True:
+        poll_count += 1
         try:
             status = await asyncio.to_thread(client.get_pipeline_status, run_id=run_id)
             consecutive_errors = 0  # reset on success
@@ -632,17 +646,64 @@ async def poll_pipeline_status(
                 continue
             raise
 
-        if status.status in TERMINAL_STATUSES:
-            return status
-
-        # Log progress on phase change
+        # Per-poll diagnostic logging
+        phase = ""
+        processed = 0
+        total = 0
         if status.progress:
             phase = status.progress.get("current_phase", "")
             processed = status.progress.get("sessions_processed", 0)
             total = status.progress.get("sessions_total", 0)
-            if phase and phase != last_phase:
-                logger.info("  Progress: %s (%d/%d)", phase, processed, total)
-                last_phase = phase
+
+        logger.debug(
+            "  Poll #%d: status=%s phase=%s (%d/%d)",
+            poll_count,
+            status.status,
+            phase or "-",
+            processed,
+            total,
+        )
+
+        # INFO heartbeat every 6th poll (~60s at default 10s interval)
+        if poll_count % 6 == 0:
+            elapsed = time.monotonic() - start
+            logger.info(
+                "  Heartbeat: poll #%d (%.0fs elapsed) — status=%s phase=%s (%d/%d)",
+                poll_count,
+                elapsed,
+                status.status,
+                phase or "-",
+                processed,
+                total,
+            )
+            # Periodic trace flush for real-time visibility
+            try:
+                from mega_code.client.utils.ndjson_tracing import flush_traces
+                from mega_code.client.utils.tracing import get_span_writer
+
+                flush_traces(writer=get_span_writer())
+            except Exception:
+                pass
+
+        if status.status in TERMINAL_STATUSES:
+            elapsed = time.monotonic() - start
+            logger.info(
+                "  Terminal status detected: %s (after %d polls, %.0fs)",
+                status.status,
+                poll_count,
+                elapsed,
+            )
+            poll_span.set_attribute("poll.final_status", status.status)
+            poll_span.set_attribute("poll.total_polls", poll_count)
+            poll_span.set_attribute("poll.elapsed_seconds", round(elapsed, 1))
+            poll_span.set_attribute("poll.consecutive_errors", consecutive_errors)
+            poll_span_ctx.__exit__(None, None, None)
+            return status
+
+        # Log progress on phase change
+        if phase and phase != last_phase:
+            logger.info("  Progress: %s (%d/%d)", phase, processed, total)
+            last_phase = phase
 
         # Sleep before next poll; respect remaining timeout to avoid overshoot
         if timeout is not None:

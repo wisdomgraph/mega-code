@@ -88,75 +88,78 @@ def _upload_sessions(
     needs_resync: Callable[[str, dict], bool] | None = None,
     extra_entry: Callable[[str], dict] | None = None,
 ) -> int:
-    """Upload sessions not yet in the ledger and persist updated ledger.
+    """Upload sessions not yet in the ledger and persist updated ledger."""
+    from mega_code.client.utils.tracing import get_tracer
 
-    Args:
-        ledger_path: Path to sync-ledger.json.
-        ledger_key: Key in the ledger dict ("sessions" or "claude_sessions").
-        sessions: List of (session_id, loader_callable) pairs.
-        client: Authenticated client.
-        project_id: Project identifier for the server.
-        label: Label for log messages (e.g. "" or "Claude ").
-        needs_resync: Optional callback(session_id, existing_entry) -> bool.
-            For sessions already in the ledger, returns True if they should
-            be re-uploaded (e.g. file mtime changed). Default None = never resync.
-        extra_entry: Optional callback(session_id) -> dict of extra fields
-            to merge into each ledger entry. Default None = no extra fields.
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span(
+        f"sync.upload_sessions.{label.strip() or 'mega_code'}"
+    ) as span:
+        span.set_attribute("sync.label", label.strip() or "mega_code")
+        span.set_attribute("sync.ledger_path", str(ledger_path))
+        span.set_attribute("sync.ledger_key", ledger_key)
+        span.set_attribute("sync.project_id", project_id)
+        span.set_attribute("sync.total_discovered", len(sessions))
 
-    Returns:
-        Number of newly uploaded sessions.
-    """
-    ledger = _load_ledger(ledger_path)
-    synced = ledger.get(ledger_key, {})
+        ledger = _load_ledger(ledger_path)
+        synced = ledger.get(ledger_key, {})
+        span.set_attribute("sync.already_synced", len(synced))
 
-    to_upload: list[tuple[str, Callable[[], TurnSet | None]]] = []
-    for sid, loader in sessions:
-        existing = synced.get(sid)
-        if existing is None or (needs_resync is not None and needs_resync(sid, existing)):
-            to_upload.append((sid, loader))
+        to_upload: list[tuple[str, Callable[[], TurnSet | None]]] = []
+        for sid, loader in sessions:
+            existing = synced.get(sid)
+            if existing is None or (needs_resync is not None and needs_resync(sid, existing)):
+                to_upload.append((sid, loader))
 
-    if not to_upload:
-        logger.info("All %d %ssessions already synced", len(synced), label)
-        return 0
+        span.set_attribute("sync.to_upload", len(to_upload))
+        span.set_attribute("sync.skipped_already_synced", len(sessions) - len(to_upload))
 
-    logger.info(
-        "Syncing %d new %ssessions (%d already synced)",
-        len(to_upload),
-        label,
-        len(synced),
-    )
+        if not to_upload:
+            logger.info("All %d %ssessions already synced", len(synced), label)
+            return 0
 
-    uploaded = 0
-    for session_id, loader in to_upload:
-        turn_set = loader()
-        if not turn_set or not turn_set.turns:
-            logger.debug("Skipping empty %ssession: %s", label, session_id)
-            continue
-
-        result: UploadResult = client.upload_trajectory(
-            turn_set=turn_set,
-            project_id=project_id,
+        logger.info(
+            "Syncing %d new %ssessions (%d already synced)",
+            len(to_upload),
+            label,
+            len(synced),
         )
-        logger.info("Uploaded %s%s: %s", label, session_id, result.message)
 
-        entry = {
-            "uploaded_at": datetime.now(UTC).isoformat(),
-            "turn_count": len(turn_set.turns),
-        }
-        if extra_entry is not None:
-            entry.update(extra_entry(session_id))
-        ledger.setdefault(ledger_key, {})[session_id] = entry
-        uploaded += 1
+        uploaded = 0
+        skipped_empty = 0
+        for session_id, loader in to_upload:
+            turn_set = loader()
+            if not turn_set or not turn_set.turns:
+                logger.debug("Skipping empty %ssession: %s", label, session_id)
+                skipped_empty += 1
+                continue
 
-    # Save updated ledger
-    from mega_code.client.api.remote import MegaCodeRemote
+            result: UploadResult = client.upload_trajectory(
+                turn_set=turn_set,
+                project_id=project_id,
+            )
+            logger.info("Uploaded %s%s: %s", label, session_id, result.message)
 
-    if isinstance(client, MegaCodeRemote):
-        ledger["server_url"] = client.server_url
-    _save_ledger(ledger_path, ledger)
+            entry = {
+                "uploaded_at": datetime.now(UTC).isoformat(),
+                "turn_count": len(turn_set.turns),
+            }
+            if extra_entry is not None:
+                entry.update(extra_entry(session_id))
+            ledger.setdefault(ledger_key, {})[session_id] = entry
+            uploaded += 1
 
-    logger.info("%sSync complete: %d new, %d existing", label, uploaded, len(synced))
-    return uploaded
+        # Save updated ledger
+        from mega_code.client.api.remote import MegaCodeRemote
+
+        if isinstance(client, MegaCodeRemote):
+            ledger["server_url"] = client.server_url
+        _save_ledger(ledger_path, ledger)
+
+        span.set_attribute("sync.uploaded", uploaded)
+        span.set_attribute("sync.skipped_empty", skipped_empty)
+        logger.info("%sSync complete: %d new, %d existing", label, uploaded, len(synced))
+        return uploaded
 
 
 @traced("client.sync_trajectories")
@@ -165,20 +168,19 @@ def sync_trajectories(
     client: MegaCodeBaseClient,
     project_id: str,
 ) -> int:
-    """Ensure all local sessions are uploaded to the server.
-
-    Args:
-        project_dir: Local mega-code project data folder.
-        client: Authenticated client (typically MegaCodeRemote).
-        project_id: Project identifier for the server.
-
-    Returns:
-        Number of newly uploaded sessions.
-    """
+    """Ensure all local sessions are uploaded to the server."""
     from mega_code.client.history.loader import DataLoader
     from mega_code.client.history.sources.mega_code import MegaCodeSource
+    from mega_code.client.utils.tracing import get_tracer
 
-    local_sessions = [d.name for d in project_dir.iterdir() if d.is_dir() and _is_uuid(d.name)]
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span("sync.discover_mega_code_sessions") as span:
+        span.set_attribute("sync.project_dir", str(project_dir))
+        span.set_attribute("sync.project_id", project_id)
+
+        local_sessions = [d.name for d in project_dir.iterdir() if d.is_dir() and _is_uuid(d.name)]
+        span.set_attribute("sync.local_session_count", len(local_sessions))
+        span.set_attribute("sync.local_session_ids", ",".join(local_sessions[:50]))
 
     def _make_loader(session_dir: Path, session_id: str) -> Callable[[], TurnSet | None]:
         def _load() -> TurnSet | None:
@@ -211,25 +213,30 @@ def sync_claude_trajectories(
     client: MegaCodeBaseClient,
     project_id: str,
 ) -> int:
-    """Upload matching Claude Code native sessions as trajectories.
-
-    Args:
-        project_dir: Local mega-code project data folder.
-        client: Authenticated client (typically MegaCodeRemote).
-        project_id: Project identifier for the server.
-
-    Returns:
-        Number of newly uploaded Claude sessions.
-    """
+    """Upload matching Claude Code native sessions as trajectories."""
     from mega_code.client.history.loader import load_sessions_from_project
+    from mega_code.client.utils.tracing import get_tracer
 
-    all_sessions = load_sessions_from_project(
-        project_dir,
-        include_claude=True,
-        include_codex=False,
-    )
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span("sync.discover_claude_sessions") as span:
+        span.set_attribute("sync.project_dir", str(project_dir))
+        span.set_attribute("sync.project_id", project_id)
 
-    claude_sessions = [s for s in all_sessions if s.metadata.source == "claude_native"]
+        all_sessions = load_sessions_from_project(
+            project_dir,
+            include_claude=True,
+            include_codex=False,
+        )
+        span.set_attribute("sync.all_sessions_found", len(all_sessions))
+
+        claude_sessions = [s for s in all_sessions if s.metadata.source == "claude_native"]
+        span.set_attribute("sync.claude_session_count", len(claude_sessions))
+        if claude_sessions:
+            span.set_attribute(
+                "sync.claude_session_ids",
+                ",".join(s.metadata.session_id for s in claude_sessions[:50]),
+            )
+
     if not claude_sessions:
         logger.info("No Claude native sessions found for project")
         return 0

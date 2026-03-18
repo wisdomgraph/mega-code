@@ -1,7 +1,8 @@
-"""Archive storage for generated skills and strategies.
+"""Archive storage for skipped skills and strategies.
 
-This module handles archiving pending items (instead of deleting) after user review,
-preserving them for cross-run dedup and historical reference.
+This module handles archiving skipped items after user review for cross-run
+dedup and historical reference.  Installed items are deleted from pending
+(not archived) since they are already present in the project.
 
 Storage layout (project-scoped):
   ~/.local/share/mega-code/data/feedback/
@@ -65,10 +66,12 @@ def archive_pending_items(
     skill_metadata: dict[str, dict] | None = None,
     strategy_metadata: dict[str, dict] | None = None,
 ) -> str | None:
-    """Archive pending items to feedback directory instead of deleting them.
+    """Archive skipped items and delete installed items from pending.
 
-    Moves all pending items (both installed and skipped) into a project-scoped
-    archive folder so they can be referenced for cross-run dedup.
+    Skipped items are moved into a project-scoped archive folder so they can
+    be referenced for cross-run dedup.  Installed items are deleted from
+    pending (they are already installed, so keeping a copy is redundant).
+    The manifest still records *all* items for historical reference.
     Lessons are saved directly to the run folder by save_outputs_to_pending()
     and do not require a separate archive step.
 
@@ -116,12 +119,12 @@ def archive_pending_items(
     archive_strategies_dir = archive_dir / "strategies"
 
     try:
-        # Only need child dirs; parents=True creates archive_dir implicitly
-        archive_skills_dir.mkdir(parents=True, exist_ok=True)
-        archive_strategies_dir.mkdir(parents=True, exist_ok=True)
+        archive_dir.mkdir(parents=True, exist_ok=True)
 
-        # Archive skills (move from pending to archive)
-        for skill in all_skills:
+        # Archive skipped skills (move from pending to archive)
+        if skipped_skills:
+            archive_skills_dir.mkdir(parents=True, exist_ok=True)
+        for skill in skipped_skills:
             src = Path(skill.path)
             if src.exists() and src.is_dir():
                 dst = archive_skills_dir / skill.name
@@ -129,11 +132,26 @@ def archive_pending_items(
                 shutil.rmtree(src)
                 logger.info(f"Archived skill: {skill.name} -> {dst}")
 
-        # Archive strategies (move from pending to archive)
-        for strategy in all_strategies:
+        # Archive skipped strategies (move from pending to archive)
+        if skipped_strategies:
+            archive_strategies_dir.mkdir(parents=True, exist_ok=True)
+        for strategy in skipped_strategies:
             dst = archive_strategies_dir / f"{strategy.name}.md"
             if _move_file(Path(strategy.path), dst):
                 logger.info(f"Archived strategy: {strategy.name} -> {dst}")
+
+        # Delete installed items from pending (already installed, no archive needed)
+        for skill in installed_skills:
+            src = Path(skill.path)
+            if src.exists() and src.is_dir():
+                shutil.rmtree(src)
+                logger.info(f"Deleted installed skill from pending: {skill.name}")
+
+        for strategy in installed_strategies:
+            src = Path(strategy.path)
+            if src.exists() and src.is_file():
+                src.unlink()
+                logger.info(f"Deleted installed strategy from pending: {strategy.name}")
 
         # Build actions map
         actions = {s.name: "installed" for s in installed_skills + installed_strategies}
@@ -186,7 +204,8 @@ def archive_pending_items(
         _save_manifest(archive_dir, manifest)
 
         logger.info(
-            f"Archived {len(all_skills)} skills, {len(all_strategies)} strategies -> {archive_dir}"
+            f"Archived {len(skipped_skills)} skills, {len(skipped_strategies)} strategies; "
+            f"deleted {len(installed_skills)} installed skills, {len(installed_strategies)} installed strategies"
         )
         return run_id
 

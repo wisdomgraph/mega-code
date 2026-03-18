@@ -1,5 +1,6 @@
 ---
-description: Stop a running MEGA-Code pipeline.
+name: mega-code-stop
+description: "Stop a running MEGA-Code pipeline."
 argument-hint: "[run-id]"
 allowed-tools: Bash, Read, AskUserQuestion
 ---
@@ -11,7 +12,21 @@ Stop a currently running MEGA-Code skill extraction pipeline.
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
+if [ -n "$CLAUDE_PLUGIN_ROOT" ]; then
+  MEGA_DIR="$CLAUDE_PLUGIN_ROOT"
+else
+  MEGA_DIR="$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)"
+fi
+if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+  MEGA_DIR="$HOME/.local/share/mega-code/pkg"
+  if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+    rm -rf "$MEGA_DIR"
+    git clone --depth 1 "${MEGA_CODE_REPO_URL:-https://github.com/wisdomgraph/mega-code.git}" "$MEGA_DIR"
+  fi
+  bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
+fi
+export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 

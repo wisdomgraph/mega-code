@@ -389,6 +389,7 @@ def _load_env():
         dotenv.load_dotenv(stable_env, override=False)  # don't override existing env vars
 
     # 2. Versioned plugin dir (may add non-secret config on top)
+    # CLAUDE_PLUGIN_ROOT is set by Claude Code; not available in Codex context.
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         plugin_env = Path(plugin_root) / ".env"

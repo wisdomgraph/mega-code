@@ -6,6 +6,7 @@ MegaCodeRemote connects to the FastAPI server via HTTP.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random as _random
 from pathlib import Path
@@ -135,7 +136,7 @@ class MegaCodeRemote:
         before_sleep=_log_retry,
         reraise=True,
     )
-    @traced("client.remote.upload_trajectory")
+    @traced("client.remote.upload_trajectory", kind="CLIENT")
     def upload_trajectory(
         self,
         *,
@@ -143,15 +144,48 @@ class MegaCodeRemote:
         project_id: str,
     ) -> UploadResult:
         """Upload TurnSet to the server via POST /api/megacode/v1/trajectory."""
-        payload = {
-            "session_id": turn_set.session_id,
-            "project_id": project_id,
-            "turns": [t.model_dump() for t in turn_set.turns],
-            "metadata": turn_set.metadata.model_dump(mode="json"),
-        }
-        resp = self._client.post("/api/megacode/v1/trajectory", json=payload)
-        self._check_response(resp)
-        return UploadResult(**resp.json())
+        from mega_code.client.utils.tracing import get_tracer
+
+        tracer = get_tracer(__name__)
+        with tracer.start_as_current_span("http.POST /trajectory") as http_span:
+            http_span.set_attribute("http.method", "POST")
+            http_span.set_attribute(
+                "http.url", f"{self._client.base_url}/api/megacode/v1/trajectory"
+            )
+            http_span.set_attribute("upload.session_id", turn_set.session_id)
+            http_span.set_attribute("upload.project_id", project_id)
+            http_span.set_attribute("upload.turn_count", len(turn_set.turns))
+            http_span.set_attribute("upload.session_dir", str(turn_set.session_dir))
+            if turn_set.metadata:
+                http_span.set_attribute(
+                    "upload.metadata.project_path", turn_set.metadata.project_path or ""
+                )
+                http_span.set_attribute(
+                    "upload.metadata.git_branch", turn_set.metadata.git_branch or ""
+                )
+                http_span.set_attribute(
+                    "upload.metadata.model_id", turn_set.metadata.model_id or ""
+                )
+                if turn_set.metadata.started_at:
+                    http_span.set_attribute(
+                        "upload.metadata.started_at", str(turn_set.metadata.started_at)
+                    )
+
+            payload = {
+                "session_id": turn_set.session_id,
+                "project_id": project_id,
+                "turns": [t.model_dump() for t in turn_set.turns],
+                "metadata": turn_set.metadata.model_dump(mode="json"),
+            }
+            http_span.set_attribute("upload.payload_size_bytes", len(json.dumps(payload)))
+
+            resp = self._client.post("/api/megacode/v1/trajectory", json=payload)
+            http_span.set_attribute("http.status_code", resp.status_code)
+            self._check_response(resp)
+            result = UploadResult(**resp.json())
+            http_span.set_attribute("upload.response.status", getattr(result, "status", ""))
+            http_span.set_attribute("upload.response.message", getattr(result, "message", ""))
+            return result
 
     @traced("client.remote.get_outputs")
     def get_outputs(
@@ -164,6 +198,46 @@ class MegaCodeRemote:
         resp = self._client.get(f"/api/megacode/v1/outputs/{project_id}/{run_id}")
         self._check_response(resp)
         return OutputsResult(**resp.json())
+
+    async def _sync_codex(
+        self,
+        project_path: Path,
+        project_id: str,
+        project_cwd: str | None,
+    ) -> None:
+        """Sync Codex native sessions to the server."""
+        from mega_code.client.api.codex_sync import sync_codex_trajectories
+
+        # Use the actual project CWD for codex session matching, not the
+        # mega-code data dir. The codex sessions record the real working
+        # directory in their 'cwd' field.
+        #
+        # If project_cwd is not provided, resolve the real project path
+        # from the mapping file. Falling back to str(project_path) would
+        # use the mega-code data dir which never matches any session cwd.
+        codex_match_path = project_cwd or None
+        if not codex_match_path:
+            from mega_code.client.stats import load_mapping
+
+            mapping = load_mapping()
+            codex_match_path = mapping.get(project_path.name)
+
+        if not codex_match_path:
+            logger.warning(
+                "Codex sync skipped: project_cwd not provided and could not "
+                "resolve real project path from mapping for %s",
+                project_path.name,
+            )
+        else:
+            logger.info(
+                "Codex sync: codex_match_path=%s (project_cwd=%s)",
+                codex_match_path,
+                project_cwd,
+            )
+            synced = await asyncio.to_thread(
+                sync_codex_trajectories, project_path, self, project_id, codex_match_path
+            )
+            logger.info("Codex sync: uploaded %d session(s)", synced)
 
     @traced("client.remote.trigger_pipeline_run")
     async def trigger_pipeline_run(
@@ -179,52 +253,121 @@ class MegaCodeRemote:
         model: str | None = None,
         include_claude: bool = False,
         include_codex: bool = False,
+        project_cwd: str | None = None,
+        agent: str = "",
     ) -> TriggerPipelineResult:
         """Trigger pipeline run via POST /api/megacode/v1/pipeline/run.
 
         If project_path is given, syncs local trajectories to the server
-        first via sync_trajectories(), then triggers the pipeline.
+        first. Which sessions are synced depends on the ``agent`` parameter:
+
+        - ``"codex"``: only Codex native sessions by default
+        - ``"claude-code"``: mega-code sessions + Claude native sessions
+        - ``""`` (unknown/unset): mega-code sessions only (backward compat)
+
+        The ``--include-claude`` / ``--include-codex`` flags act as cross-agent
+        opt-ins, adding sessions from the *other* agent on top of the default.
+
+        Args:
+            project_cwd: The actual working directory (e.g. /tmp/test-project).
+                Used for Codex session path matching. Falls back to
+                project_path if not provided.
+            agent: The current coding agent identity (``"claude-code"``,
+                ``"codex"``, or ``""``). Controls which sessions are synced
+                by default.
         """
         # Sync local sessions to server if project_path provided.
         # sync_trajectories is sync (uses self._client internally),
         # so offload to a thread to avoid blocking the event loop.
         if project_path is not None:
-            from mega_code.client.api.sync import sync_trajectories
+            if agent == "codex":
+                # Codex agent: only sync codex sessions by default
+                await self._sync_codex(project_path, project_id, project_cwd)
+            elif agent == "claude-code":
+                # Claude agent: sync mega-code + claude native sessions
+                from mega_code.client.api.sync import sync_claude_trajectories, sync_trajectories
 
-            await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
+                await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
+                await asyncio.to_thread(sync_claude_trajectories, project_path, self, project_id)
+            else:
+                # Unknown/unset agent: sync mega-code sessions (backward compat)
+                from mega_code.client.api.sync import sync_trajectories
 
-        if project_path is not None and include_claude:
-            from mega_code.client.api.sync import sync_claude_trajectories
+                await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
 
-            await asyncio.to_thread(sync_claude_trajectories, project_path, self, project_id)
+            # Explicit cross-agent includes (opt-in)
+            if include_claude and agent != "claude-code":
+                from mega_code.client.api.sync import sync_claude_trajectories
 
-        if include_codex and project_path is not None:
-            from mega_code.client.api.codex_sync import sync_codex_trajectories
+                await asyncio.to_thread(sync_claude_trajectories, project_path, self, project_id)
+            if include_codex and agent != "codex":
+                await self._sync_codex(project_path, project_id, project_cwd)
 
-            await asyncio.to_thread(
-                sync_codex_trajectories, project_path, self, project_id, str(project_path)
+        from mega_code.client.utils.tracing import get_tracer
+
+        tracer = get_tracer(__name__)
+        with tracer.start_as_current_span("http.POST /pipeline/run") as http_span:
+            http_span.set_attribute("http.method", "POST")
+            http_span.set_attribute(
+                "http.url", f"{self._client.base_url}/api/megacode/v1/pipeline/run"
             )
+            http_span.set_attribute("trigger.project_id", project_id)
+            http_span.set_attribute("trigger.session_id", session_id or "")
+            http_span.set_attribute("trigger.project_path", str(project_path or ""))
+            http_span.set_attribute("trigger.force", force)
+            http_span.set_attribute("trigger.limit", limit or 0)
+            http_span.set_attribute("trigger.concurrency", concurrency)
+            http_span.set_attribute("trigger.steps", ",".join(steps) if steps else "all")
+            http_span.set_attribute("trigger.model", model or "server-default")
+            http_span.set_attribute("trigger.include_claude", include_claude)
+            http_span.set_attribute("trigger.include_codex", include_codex)
+            http_span.set_attribute("trigger.project_cwd", project_cwd or "")
+            http_span.set_attribute("trigger.agent", agent)
+            if project_path is not None:
+                http_span.set_attribute("trigger.synced_project_path", str(project_path))
 
-        payload = {
-            "project_id": project_id,
-            "force": force,
-            "concurrency": concurrency,
-            "include_claude": include_claude,
-            "include_codex": include_codex,
-        }
-        if session_id is not None:
-            payload["session_id"] = session_id
-        if steps is not None:
-            payload["steps"] = steps
-        if limit is not None:
-            payload["limit"] = limit
-        if model is not None:
-            payload["model"] = model
+            payload = {
+                "project_id": project_id,
+                "force": force,
+                "concurrency": concurrency,
+                "include_claude": include_claude,
+                "include_codex": include_codex,
+            }
+            if session_id is not None:
+                payload["session_id"] = session_id
+            if steps is not None:
+                payload["steps"] = steps
+            if limit is not None:
+                payload["limit"] = limit
+            if model is not None:
+                payload["model"] = model
 
-        async_client = self._get_async_client()
-        resp = await async_client.post("/api/megacode/v1/pipeline/run", json=payload)
-        self._check_response(resp)
-        return TriggerPipelineResult(**resp.json())
+            http_span.set_attribute("trigger.payload_json", json.dumps(payload))
+
+            # Propagate trace context via W3C traceparent header
+            extra_headers: dict[str, str] = {}
+            try:
+                from mega_code.client.utils.tracing import get_current_trace_context
+
+                traceparent = get_current_trace_context()
+                if traceparent:
+                    extra_headers["traceparent"] = traceparent
+                    http_span.set_attribute("trigger.traceparent", traceparent)
+            except Exception:
+                pass
+
+            async_client = self._get_async_client()
+            resp = await async_client.post(
+                "/api/megacode/v1/pipeline/run", json=payload, headers=extra_headers
+            )
+            http_span.set_attribute("http.status_code", resp.status_code)
+            self._check_response(resp)
+            resp_data = resp.json()
+            http_span.set_attribute("trigger.response_json", json.dumps(resp_data))
+            result = TriggerPipelineResult(**resp_data)
+            http_span.set_attribute("trigger.response.run_id", result.run_id)
+            http_span.set_attribute("trigger.response.status", result.status)
+            return result
 
     @traced("client.remote.get_pipeline_status")
     def get_pipeline_status(
@@ -232,26 +375,71 @@ class MegaCodeRemote:
         *,
         run_id: str,
     ) -> PipelineStatusResult:
-        """Poll pipeline status via GET /api/megacode/v1/pipeline/status/{run_id}."""
-        resp = self._client.get(f"/api/megacode/v1/pipeline/status/{run_id}")
-        self._check_response(resp)
-        data = resp.json()
+        """Poll pipeline status via GET /api/megacode/v1/pipeline/status/{run_id}.
 
-        # Parse outputs into OutputsResult if present
-        outputs_raw = data.get("outputs")
-        outputs = OutputsResult(**outputs_raw) if outputs_raw else None
+        Uses a one-shot httpx.get() (fresh TCP connection) instead of the
+        persistent self._client to avoid stale connections during long polling.
+        """
+        from mega_code.client.utils.tracing import get_tracer
 
-        return PipelineStatusResult(
-            run_id=data["run_id"],
-            project_id=data["project_id"],
-            status=data["status"],
-            started_at=data.get("started_at"),
-            completed_at=data.get("completed_at"),
-            progress=data.get("progress"),
-            outputs=outputs,
-            report=outputs_raw.get("report") if outputs_raw else None,
-            error=data.get("error"),
-        )
+        tracer = get_tracer(__name__)
+        with tracer.start_as_current_span("http.GET /pipeline/status") as http_span:
+            base = str(self._client.base_url).rstrip("/")
+            url = f"{base}/api/megacode/v1/pipeline/status/{run_id}"
+            http_span.set_attribute("http.method", "GET")
+            http_span.set_attribute("http.url", url)
+            http_span.set_attribute("status_poll.run_id", run_id)
+
+            resp = httpx.get(
+                url,
+                headers={**self._client.headers, "Cache-Control": "no-cache"},
+                timeout=self._client.timeout,
+            )
+            http_span.set_attribute("http.status_code", resp.status_code)
+            self._check_response(resp)
+            data = resp.json()
+
+            http_span.set_attribute("status_poll.status", data.get("status", ""))
+            http_span.set_attribute("status_poll.project_id", data.get("project_id", ""))
+            http_span.set_attribute("status_poll.error", data.get("error", "") or "")
+            if data.get("progress"):
+                http_span.set_attribute(
+                    "status_poll.phase", data["progress"].get("current_phase", "")
+                )
+                http_span.set_attribute(
+                    "status_poll.sessions_processed", data["progress"].get("sessions_processed", 0)
+                )
+                http_span.set_attribute(
+                    "status_poll.sessions_total", data["progress"].get("sessions_total", 0)
+                )
+            http_span.set_attribute("status_poll.has_outputs", data.get("outputs") is not None)
+
+            # Parse outputs into OutputsResult if present
+            outputs_raw = data.get("outputs")
+            outputs = OutputsResult(**outputs_raw) if outputs_raw else None
+
+            if outputs:
+                http_span.set_attribute(
+                    "status_poll.pending_skills_count", len(outputs.pending_skills or [])
+                )
+                http_span.set_attribute(
+                    "status_poll.pending_strategies_count", len(outputs.pending_strategies or [])
+                )
+                http_span.set_attribute(
+                    "status_poll.pending_lessons_count", len(outputs.pending_lessons or [])
+                )
+
+            return PipelineStatusResult(
+                run_id=data["run_id"],
+                project_id=data["project_id"],
+                status=data["status"],
+                started_at=data.get("started_at"),
+                completed_at=data.get("completed_at"),
+                progress=data.get("progress"),
+                outputs=outputs,
+                report=outputs_raw.get("report") if outputs_raw else None,
+                error=data.get("error"),
+            )
 
     @traced("client.remote.save_profile", kind="CLIENT", openinference_kind="TOOL")
     def save_profile(

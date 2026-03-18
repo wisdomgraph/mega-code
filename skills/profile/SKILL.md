@@ -1,6 +1,7 @@
 ---
-description: View or update your MEGA-Code developer profile (language, level, style) to personalise skill extraction.
-argument-hint: [--language <lang>] [--level Beginner|Intermediate|Expert] [--style Mentor|Formal|Concise] [--reset]
+name: mega-code-profile
+description: "View or update your MEGA-Code developer profile (language, level, style) to personalise skill extraction."
+argument-hint: "[--language <lang>] [--level Beginner|Intermediate|Expert] [--style Mentor|Formal|Concise] [--reset]"
 allowed-tools: Bash, AskUserQuestion
 ---
 
@@ -12,7 +13,21 @@ which skills are too basic for your experience level.
 ## Setup
 
 ```bash
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT:-$(cat ~/.local/share/mega-code/plugin-root 2>/dev/null)}"
+if [ -n "$CLAUDE_PLUGIN_ROOT" ]; then
+  MEGA_DIR="$CLAUDE_PLUGIN_ROOT"
+else
+  MEGA_DIR="$(cat ~/.local/share/mega-code/pkg-breadcrumb 2>/dev/null)"
+fi
+if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+  MEGA_DIR="$HOME/.local/share/mega-code/pkg"
+  if [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
+    rm -rf "$MEGA_DIR"
+    git clone --depth 1 "${MEGA_CODE_REPO_URL:-https://github.com/wisdomgraph/mega-code.git}" "$MEGA_DIR"
+  fi
+  bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
+fi
+export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
@@ -50,5 +65,5 @@ uv run --directory "$MEGA_DIR" mega-code profile --reset
 Profile is saved in two places:
 
 - **Remote server** — authoritative source, persists across machines.
-  Requires a valid API key (run `/mega-code:login` first).
+  Requires a valid API key (run `/mega-code:login` or `$mega-code-login` first).
 - **Local mirror** `~/.local/share/mega-code/profile.json` — written only after a successful remote save.

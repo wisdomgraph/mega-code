@@ -35,20 +35,22 @@ def _get_plugin_root() -> Path | None:
 
     Priority:
     1. CLAUDE_PLUGIN_ROOT environment variable (set by Claude Code)
-    2. Breadcrumb file <data_dir>/plugin-root
-    3. None if not found
+    2. Breadcrumb file <data_dir>/plugin-root (Claude Code)
+    3. Breadcrumb file <data_dir>/pkg-breadcrumb (Codex)
+    4. None if not found
     """
-    # Check env var first (available inside hook execution)
+    # Check env var first (available inside Claude Code hook execution)
     env_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if env_root:
         return Path(env_root)
 
-    # Check breadcrumb written by session-start.sh
-    breadcrumb = get_data_dir() / "plugin-root"
-    if breadcrumb.exists():
-        root = breadcrumb.read_text().strip()
-        if root and Path(root).is_dir():
-            return Path(root)
+    # Check breadcrumbs: plugin-root (Claude Code), pkg-breadcrumb (Codex)
+    for name in ("plugin-root", "pkg-breadcrumb"):
+        breadcrumb = get_data_dir() / name
+        if breadcrumb.exists():
+            root = breadcrumb.read_text().strip()
+            if root and Path(root).is_dir():
+                return Path(root)
 
     return None
 

@@ -1,18 +1,28 @@
 #!/bin/bash
 # MEGA-Code SessionStart hook
 #
-# Runs on every Claude Code session start. Handles:
+# Runs on every session start (Claude Code, Gemini CLI, etc.). Handles:
 #   1. Bootstrap uv package manager if not installed
 #   2. Write plugin-root breadcrumb file
 #   3. Initialize profile.json with empty defaults
 #   4. Ensure Python environment is ready (uv sync on first run)
 #   5. Run the session collector
 #
-# Called from hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT} set by Claude Code.
+# Called from hooks/hooks.json with the extension path as $1.
+# Claude Code passes ${CLAUDE_PLUGIN_ROOT}, Gemini passes ${extensionPath}.
 
 set -euo pipefail
 
-MEGA_DIR="${CLAUDE_PLUGIN_ROOT}"
+# Resolve MEGA_DIR: argument > CLAUDE_PLUGIN_ROOT > self-locate from $0
+if [ -n "${1:-}" ]; then
+  MEGA_DIR="$1"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  MEGA_DIR="$CLAUDE_PLUGIN_ROOT"
+else
+  # Self-locate: this script lives in scripts/, so parent dir is MEGA_DIR
+  MEGA_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+fi
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
 # Allow tests and CI to override the data directory via MEGA_CODE_DATA_DIR.
 DATA_DIR="${MEGA_CODE_DATA_DIR:-$HOME/.local/share/mega-code}"
 
@@ -79,4 +89,4 @@ if [ ! -x "$MEGA_DIR/.venv/bin/python" ]; then
 fi
 
 # ── 6. Run collector ──────────────────────────────────────────────────
-uv run --directory "$MEGA_DIR" python mega_code/client/collector.py --event SessionStart
+uv run --directory "$MEGA_DIR" python mega_code/client/collector.py --event SessionStart < /dev/null

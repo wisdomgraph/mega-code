@@ -1,5 +1,6 @@
 ---
-description: Show MEGA-Code help — available commands, output locations, skill and strategy structure, and usage tips.
+name: mega-code-help
+description: "Show MEGA-Code help -- available commands, output locations, skill and strategy structure, and usage tips."
 argument-hint: ""
 allowed-tools: Read
 ---
@@ -8,19 +9,20 @@ allowed-tools: Read
 
 ## Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `/mega-code:login` | Sign in via GitHub or Google OAuth |
-| `/mega-code:run` | Run skill extraction pipeline |
-| `/mega-code:status` | Show pending items and status |
-| `/mega-code:help` | Show this help |
+| Claude Code | Codex | Description |
+|-------------|-------|-------------|
+| `/mega-code:login` | `$mega-code-login` | Sign in via GitHub or Google OAuth |
+| `/mega-code:run` | `$mega-code-run` | Run skill extraction pipeline |
+| `/mega-code:status` | `$mega-code-status` | Show pending items and status |
+| `/mega-code:profile` | `$mega-code-profile` | View or update developer profile |
+| `/mega-code:help` | `$mega-code-help` | Show this help |
 
 ## Output Locations
 
-| Type | Pending Location | Installed Location |
-|------|------------------|-------------------|
-| Skills | `~/.local/share/mega-code/data/pending-skills/{name}/` | `.claude/skills/{name}/SKILL.md` |
-| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.claude/rules/mega-code/{name}.md` |
+| Type | Pending Location | Installed (Claude Code) | Installed (Codex) |
+|------|------------------|------------------------|-------------------|
+| Skills | `~/.local/share/mega-code/data/pending-skills/{name}/` | `.claude/skills/{name}/SKILL.md` | `.agents/skills/{name}/SKILL.md` |
+| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.claude/rules/mega-code/{name}.md` | `.agents/rules/mega-code/{name}.md` |
 
 ## Skill Structure
 
@@ -50,7 +52,7 @@ Clear statement of the preference or convention.
 
 ## Model Options
 
-The `--model` flag for `/mega-code:run` accepts any model alias supported by the LLM module:
+The `--model` flag accepts any model alias supported by the LLM module:
 
 | Alias | Provider |
 |-------|----------|
@@ -59,11 +61,11 @@ The `--model` flag for `/mega-code:run` accepts any model alias supported by the
 
 When no model is specified, the server selects the best model based on your configured LLM keys.
 
-
 ## Tips
 
-  - Run /mega-code:run after significant coding sessions
-  - Use --project to analyze multiple sessions for stronger patterns
-  - Skills with more evidence (from multiple sessions) are higher quality
-  - Review and edit skills before installing for best results
-  - For plugin updates, use `/plugin marketplace update mind-ai-mega-code`
+- Run the pipeline after significant coding sessions
+- Use `--project` to analyze multiple sessions for stronger patterns
+- Use `@name` to run on a different project without switching directories
+- Skills with more evidence (from multiple sessions) are higher quality
+- Review and edit skills before installing for best results
+- For plugin updates, use `/plugin marketplace update mind-ai-mega-code` (Claude Code)
