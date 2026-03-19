@@ -40,29 +40,90 @@ review_notification:
     For EACH pending item, use the Read tool to:
     - Read full content from the paths listed above
     - Analyze quality, clarity, and completeness
-    - Identify potential improvements
+    - Identify potential refinements
 
     ══════════════════════════════════════════════════════════════════════
     STEP 2: PRESENT REVIEW & ASK USER
     ══════════════════════════════════════════════════════════════════════
-    For EACH item, show the user:
+    First, review ALL candidate skills and strategies internally.
 
-    ┌─────────────────────────────────────────────────────────┐
-    │ 📦 SKILL: <name>                                    │
-    ├─────────────────────────────────────────────────────────┤
-    │ **Summary**: <what this skill does>                 │
-    │ **Quality**: ✅ Good / ⚠️ Needs improvement         │
-    │                                                     │
-    │ **Original Content** (collapsed or summarized):    │
-    │ <key points from SKILL.md>                         │
-    │                                                     │
-    │ **Suggested Improvements**:                         │
-    │ - <improvement 1>                                   │
-    │ - <improvement 2>                                   │
-    │                                                     │
-    │ **Enhanced Version** (if improvements needed):     │
-    │ <your improved version of the skill>               │
-    └─────────────────────────────────────────────────────────┘
+    Classify each item as:
+    - RECOMMENDED = good quality, useful, and worth installing
+    - NOT RECOMMENDED = not good enough, redundant, conflicting, risky, or not worth installing
+
+    Mark an item as NOT RECOMMENDED if it:
+    - has low quality or weak usefulness
+    - is substantially redundant with existing content
+    - conflicts with existing files, conventions, or patterns
+    - has meaningful overwrite or merge risk
+    - requires significant refinement before installation
+
+    ══════════════════════════════════════════════════════════════════════
+    RECOMMENDATION FILTER (STRICT)
+    ══════════════════════════════════════════════════════════════════════
+    After classification:
+
+    - Build RECOMMENDED_ITEMS = all items marked as RECOMMENDED
+    - Build EXCLUDED_ITEMS = all items marked as NOT RECOMMENDED
+
+    CRITICAL RULES:
+    - Show the user RECOMMENDED_ITEMS as primary selectable options
+    - EXCLUDED_ITEMS must NOT be selectable by default
+    - It is allowed to expose EXCLUDED_ITEMS only through an explicit user override step
+    - Do NOT fallback to using all items or pending items under any condition
+
+    If RECOMMENDED_ITEMS is empty:
+    - Tell the user that no items are recommended for installation
+    - You may offer an explicit override to allow installing EXCLUDED_ITEMS
+
+    ══════════════════════════════════════════════════════════════════════
+    PRESENT RECOMMENDED ITEMS
+    ══════════════════════════════════════════════════════════════════════
+    You MUST format the output EXACTLY as follows.
+    Do NOT use previous formatting styles.
+    Do NOT omit icons.
+    Use ONLY Unicode emoji characters (e.g., ✅, ⚠️).
+    Do NOT use colon-based emoji formats like :warning: or :white_check_mark:.
+
+    For skills, read the `roi` field from the SKILL.md frontmatter and present only `performance_increase` and `token_savings`. Never show `model`.
+    When ROI is shown, you MUST include the exact suffix: "(vs without this skill)".
+    Do NOT paraphrase, shorten, or omit this suffix.
+
+    Recommended
+
+    For EACH recommended skill, show the user:
+
+    ✅ <name>
+    - What it does: <what this skill does>
+    - Why it helps: <where this is useful / what problem it solves>
+    - ROI: +<performance_increase>% performance, −<token_savings>% tokens (vs without this skill)  (if available)
+
+    For EACH recommended strategy, show the user:
+
+    ✅ <name>
+    - What it does: <what this strategy does>
+    - Why it helps: <where this is useful / what problem it solves>
+
+    Not recommended
+
+    For EACH excluded skill, optionally show:
+
+    ⚠️ <name> — <short reason: duplicate / conflict risk / low usefulness / etc>
+    - What it does: <what this skill does>
+    - ROI: Performance +<performance_increase>, Token savings <token_savings>  (if available)
+
+    For EACH excluded strategy, optionally show:
+
+    ⚠️ <name> — <short reason: duplicate / conflict risk / low usefulness / etc>
+    - What it does: <what this strategy does>
+
+    Only show ROI for skills.
+    If ROI is not present in the frontmatter, omit the ROI line.
+
+    Use the same structure for strategies.
+
+    You may optionally add one short summary line such as:
+    "<N> items were excluded because they were not recommended for installation."
 
     ══════════════════════════════════════════════════════════════════════
     STEP 2 (continued): ASK USER (use AskUserQuestion tool)
@@ -73,18 +134,32 @@ review_notification:
     - Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
     - If an answer comes back **empty/blank**, re-ask that same question once more
     - After **2 consecutive empty responses**, ask the user in plain text what to do
+    - Use ONLY RECOMMENDED_ITEMS as selectable options by default
+    - EXCLUDED_ITEMS must only be selectable after explicit user confirmation (override step)
 
     **Question flow (one at a time, separate calls):**
     1. "Which skills to install?" (multiSelect: true,
-       options: [...pending skill names, "None — skip all"]) — skip if no pending skills
-    2. "Which strategies to install?" (multiSelect: true,
-       options: [...pending strategy names, "None — skip all"]) — skip if no pending strategies
-    3. "Which version?" (Enhanced/Original) — only ask if items were selected in Q1 or Q2
-    4. "Installation location?" — only ask if items were selected. Options:
-       - "Project level" (description: .claude/skills/ and .claude/rules/ in current project)
-       - "User level" (description: ~/.claude/skills/ and ~/.claude/rules/ shared across all projects)
+      options: [..."✅ <RECOMMENDED_ITEMS (skills only)>", "None — skip all"]) — skip if no recommended skills
 
-    If user selects "None" for all asked questions, skip Q3 and Q4 entirely and proceed to Step 3.
+    2. "Which strategies to install?" (multiSelect: true,
+      options: [..."✅ <RECOMMENDED_ITEMS (strategies only)>", "None — skip all"]) — skip if no recommended strategies
+
+    3. "Install excluded items as well? (⚠️ not recommended)" (Yes/No)
+      — ask only if EXCLUDED_ITEMS exist
+
+      If user selects "Yes":
+      3-1. "Which excluded skills to install?" (multiSelect: true,
+            options: [..."⚠️ <EXCLUDED_ITEMS (skills only)> — <short reason>", "None — skip all"])
+
+      3-2. "Which excluded strategies to install?" (multiSelect: true,
+            options: [..."⚠️ <EXCLUDED_ITEMS (strategies only)> — <short reason>", "None — skip all"])
+
+    4. "Installation location?" — only ask if any items were selected. Options:
+      - "Project level" (description: .claude/skills/ and .claude/rules/ in current project)
+      - "User level" (description: ~/.claude/skills/ and ~/.claude/rules/ shared across all projects)
+
+    If no items are recommended and user does NOT opt into override, proceed directly to Step 3.
+    If user selects "None" for all asked questions, skip installation location and proceed to Step 3.
 
     ══════════════════════════════════════════════════════════════════════
     STEP 3: INSTALL APPROVED ITEMS
