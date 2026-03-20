@@ -56,25 +56,31 @@ def sync_codex_trajectories(
         try:
             entries = codex_source._load_jsonl_entries(jsonl_file)
             if not entries:
-                span.add_event("session.filter_decision", {
-                    "session.id": "",
-                    "session.cwd": "",
-                    "session.file": str(jsonl_file),
-                    "session.included": False,
-                    "session.exclude_reason": "no_entries",
-                })
+                span.add_event(
+                    "session.filter_decision",
+                    {
+                        "session.id": "",
+                        "session.cwd": "",
+                        "session.file": str(jsonl_file),
+                        "session.included": False,
+                        "session.exclude_reason": "no_entries",
+                    },
+                )
                 excluded_count += 1
                 continue
 
             session_meta = next((e for e in entries if e.get("type") == "session_meta"), None)
             if not session_meta:
-                span.add_event("session.filter_decision", {
-                    "session.id": "",
-                    "session.cwd": "",
-                    "session.file": str(jsonl_file),
-                    "session.included": False,
-                    "session.exclude_reason": "no_session_meta",
-                })
+                span.add_event(
+                    "session.filter_decision",
+                    {
+                        "session.id": "",
+                        "session.cwd": "",
+                        "session.file": str(jsonl_file),
+                        "session.included": False,
+                        "session.exclude_reason": "no_session_meta",
+                    },
+                )
                 excluded_count += 1
                 continue
 
@@ -83,13 +89,16 @@ def sync_codex_trajectories(
             session_id = payload.get("id", "")
 
             if not session_cwd:
-                span.add_event("session.filter_decision", {
-                    "session.id": session_id,
-                    "session.cwd": "",
-                    "session.file": str(jsonl_file),
-                    "session.included": False,
-                    "session.exclude_reason": "no_cwd",
-                })
+                span.add_event(
+                    "session.filter_decision",
+                    {
+                        "session.id": session_id,
+                        "session.cwd": "",
+                        "session.file": str(jsonl_file),
+                        "session.included": False,
+                        "session.exclude_reason": "no_cwd",
+                    },
+                )
                 excluded_count += 1
                 continue
 
@@ -100,26 +109,34 @@ def sync_codex_trajectories(
 
             if should_include_session(session_cwd, normalized_targets):
                 cwd_breakdown[session_cwd]["included"] += 1
-                matching_entries.append({
-                    "payload": payload,
-                    "session_file_path": str(jsonl_file),
-                })
-                span.add_event("session.filter_decision", {
-                    "session.id": session_id,
-                    "session.cwd": session_cwd,
-                    "session.file": str(jsonl_file),
-                    "session.included": True,
-                    "session.exclude_reason": "",
-                })
+                matching_entries.append(
+                    {
+                        "payload": payload,
+                        "session_file_path": str(jsonl_file),
+                    }
+                )
+                span.add_event(
+                    "session.filter_decision",
+                    {
+                        "session.id": session_id,
+                        "session.cwd": session_cwd,
+                        "session.file": str(jsonl_file),
+                        "session.included": True,
+                        "session.exclude_reason": "",
+                    },
+                )
             else:
                 excluded_count += 1
-                span.add_event("session.filter_decision", {
-                    "session.id": session_id,
-                    "session.cwd": session_cwd,
-                    "session.file": str(jsonl_file),
-                    "session.included": False,
-                    "session.exclude_reason": "path_mismatch",
-                })
+                span.add_event(
+                    "session.filter_decision",
+                    {
+                        "session.id": session_id,
+                        "session.cwd": session_cwd,
+                        "session.file": str(jsonl_file),
+                        "session.included": False,
+                        "session.exclude_reason": "path_mismatch",
+                    },
+                )
         except Exception as e:
             logger.debug("Failed to process session file %s: %s", jsonl_file, e)
             excluded_count += 1
