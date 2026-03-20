@@ -164,3 +164,4 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.pending review \
 - Use `@name` to run on a different project without switching directories
 - Skills with more evidence (from multiple sessions) are higher quality
 - Review and edit skills before installing for best results
+- For updates, run: `npx skills add https://github.com/wisdomgraph/mega-code/tree/codex -a codex`

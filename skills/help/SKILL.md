@@ -68,4 +68,4 @@ When no model is specified, the server selects the best model based on your conf
 - Use `@name` to run on a different project without switching directories
 - Skills with more evidence (from multiple sessions) are higher quality
 - Review and edit skills before installing for best results
-- For updates, run: `npx skills add wisdomgraph/mega-code -a codex`
+- For updates, run: `npx skills add https://github.com/wisdomgraph/mega-code/tree/codex -a codex`
