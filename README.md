@@ -57,7 +57,7 @@ skill-factory    █████████░░░░░░░  43%
 
 ---
 
-## Quick Start
+## Quick Start for Claude Code
 
 ### Step 1 — Install the plugin
 
@@ -100,6 +100,18 @@ Visit [console.megacode.ai](https://console.megacode.ai) → **Account → API K
 
 ---
 
+## Quick Start for Codex
+
+MEGA Code also works with [OpenAI Codex CLI](https://github.com/openai/codex). Install from the `codex` branch:
+
+```bash
+npx skills add https://github.com/wisdomgraph/mega-code/tree/codex -a codex
+```
+
+For Codex-specific commands and usage, see the [Codex branch README](https://github.com/wisdomgraph/mega-code/tree/codex).
+
+---
+
 ## Free to Start
 
 MEGA Code is currently free to use — just bring your own LLM API key (Gemini or OpenAI).
@@ -109,14 +121,14 @@ Core learning, exports, and Skills/Strategies capture are available in the curre
 
 ## Available Commands
 
-| Command | Description |
-|---|---|
-| `/mega-code:login` | Sign in via GitHub or Google OAuth |
-| `/mega-code:run` | Run skill extraction pipeline |
-| `/mega-code:status` | Show pending items and status |
-| `/mega-code:stop` | Stop a running pipeline |
+| Command                | Description                                                    |
+| ---------------------- | -------------------------------------------------------------- |
+| `/mega-code:login`   | Sign in via GitHub or Google OAuth                             |
+| `/mega-code:run`     | Run skill extraction pipeline                                  |
+| `/mega-code:status`  | Show pending items and status                                  |
+| `/mega-code:stop`    | Stop a running pipeline                                        |
 | `/mega-code:profile` | View or update your developer profile (language, level, style) |
-| `/mega-code:help` | Show help and reference |
+| `/mega-code:help`    | Show help and reference                                        |
 
 ### Example Session
 
@@ -178,6 +190,65 @@ plugin/
 │   └── session-start.sh     # Bootstrap script
 └── pyproject.toml
 ```
+
+## Behaviour
+
+### Session resolution
+
+The pipeline always operates on a **project** — a set of collected sessions
+grouped by working directory.
+
+When no explicit project or session is given, the current working directory is
+hashed to locate its data folder under `~/.local/share/mega-code/projects/`.
+
+### Trajectory sync
+
+Before triggering the pipeline, sessions are uploaded to the server.
+The sync process uses a **ledger file** per project to track which sessions
+have already been uploaded. Ledgers are stored in
+`~/.local/share/mega-code/projects/{project_id}/`:
+
+| Ledger file                | Tracks                                                     |
+| -------------------------- | ---------------------------------------------------------- |
+| `sync-ledger.json`       | mega-code's own sessions (and Claude Code native sessions) |
+| `codex-sync-ledger.json` | Codex CLI sessions                                         |
+
+- Sessions not in the ledger are uploaded.
+- Sessions already in the ledger are skipped, **unless** the source file's
+  `mtime` has changed since the last upload — in which case the session is
+  re-uploaded. This handles sessions whose files are appended to after the
+  initial upload (e.g. a long-running session that gains new turns).
+- The ledger records `uploaded_at`, `turn_count`, and (where applicable)
+  `file_mtime` for each synced session.
+
+#### Sync invariants
+
+1. **No data loss on first run.** When no ledger exists, every locally stored
+   session for the project MUST be uploaded — not just the current terminal session.
+2. **Idempotency.** Re-running `/mega-code:run` with an up-to-date ledger produces
+   no duplicate uploads.
+3. **Modified-session re-sync.** If a session file's `mtime` has changed
+   since the last recorded upload, it MUST be re-uploaded.
+4. **Filter-before-upload.** All turns pass through `SecretMasker` and
+   `PathAnonymizer` before transmission. No raw absolute paths or secrets leave
+   the client.
+
+### Pipeline lifecycle
+
+1. **Trigger** — the client sends the project ID (and optionally a session ID)
+   to the server.
+2. **Poll** — the client polls until the server reports completion, failure, or
+   timeout. Default poll timeout is 20 minutes (`--poll-timeout` to override;
+   `0` means wait indefinitely).
+3. **Save** — on success, extracted Skills and Strategies are written to local
+   pending folders for review.
+
+| Exit code | Meaning                                                    |
+| --------- | ---------------------------------------------------------- |
+| `0`     | Success — outputs saved, post-pipeline review begins      |
+| `1`     | Fatal error (auth, network, unexpected failure)            |
+| `2`     | Conflict — a pipeline is already running for this project |
+| `3`     | Server timeout — the pipeline exceeded max server runtime |
 
 ## Configuration
 
