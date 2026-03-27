@@ -1,21 +1,33 @@
-# MEGA Code 1.0.2-beta
+<div align="center">
+  <img src="logo_mega_code.png" alt="MEGA Code Logo" width="50%">
+</div>
 
-**AI agents that evolve autonomously. Developers that never stop learning.**
+<div align="center">
+  <h3>The knowledge layer for AI coding agents.</h3>
+</div>
 
-MEGA Code automatically captures your real coding sessions and converts them into durable, reusable knowledge — Skills and Strategies — so your AI agent gets smarter every session.
+<div align="center">
+  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.0.3-beta"><img src="https://img.shields.io/badge/version-1.0.3--beta-blue" alt="Version"></a>
+  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-green.svg" alt="License"></a>
+  <a href="https://github.com/wisdomgraph/mega-code"><img src="https://img.shields.io/badge/plugin-Claude_Code-blueviolet" alt="Claude Code Plugin"></a>
+  <a href="https://megacode.ai"><img src="https://img.shields.io/badge/docs-megacode.ai-orange" alt="Docs"></a>
+</div>
+
+<br>
+
+MEGA Code hooks into Claude Code's session lifecycle, extracts reusable Skills and Strategies from your execution logs, and injects them into the next session — cutting token usage by 5x and improving task scores by 13 points over baseline, outperforming Anthropic's own skill creator.
+
+It is the first layer of a broader knowledge infrastructure for AI coding agents: from extraction today, toward orchestration, offline optimization, and a notarized sub-agent marketplace.
 
 ---
 
 ## Why MEGA Code
 
-Today's AI coding agents start every session from zero — same errors, same rework, no memory of what worked before.
+Most approaches to AI agent skills fail in a specific way. Skills are stored as fixed blocks and injected wholesale into context at session start. As the library grows, the prompt grows — but the reasoning doesn't improve. More skills add noise without improving capability.
 
-MEGA Code solves this with **Compound Intelligence**:
+What matters is not how many skills you store, but whether they can be decomposed and recomposed into structures that fit the task at hand.
 
-- **Skills** — Reusable know-how extracted from real coding sessions that agents can execute again and again, eliminating repeated mistakes.
-- **Strategies** — Decision guidance that resurfaces in similar situations, so agents make better choices over time.
-
-The extraction pipeline runs remotely, uses your own LLM key (BYOK), and produces assets that dramatically lower repeated errors across sessions.
+MEGA Code is built around one principle: **Evaluated knowledge compounds. Unevaluated assets just adds noise.**
 
 ---
 
@@ -53,11 +65,71 @@ skill-builder    ██████████░░░░░░  50%
 skill-factory    █████████░░░░░░░  43%
 ```
 
+Two of the four competing systems perform **worse than using no skills at all**. MEGA Code is the only system that beats the no-skill baseline on both token efficiency and task quality simultaneously.
+
 > [See the full benchmark →](https://www.megacode.ai/performance)
 
 ---
 
-## Quick Start for Claude Code
+## How It Works
+
+MEGA Code installs as a Claude Code plugin and runs automatically — no new workflow required.
+
+**At session end:**
+Claude Code's execution logs are read by the MEGA Code pipeline. The pipeline identifies patterns: what procedures succeeded and are worth repeating (Skills), and what decision rules emerged from corrections and repeated choices (Strategies). These are written to structured files in your project.
+
+**At session start:**
+The Skills and Strategies files are injected into the agent's context. The agent starts the next session already knowing what worked last time.
+
+**What gets generated:**
+
+```
+~/.local/share/mega-code/data/
+├── pending-skills/{skill-name}/SKILL.md        ← reusable procedures extracted from what worked
+└── pending-strategies/{strategy-name}.md       ← decision rules extracted from corrections
+```
+
+**Example - SKILL.md entry:**
+```markdown
+---
+name: ui-consistency-and-discovery
+description: 'Guidelines for maintaining UI legibility and clean aesthetics while
+  using ripgrep for efficient project exploration and global string replacement.'
+metadata:
+  tags: [ui-ux, ripgrep, accessibility, project-navigation]
+  author: co-authored by http://www.megacode.ai
+  version: "1.0.0"
+  generated_at: "2026-03-26T05:22:58Z"
+  roi:
+    model: gemini-3-flash
+    performance_increase: "75%"
+    token_savings: "83%"
+---
+
+## Handle authentication token refresh
+
+When an API call returns 401, check token expiry before retrying.
+Refresh using POST /auth/refresh with the stored refresh_token.
+Only retry the original request once — if it fails again, surface the error.
+
+Applies to: src/api/client.py, any authenticated endpoint
+Validated: 4 sessions
+```
+
+**Example — strategies.md entry:**
+```markdown
+## Database migration approach
+
+In this project, always run migrations against a local test DB first.
+Schema changes that touch the users table require a backup step before applying.
+Learned from: 2 rollback incidents in sessions 3 and 7.
+```
+
+The agent reads these files at the start of every session. It does not repeat the mistake that generated the strategy. It does not re-derive the procedure that generated the skill.
+
+---
+
+## Quick Start
 
 ### Step 1 — Install the plugin
 
@@ -69,7 +141,7 @@ In a Claude Code session, run:
 /plugin marketplace add https://github.com/wisdomgraph/mega-code
 ```
 
-**Step 2 — Install the plugin:**
+**Install the plugin:**
 
 ```
 /plugin install mega-code@mind-ai-mega-code
@@ -94,13 +166,14 @@ Visit [console.megacode.ai](https://console.megacode.ai) → **Account → API K
 ### Step 4 — Run in any project
 
 ```
-/mega-code:run                    # Extract skills from your sessions
+/mega-code:wisdom-gen                    # Extract skills from your sessions
+/mega-code:skill-enhance                 # Enhance skills and get ROI report
 /mega-code:status                 # Check results
 ```
 
 ---
 
-## Quick Start for Codex
+## Codex Support
 
 MEGA Code also works with [OpenAI Codex CLI](https://github.com/openai/codex). Install from the `codex` branch:
 
@@ -121,28 +194,30 @@ Core learning, exports, and Skills/Strategies capture are available in the curre
 
 ## Available Commands
 
-| Command                | Description                                                    |
-| ---------------------- | -------------------------------------------------------------- |
-| `/mega-code:login`   | Sign in via GitHub or Google OAuth                             |
-| `/mega-code:run`     | Run skill extraction pipeline                                  |
-| `/mega-code:status`  | Show pending items and status                                  |
-| `/mega-code:stop`    | Stop a running pipeline                                        |
+| Command | Description |
+|---|---|
+| `/mega-code:login` | Sign in via GitHub or Google OAuth |
+| `/mega-code:wisdom-gen` | Run skill extraction pipeline |
+| `/mega-code:skill-enhance` | Evaluate and enhance a skill with A/B testing |
+| `/mega-code:status` | Show pending items and status |
+| `/mega-code:stop` | Stop a running pipeline |
 | `/mega-code:profile` | View or update your developer profile (language, level, style) |
-| `/mega-code:help`    | Show help and reference                                        |
+| `/mega-code:help` | Show help and reference |
 
 ### Example Session
 
 ```bash
 /mega-code:login                  # Sign in (first time)
 /mega-code:profile                # Set your language, level, and style
-/mega-code:run --project          # Extract skills from all project sessions
+/mega-code:wisdom-gen --project   # Extract skills from all project sessions
+/mega-code:skill-enhance <skill>  # Evaluate and enhance a skill
 /mega-code:status                 # See what was generated
 /mega-code:stop                   # Stop a pipeline if needed
 ```
 
 ---
 
-## Update
+## How to update
 
 **Claude Code:**
 
@@ -179,7 +254,8 @@ plugin/
 │   └── hooks.json           # Lifecycle hooks (SessionStart, etc.)
 ├── skills/
 │   ├── login/SKILL.md       # /mega-code:login
-│   ├── run/SKILL.md         # /mega-code:run
+│   ├── wisdom-gen/SKILL.md  # /mega-code:wisdom-gen
+│   ├── skill-enhance/SKILL.md # /mega-code:skill-enhance
 │   ├── status/SKILL.md      # /mega-code:status
 │   ├── stop/SKILL.md        # /mega-code:stop
 │   ├── profile/SKILL.md     # /mega-code:profile
@@ -191,12 +267,19 @@ plugin/
 └── pyproject.toml
 ```
 
-## mega-code:run Behaviour
+## mega-code:wisdom-gen Behaviour
 
 ### Session resolution
 
 The pipeline always operates on a **project** — a set of collected sessions
 grouped by working directory.
+
+| Invocation | What gets processed |
+|---|---|
+| `/mega-code:wisdom-gen` | All sessions for the **current working directory** |
+| `/mega-code:wisdom-gen --project` | Same as above (explicit, equivalent to no args) |
+| `/mega-code:wisdom-gen --project @name` | All sessions for the named project (prefix-matched against `mapping.json`; also accepts `name`, `name_hash`, or `/absolute/path`) |
+| `/mega-code:wisdom-gen --session-id <uuid>` | A single session by ID |
 
 When no explicit project or session is given, the current working directory is
 hashed to locate its data folder under `~/.local/share/mega-code/projects/`.
@@ -208,10 +291,10 @@ The sync process uses a **ledger file** per project to track which sessions
 have already been uploaded. Ledgers are stored in
 `~/.local/share/mega-code/projects/{project_id}/`:
 
-| Ledger file                | Tracks                                                     |
-| -------------------------- | ---------------------------------------------------------- |
-| `sync-ledger.json`       | mega-code's own sessions (and Claude Code native sessions) |
-| `codex-sync-ledger.json` | Codex CLI sessions                                         |
+| Ledger file | Tracks |
+|---|---|
+| `sync-ledger.json` | mega-code's own sessions (and Claude Code native sessions) |
+| `codex-sync-ledger.json` | Codex CLI sessions |
 
 - Sessions not in the ledger are uploaded.
 - Sessions already in the ledger are skipped, **unless** the source file's
@@ -225,7 +308,7 @@ have already been uploaded. Ledgers are stored in
 
 1. **No data loss on first run.** When no ledger exists, every locally stored
    session for the project MUST be uploaded — not just the current terminal session.
-2. **Idempotency.** Re-running `/mega-code:run` with an up-to-date ledger produces
+2. **Idempotency.** Re-running `/mega-code:wisdom-gen` with an up-to-date ledger produces
    no duplicate uploads.
 3. **Modified-session re-sync.** If a session file's `mtime` has changed
    since the last recorded upload, it MUST be re-uploaded.
@@ -243,12 +326,14 @@ have already been uploaded. Ledgers are stored in
 3. **Save** — on success, extracted Skills and Strategies are written to local
    pending folders for review.
 
-| Exit code | Meaning                                                    |
-| --------- | ---------------------------------------------------------- |
-| `0`     | Success — outputs saved, post-pipeline review begins      |
-| `1`     | Fatal error (auth, network, unexpected failure)            |
-| `2`     | Conflict — a pipeline is already running for this project |
-| `3`     | Server timeout — the pipeline exceeded max server runtime |
+| Exit code | Meaning |
+|---|---|
+| `0` | Success — outputs saved, post-pipeline review begins |
+| `1` | Fatal error (auth, network, unexpected failure) |
+| `2` | Conflict — a pipeline is already running for this project |
+| `3` | Server timeout — the pipeline exceeded max server runtime |
+
+---
 
 ## Configuration
 

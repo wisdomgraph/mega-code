@@ -13,6 +13,7 @@ __all__ = [
     "TERMINAL_STATUSES",
     "ActivePipelineItem",
     "ActivePipelinesResult",
+    "EnhanceSkillResult",
     "MegaCodeBaseClient",
     "OutputsResult",
     "PendingLessonData",
@@ -23,8 +24,10 @@ __all__ = [
     "ProfileResult",
     "SkillArtifactData",
     "TriggerPipelineResult",
+    "UpdateSkillRoiResult",
     "UploadResult",
     "UserProfile",
+    "materialize_skill_contents",
 ]
 
 from pathlib import Path
@@ -68,7 +71,9 @@ class PendingSkillData(BaseModel):
     installed: bool = False
     approved: bool = False
     author: str = ""
-    version: str = ""
+    version: str = "1.0.0"
+    origin: str = "wisdom_gen"
+    parent_skill_name: str | None = None
     tags: list[str] = Field(default_factory=list)
 
 
@@ -189,6 +194,20 @@ class ProfileResult(BaseModel):
     message: str = Field("", description="Human-readable message")
 
 
+class UpdateSkillRoiResult(BaseModel):
+    """Result of updating a skill's ROI metadata."""
+
+    success: bool = Field(True, description="Whether ROI was updated")
+    message: str = Field("", description="Human-readable message")
+
+
+class EnhanceSkillResult(BaseModel):
+    """Result of updating a skill with enhanced content."""
+
+    success: bool = Field(True, description="Whether skill was enhanced")
+    message: str = Field("", description="Human-readable message")
+
+
 class PipelineStopResult(BaseModel):
     """Result of stopping a pipeline run."""
 
@@ -214,7 +233,29 @@ class ActivePipelinesResult(BaseModel):
     runs: list[ActivePipelineItem] = Field(default_factory=list)
 
 
-# =============================================================================
+def materialize_skill_contents(skill_contents: dict[str, str]) -> str:
+    """Write skill_contents to a temp dir, return the path.
+
+    Creates {tmpdir}/{ref_path} for each entry so the orchestration's
+    reference paths resolve to real files on disk.
+    Temp dir is not auto-cleaned — OS handles it or caller can shutil.rmtree().
+    """
+    import tempfile
+
+    if not skill_contents:
+        return ""
+    tmpdir = Path(tempfile.mkdtemp(prefix="pcr-skills-")).resolve()
+    for ref_path, content in skill_contents.items():
+        if not ref_path or ref_path.startswith("/"):
+            continue
+        file_path = (tmpdir / ref_path).resolve()
+        if not file_path.is_relative_to(tmpdir):
+            continue
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(content, encoding="utf-8")
+    return str(tmpdir)
+
+
 # Client Protocol
 # =============================================================================
 
@@ -274,3 +315,23 @@ class MegaCodeBaseClient(Protocol):
     def stop_pipeline(self, *, run_id: str) -> PipelineStopResult: ...
 
     def get_active_pipelines(self) -> ActivePipelinesResult: ...
+
+    def update_skill_roi(
+        self,
+        *,
+        skill_name: str,
+        project_id: str,
+        roi: dict,
+    ) -> UpdateSkillRoiResult: ...
+
+    def enhance_skill(
+        self,
+        *,
+        skill_name: str,
+        project_id: str,
+        skill_md: str,
+        version: str,
+        parent_skill_name: str,
+        metadata: dict | None = None,
+        run_id: str | None = None,
+    ) -> EnhanceSkillResult: ...

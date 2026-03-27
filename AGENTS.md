@@ -14,11 +14,11 @@ scripts.
 ## Repo map
 
 ```text
-skills/run/       -> /mega-code:run
-skills/status/    -> /mega-code:status
-skills/profile/   -> /mega-code:profile
-skills/login/     -> /mega-code:login
-skills/help/      -> /mega-code:help
+skills/wisdom-gen/ -> /mega-code:wisdom-gen
+skills/status/     -> /mega-code:status
+skills/profile/    -> /mega-code:profile
+skills/login/      -> /mega-code:login
+skills/help/       -> /mega-code:help
 
 hooks/hooks.json   -> SessionStart / SessionEnd / UserPromptSubmit / Stop
 scripts/           -> session-start.sh, check_pending_skills.py,

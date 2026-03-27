@@ -12,7 +12,7 @@ no_outputs_notification: |
   - Quality gates filtered out low-quality outputs
   - No new patterns were detected
 
-  Try running on more sessions with: /mega-code:run --project
+  Try running on more sessions with: /mega-code:wisdom-gen --project
 
 error_notification: |
   ═══════════════════════════════════════════════════════════════════════
@@ -24,7 +24,7 @@ error_notification: |
   ${error}
 
   Please check the logs for more details.
-  You can try again with: /mega-code:run
+  You can try again with: /mega-code:wisdom-gen
 
 review_notification:
   workflow_template: |

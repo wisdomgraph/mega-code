@@ -162,7 +162,16 @@ class PendingResult:
         return self.total_count > 0
 
 
-from mega_code.client.skill_utils import ensure_skill_frontmatter, sanitize_name
+from mega_code.client.skill_utils import (
+    DEFAULT_VERSION,
+    canonical_skill_name,
+    ensure_skill_frontmatter,
+    get_author,
+    normalize_pending_skill_markdown,
+    parse_frontmatter,
+    sanitize_name,
+    skill_frontmatter_value,
+)
 
 # Backwards-compatible aliases for internal callers
 _sanitize_name = sanitize_name
@@ -203,12 +212,19 @@ def save_outputs_to_pending(
 
     # Save pending skills
     for skill_data in status.outputs.pending_skills or []:
-        skill_name = _sanitize_name(skill_data.skill_name)
+        skill_md_content = normalize_pending_skill_markdown(
+            skill_md=skill_data.skill_md,
+            skill_name=_sanitize_name(skill_data.skill_name),
+            author=skill_data.author,
+            version=skill_data.version,
+            tags=skill_data.tags,
+            metadata_json=skill_data.metadata,
+            default_author=get_author(),
+            default_version=DEFAULT_VERSION,
+        )
+        skill_name = canonical_skill_name(skill_data.skill_name, skill_md_content)
         skill_dir = PENDING_SKILLS_DIR / skill_name
         skill_dir.mkdir(parents=True, exist_ok=True)
-
-        # Ensure SKILL.md has required YAML frontmatter before writing
-        skill_md_content = _ensure_skill_frontmatter(skill_data.skill_md, skill_name)
         (skill_dir / "SKILL.md").write_text(skill_md_content, encoding="utf-8")
 
         # Write remaining files as-is
@@ -267,53 +283,24 @@ def save_outputs_to_pending(
 
 
 def _parse_yaml_frontmatter(content: str) -> dict[str, str | list[str]]:
-    """Parse YAML frontmatter from markdown content into a flat dict.
-
-    Only handles simple key: value pairs and tags lists.
-    Returns empty dict if no frontmatter found.
-    """
-    if not content.strip().startswith("---"):
+    """Parse YAML frontmatter into a flat dict with nested metadata fallback."""
+    fm = parse_frontmatter(content)
+    if not fm:
         return {}
 
     result: dict[str, str | list[str]] = {}
-    lines = content.split("\n")
-    current_list_key: str | None = None
-    current_list: list[str] = []
+    for key in ("description", "author", "version", "generated_at"):
+        value = skill_frontmatter_value(fm, key, fm.get(key, ""))
+        if isinstance(value, str) and value:
+            result[key] = value
 
-    for line in lines[1:]:  # skip opening ---
-        if line.strip() == "---":
-            if current_list_key:
-                result[current_list_key] = current_list
-            break
+    name = fm.get("name", "")
+    if isinstance(name, str) and name:
+        result["name"] = sanitize_name(name)
 
-        # List item (e.g. "  - python")
-        stripped = line.strip()
-        if stripped.startswith("- ") and current_list_key:
-            current_list.append(stripped[2:].strip())
-            continue
-
-        # New key
-        if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
-            # Save previous list if any
-            if current_list_key:
-                result[current_list_key] = current_list
-                current_list_key = None
-                current_list = []
-
-            key, _, val = line.partition(":")
-            key = key.strip()
-            val = val.strip().strip('"').strip("'")
-            if not val:
-                # Might be a list or multi-line value
-                current_list_key = key
-                current_list = []
-            else:
-                result[key] = val
-        elif current_list_key and not stripped:
-            # Empty line ends list
-            result[current_list_key] = current_list
-            current_list_key = None
-            current_list = []
+    tags = skill_frontmatter_value(fm, "tags", fm.get("tags", []))
+    if isinstance(tags, list):
+        result["tags"] = [str(tag) for tag in tags]
 
     return result
 
@@ -346,6 +333,7 @@ def get_pending_skills() -> list[PendingSkillInfo]:
         # Extract description and frontmatter fields from SKILL.md (single read)
         skill_content = skill_md.read_text(encoding="utf-8")
         fm = _parse_yaml_frontmatter(skill_content)
+        skill_name = str(fm.get("name", skill_dir.name)) or skill_dir.name
         description = (
             str(fm.get("description", ""))
             if fm.get("description")
@@ -355,7 +343,7 @@ def get_pending_skills() -> list[PendingSkillInfo]:
 
         skills.append(
             PendingSkillInfo(
-                name=skill_dir.name,
+                name=skill_name,
                 description=description,
                 path=str(skill_dir),
                 domains=metadata.get("workflow", {}).get("domains", []),

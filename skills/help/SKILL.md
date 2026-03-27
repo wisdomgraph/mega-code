@@ -11,8 +11,11 @@ allowed-tools: Read
 | Command | Description |
 |---------|-------------|
 | `/mega-code:login` | Sign in via GitHub or Google OAuth |
-| `/mega-code:run` | Run skill extraction pipeline |
+| `/mega-code:wisdom-gen` | Run skill extraction pipeline |
+| `/mega-code:skill-enhance` | Evaluate and enhance a skill with A/B testing |
 | `/mega-code:status` | Show pending items and status |
+| `/mega-code:stop` | Stop a running pipeline |
+| `/mega-code:profile` | View or update your developer profile |
 | `/mega-code:help` | Show this help |
 
 ## Output Locations
@@ -50,7 +53,7 @@ Clear statement of the preference or convention.
 
 ## Model Options
 
-The `--model` flag for `/mega-code:run` accepts any model alias supported by the LLM module:
+The `--model` flag for `/mega-code:wisdom-gen` accepts any model alias supported by the LLM module:
 
 | Alias | Provider |
 |-------|----------|
@@ -62,7 +65,8 @@ When no model is specified, the server selects the best model based on your conf
 
 ## Tips
 
-  - Run /mega-code:run after significant coding sessions
+  - Run /mega-code:wisdom-gen after significant coding sessions
+  - Run /mega-code:skill-enhance <skill> to improve an existing skill and review ROI
   - Use --project to analyze multiple sessions for stronger patterns
   - Skills with more evidence (from multiple sessions) are higher quality
   - Review and edit skills before installing for best results

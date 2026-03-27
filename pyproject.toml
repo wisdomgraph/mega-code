@@ -1,6 +1,6 @@
 [project]
 name = "mega-code"
-version = "1.0.2b1"
+version = "1.0.3b1"
 description = "Open-source Claude Code plugin — collect interaction data, extract skills, and optimize AI workflows"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -26,6 +26,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pyyaml>=6.0.0",
     "python-dotenv>=1.0.0",
+    "rich>=14.3.3",
 ]
 
 [project.optional-dependencies]
@@ -114,6 +115,7 @@ asyncio_mode = "auto"
 [dependency-groups]
 dev = [
     "ruff>=0.11.0",
+    "datamodel-code-generator==0.31.2",
 ]
 test = [
     "pytest>=9.0.2",

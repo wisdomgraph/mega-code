@@ -133,7 +133,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("   Status: Installed (marketplace)")
     else:
         print("   Status: Not detected")
-        print("   Install via: /install-plugin mega-code@wisdomgraph-mega-code")
+        print("   Install via: /install-plugin mega-code@mind-ai-mega-code")
 
     # Check profile
     profile_path = data_root / "profile.json"
@@ -364,11 +364,6 @@ def cmd_pipeline_stop(args: argparse.Namespace) -> int:
         return 1
     print(json.dumps(result.model_dump(), default=str))
     return 0
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Main entry point
-# ═══════════════════════════════════════════════════════════════════
 
 
 def main():

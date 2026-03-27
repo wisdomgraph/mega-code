@@ -1,4 +1,4 @@
-"""Async pipeline runner for /mega-code:run command.
+"""Async pipeline runner for /mega-code:wisdom-gen command.
 
 Imports only from mega_code.client.* — no pipeline dependencies.
 
@@ -337,7 +337,7 @@ async def main():
                 timeout_info = {
                     "additionalContext": (
                         f"The pipeline timed out on the server ({status.error}).\n"
-                        "You can start a new run with /mega-code:run."
+                        "You can start a new run with /mega-code:wisdom-gen."
                     ),
                     "timeout": {
                         "run_id": run_id,

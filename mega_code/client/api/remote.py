@@ -6,9 +6,11 @@ MegaCodeRemote connects to the FastAPI server via HTTP.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random as _random
 from pathlib import Path
+from urllib.parse import quote as _url_quote
 
 import httpx
 from tenacity import (
@@ -19,11 +21,13 @@ from tenacity import (
 
 from mega_code.client.api.protocol import (
     ActivePipelinesResult,
+    EnhanceSkillResult,
     OutputsResult,
     PipelineStatusResult,
     PipelineStopResult,
     ProfileResult,
     TriggerPipelineResult,
+    UpdateSkillRoiResult,
     UploadResult,
     UserProfile,
 )
@@ -58,8 +62,10 @@ def _wait_exponential_jitter(retry_state) -> float:
 
 def _log_retry(retry_state) -> None:
     exc = retry_state.outcome.exception()
+    fn_name = getattr(retry_state.fn, "__name__", "request")
     logger.warning(
-        "upload_trajectory attempt %d/%d failed (%s: %s), retrying…",
+        "%s attempt %d/%d failed (%s: %s), retrying…",
+        fn_name,
         retry_state.attempt_number,
         _MAX_ATTEMPTS,
         exc.__class__.__name__,
@@ -116,6 +122,21 @@ class MegaCodeRemote:
         if self._async_client is None or self._async_client.is_closed:
             self._async_client = httpx.AsyncClient(**self._async_client_kwargs)
         return self._async_client
+
+    @staticmethod
+    def _set_current_span_attrs(**attrs) -> None:
+        """Set attributes on the current OTEL span if available."""
+        try:
+            from opentelemetry import trace
+
+            span = trace.get_current_span()
+            for k, v in attrs.items():
+                if isinstance(v, (str, int, float, bool)):
+                    span.set_attribute(k, v)
+                else:
+                    span.set_attribute(k, json.dumps(v, default=str))
+        except ImportError:
+            pass
 
     @staticmethod
     def _check_response(resp: httpx.Response) -> None:
@@ -298,6 +319,55 @@ class MegaCodeRemote:
         resp = self._client.get("/api/megacode/v1/pipeline/status")
         self._check_response(resp)
         return ActivePipelinesResult(**resp.json())
+
+    @traced("client.remote.update_skill_roi", kind="CLIENT", openinference_kind="TOOL")
+    def update_skill_roi(
+        self,
+        *,
+        skill_name: str,
+        project_id: str,
+        roi: dict,
+    ) -> UpdateSkillRoiResult:
+        """Update skill ROI via PATCH /api/megacode/v1/skills/{skill_name}/roi."""
+        self._set_current_span_attrs(skill_name=skill_name, project_id=project_id, roi=roi)
+        resp = self._client.patch(
+            f"/api/megacode/v1/skills/{_url_quote(skill_name, safe='')}/roi",
+            params={"project_id": project_id},
+            json=roi,
+        )
+        self._check_response(resp)
+        return UpdateSkillRoiResult(**resp.json())
+
+    @traced("client.remote.enhance_skill", kind="CLIENT", openinference_kind="TOOL")
+    def enhance_skill(
+        self,
+        *,
+        skill_name: str,
+        project_id: str,
+        skill_md: str,
+        version: str,
+        parent_skill_name: str,
+        metadata: dict | None = None,
+        run_id: str | None = None,
+    ) -> EnhanceSkillResult:
+        """Create a new skill version via POST /api/megacode/v1/skills/{skill_name}/enhance."""
+        self._set_current_span_attrs(skill_name=skill_name, project_id=project_id, version=version)
+        body: dict = {
+            "skill_md": skill_md,
+            "version": version,
+            "parent_skill_name": parent_skill_name,
+        }
+        if metadata:
+            body["metadata"] = metadata
+        if run_id:
+            body["run_id"] = run_id
+        resp = self._client.post(
+            f"/api/megacode/v1/skills/{_url_quote(skill_name, safe='')}/enhance",
+            params={"project_id": project_id},
+            json=body,
+        )
+        self._check_response(resp)
+        return EnhanceSkillResult(**resp.json())
 
     @traced("client.remote.load_profile", kind="CLIENT", openinference_kind="TOOL")
     def load_profile(self) -> UserProfile:
