@@ -15,8 +15,8 @@ import httpx
 
 from mega_code.client.cli import get_env_path, load_env_file
 
-_NOT_LOGGED_IN = "Not logged in. Run /mega-code:login first."
-_KEY_EXPIRED = "API key expired or invalid. Run /mega-code:login to re-authenticate."
+_NOT_LOGGED_IN = "Not logged in. Run /mega-code-login first."
+_KEY_EXPIRED = "API key expired or invalid. Run /mega-code-login to re-authenticate."
 
 
 def check_auth() -> bool:

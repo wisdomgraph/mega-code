@@ -13,11 +13,12 @@ scripts.
 ## Repo map
 
 ```text
-skills/run/       -> $mega-code-run
-skills/status/    -> $mega-code-status
-skills/profile/   -> $mega-code-profile
-skills/login/     -> $mega-code-login
-skills/help/      -> $mega-code-help
+skills/wisdom-gen/ -> $mega-code-wisdom-gen
+skills/status/     -> $mega-code-status
+skills/profile/    -> $mega-code-profile
+skills/login/      -> $mega-code-login
+skills/update/     -> $mega-code-update
+skills/help/       -> $mega-code-help
 
 scripts/          -> codex-bootstrap.sh
 ```
@@ -89,7 +90,8 @@ Optional but expected when relevant:
 Authoring rules:
 
 - Prefer the smallest `allowed-tools:` set that still works.
-- Use `Bash, Read` by default; add `Write`, `Edit`, or `AskUserQuestion` only when needed.
+- Use `Bash, Read` by default; add `Write` or `Edit` only when needed.
+- `request_user_input` is a Codex CLI built-in — it does NOT need to be listed in `allowed-tools`.
 - Keep command examples copy-pastable.
 - Use `MEGA_DIR` in skills for the plugin root path.
 - If a skill invokes Python entry points, prefer existing modules in `mega_code.client` or scripts in `scripts/`.

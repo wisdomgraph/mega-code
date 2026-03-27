@@ -1,7 +1,6 @@
 ---
 name: mega-code-status
-description: "Show MEGA-Code status including pending skills, strategies, and recent pipeline runs."
-argument-hint: ""
+description: "Show MEGA-Code status — pending skills, strategies, and recent pipeline runs."
 allowed-tools: Bash, Read
 ---
 
@@ -76,4 +75,4 @@ fi
 | Type | Pending Location | Installed Location |
 |------|------------------|--------------------|
 | Skills | `~/.local/share/mega-code/data/pending-skills/{name}/` | `.agents/skills/{name}/SKILL.md` |
-| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.agents/rules/mega-code/{name}.md` |
+| Strategies | `~/.local/share/mega-code/data/pending-strategies/{name}.md` | `.agents/rules/mega-code/{name}.md` + referenced in `AGENTS.md` |

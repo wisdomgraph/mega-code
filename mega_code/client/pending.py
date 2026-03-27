@@ -651,9 +651,9 @@ async def poll_pipeline_status(
         processed = 0
         total = 0
         if status.progress:
-            phase = status.progress.get("current_phase", "")
-            processed = status.progress.get("sessions_processed", 0)
-            total = status.progress.get("sessions_total", 0)
+            phase = status.progress.current_phase or ""
+            processed = status.progress.sessions_processed or 0
+            total = status.progress.sessions_total or 0
 
         logger.debug(
             "  Poll #%d: status=%s phase=%s (%d/%d)",

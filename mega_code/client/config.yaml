@@ -12,7 +12,7 @@ no_outputs_notification: |
   - Quality gates filtered out low-quality outputs
   - No new patterns were detected
 
-  Try running on more sessions with: $mega-code-run --project
+  Try running on more sessions with: $mega-code-wisdom-gen --project
 
 error_notification: |
   ═══════════════════════════════════════════════════════════════════════
@@ -24,7 +24,7 @@ error_notification: |
   ${error}
 
   Please check the logs for more details.
-  You can try again with: $mega-code-run
+  You can try again with: $mega-code-wisdom-gen
 
 review_notification:
   workflow_template: |
@@ -126,49 +126,97 @@ review_notification:
     "<N> items were excluded because they were not recommended for installation."
 
     ══════════════════════════════════════════════════════════════════════
-    STEP 2 (continued): ASK USER (use AskUserQuestion tool)
+    STEP 2 (continued): ASK USER (use request_user_input tool)
     ══════════════════════════════════════════════════════════════════════
-    Then immediately call AskUserQuestion in the **same response** to ask what to install.
+    Use `request_user_input` (Codex CLI built-in) to ask what to install.
 
-    **Rules for AskUserQuestion:**
-    - Ask **ONE question per AskUserQuestion call** — do NOT batch multiple questions together
-    - If an answer comes back **empty/blank**, re-ask that same question once more
-    - After **2 consecutive empty responses**, ask the user in plain text what to do
-    - Use ONLY RECOMMENDED_ITEMS as selectable options by default
-    - EXCLUDED_ITEMS must only be selectable after explicit user confirmation (override step)
+    **`request_user_input` constraints:**
+    - 1-3 questions per call
+    - 2-3 options per question (single-select only)
+    - An "Other" freeform option is auto-added by the tool
 
-    **Question flow (one at a time, separate calls):**
-    1. "Which skills to install?" (multiSelect: true,
-      options: [..."✅ <RECOMMENDED_ITEMS (skills only)>", "None — skip all"]) — skip if no recommended skills
+    **Question flow — bulk-then-per-item:**
 
-    2. "Which strategies to install?" (multiSelect: true,
-      options: [..."✅ <RECOMMENDED_ITEMS (strategies only)>", "None — skip all"]) — skip if no recommended strategies
+    1. **Bulk question** (skip if only 1 recommended item — go straight to per-item):
+       Use `request_user_input` with one question:
+       "N recommended items ready. What would you like to do?"
+       Options: "Install all" / "Pick individually" / "Skip all"
 
-    3. "Install excluded items as well? (⚠️ not recommended)" (Yes/No)
-      — ask only if EXCLUDED_ITEMS exist
+       - **Install all** → select all RECOMMENDED_ITEMS, skip to location question
+       - **Skip all** → no recommended items selected, skip to excluded items question
+       - **Pick individually** → proceed to per-item loop below
 
-      If user selects "Yes":
-      3-1. "Which excluded skills to install?" (multiSelect: true,
-            options: [..."⚠️ <EXCLUDED_ITEMS (skills only)> — <short reason>", "None — skip all"])
+    2. **Per-item loop** (only if "Pick individually" or exactly 1 recommended item):
+       For each recommended item, use `request_user_input` with one question:
+       "Install <name>? (<type>: <short description>)"
+       Options: "Yes" / "No"
 
-      3-2. "Which excluded strategies to install?" (multiSelect: true,
-            options: [..."⚠️ <EXCLUDED_ITEMS (strategies only)> — <short reason>", "None — skip all"])
+    3. **Excluded items** (only if EXCLUDED_ITEMS exist):
+       Use `request_user_input` with one question:
+       "N items were not recommended. Review them?"
+       Options: "Yes" / "No"
 
-    4. "Installation location?" — only ask if any items were selected. Options:
-      - "Project level" (description: .agents/skills/ and .agents/rules/ in current project)
-      - "User level" (description: ~/.codex/skills/ and ~/.codex/rules/ shared across all projects)
+       If "Yes": run the same per-item loop for each excluded item:
+       "Install <name>? (⚠️ not recommended — <short reason>)"
+       Options: "Yes" / "No"
 
-    If no items are recommended and user does NOT opt into override, proceed directly to Step 3.
-    If user selects "None" for all asked questions, skip installation location and proceed to Step 3.
+    4. **Installation location** (only if any items were selected):
+       Use `request_user_input` with one question:
+       "Where should items be installed?"
+       Options:
+       - "Project level" (.agents/skills/ and .agents/rules/ in current project + AGENTS.md)
+       - "User level" (~/.codex/skills/ and ~/.codex/rules/ shared across all projects + ~/.codex/AGENTS.md)
+
+    If no items are recommended and user does NOT opt into reviewing excluded items, proceed directly to Step 3.
+    If user selects "No" for all items, skip installation location and proceed to Step 3.
 
     ══════════════════════════════════════════════════════════════════════
     STEP 3: INSTALL APPROVED ITEMS
     ══════════════════════════════════════════════════════════════════════
     Based on user's choices:
-    - Skills → <location>/skills/<name>/SKILL.md
-    - Strategies → .agents/rules/mega-code/<name>.md
 
-    Use Write tool to create the files.
+    **Skills:**
+    - Project level → .agents/skills/<name>/SKILL.md
+    - User level → ~/.codex/skills/<name>/SKILL.md
+
+    **Strategies:**
+    1. Write each strategy file:
+       - Project level → .agents/rules/mega-code/<name>.md
+       - User level → ~/.codex/rules/mega-code/<name>.md
+
+    2. Update AGENTS.md so Codex loads the strategy references:
+       - Project level → project-root AGENTS.md
+       - User level → ~/.codex/AGENTS.md
+
+       Read the target AGENTS.md (create if it does not exist).
+       Find the section between these markers:
+         <!-- mega-code:strategies:start -->
+         ...
+         <!-- mega-code:strategies:end -->
+
+       If the markers exist, replace everything between them.
+       If the markers do not exist, append the section at the end of the file.
+
+       The section content MUST follow this exact format:
+
+         <!-- mega-code:strategies:start -->
+         ## Mega-Code Strategies
+
+         Strategies extracted from coding sessions by [mega-code](https://megacode.ai).
+         Read each linked file when its described context applies to your current task.
+
+         - [<name>](.agents/rules/mega-code/<name>.md) — <description>. Read when: <relevance context>.
+         <!-- mega-code:strategies:end -->
+
+       The "Read when" context should describe when the strategy is relevant,
+       derived from the strategy's category or content (e.g., "writing error
+       handling code", "designing API endpoints", "working with database queries").
+
+       Include ALL currently installed strategies in the section, not just
+       the ones being installed now. Read .agents/rules/mega-code/ to find
+       any previously installed strategies and include them too.
+
+    Use Write tool to create/update all files.
 
     ══════════════════════════════════════════════════════════════════════
     STEP 4: ARCHIVE

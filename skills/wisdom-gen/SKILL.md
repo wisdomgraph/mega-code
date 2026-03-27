@@ -1,8 +1,7 @@
 ---
-name: mega-code-run
-description: "Run the MEGA-Code skill extraction pipeline to analyze coding sessions and generate reusable skills and strategies."
-argument-hint: "[--project [@<name>]] [--model <model>] [--poll-timeout <seconds>] [--include-codex]"
-allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
+name: mega-code-wisdom-gen
+description: "Run the MEGA-Code extraction pipeline. Usage: [--project [@name]] [--model <alias>] [--poll-timeout <sec>] [--include-codex]"
+allowed-tools: Bash, Read, Write, Edit
 disable-model-invocation: true
 ---
 
@@ -66,8 +65,7 @@ Check for pending items first, then run the pipeline. All variables must be in
 **one single Bash call** so `$LOG` and `$MEGA_DIR` stay in scope:
 
 ```bash
-uv run --directory "$MEGA_DIR" python -m mega_code.client.pending review < /dev/null 2>/dev/null || true
-LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log" && \
+LOG="/tmp/mega-code-wisdom-gen-$(date +%Y%m%d-%H%M%S).log" && \
   echo "Pipeline log: $LOG" && \
   export MEGA_CODE_PROJECT_DIR="$PWD" && \
   uv run --directory "$MEGA_DIR" python -m mega_code.client.run_pipeline --include-codex [FLAGS] 2>&1 | tee "$LOG"
@@ -95,14 +93,14 @@ When omitted, server selects based on configured LLM keys (priority: Gemini > Op
 If the pipeline command exits with code **2**, a pipeline is already running.
 Parse the JSON output to get `conflict.run_id` and `conflict.project_id`.
 
-Use the `AskUserQuestion` tool to present these options:
+Use `request_user_input` to present these options:
 
 **Question:** "A pipeline is already running for this project (run_id: {run_id}). What would you like to do?"
 
 **Options:**
-1. "Stop it and start a new one"
-2. "Wait for the existing run to finish"
-3. "Leave it running — exit without action"
+1. "Stop & restart"
+2. "Wait for it"
+3. "Leave running"
 
 **Option 1 — Stop and restart:**
 ```bash
@@ -125,13 +123,13 @@ Return immediately. Do not print anything or ask further questions.
 If the pipeline command exits with code **3**, the pipeline exceeded the server's
 max runtime and was terminated. Parse the JSON output for `timeout.error` details.
 
-Use the `AskUserQuestion` tool to present these options:
+Use `request_user_input` to present these options:
 
 **Question:** "The pipeline timed out on the server ({error message}). What would you like to do?"
 
 **Options:**
-1. "Run again — start a fresh pipeline run"
-2. "Do nothing — exit without action"
+1. "Run again"
+2. "Do nothing"
 
 **Option 1 — Run again:**
 Re-execute the pipeline command from "Running the Pipeline" section.
@@ -159,7 +157,7 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.pending review \
 
 ## Tips
 
-- Run the pipeline after significant coding sessions (`$mega-code-run`)
+- Run the pipeline after significant coding sessions (`$mega-code-wisdom-gen`)
 - Use `--project` to analyze multiple sessions for stronger patterns
 - Use `@name` to run on a different project without switching directories
 - Skills with more evidence (from multiple sessions) are higher quality

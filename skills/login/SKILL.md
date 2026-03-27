@@ -1,8 +1,7 @@
 ---
 name: mega-code-login
-description: "Sign in to MEGA-Code via GitHub or Google OAuth to get an API key."
-argument-hint: "[--provider github|google] [--url https://console.megacode.ai]"
-allowed-tools: Bash, Read, AskUserQuestion
+description: "Sign in to MEGA-Code via OAuth. Usage: [--provider github|google] [--url <console-url>]"
+allowed-tools: Bash, Read
 ---
 
 # Login to MEGA-Code
@@ -23,16 +22,17 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
 fi
 export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
+set -a && . "$MEGA_CODE_DATA_DIR/.env" 2>/dev/null && set +a
 ```
 
 ## Step 1: Create session (fast, non-blocking)
 
 ```bash
-uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create [--url URL]
+uv run --directory "$MEGA_DIR" python -m mega_code.client.login --step create
 ```
 
 Add `--provider github` for GitHub OAuth instead of Google.
-Add `--url URL` to specify the server (default: `https://console.megacode.ai`).
+Add `--url URL` to override the server (default: `MEGA_CODE_SERVER_URL` from .env, or `https://console.megacode.ai`).
 
 Returns a **JSON object** to stdout:
 

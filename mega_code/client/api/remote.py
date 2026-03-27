@@ -20,11 +20,17 @@ from tenacity import (
 
 from mega_code.client.api.protocol import (
     ActivePipelinesResult,
+    APISessionMetadata,
     OutputsResult,
+    PipelineProgress,
+    PipelineRunRequest,
     PipelineStatusResult,
     PipelineStopResult,
     ProfileResult,
+    ProfileUpdateRequest,
+    TrajectoryUploadRequest,
     TriggerPipelineResult,
+    TurnPayload,
     UploadResult,
     UserProfile,
 )
@@ -171,22 +177,26 @@ class MegaCodeRemote:
                         "upload.metadata.started_at", str(turn_set.metadata.started_at)
                     )
 
-            payload = {
-                "session_id": turn_set.session_id,
-                "project_id": project_id,
-                "turns": [t.model_dump() for t in turn_set.turns],
-                "metadata": turn_set.metadata.model_dump(mode="json"),
-            }
-            payload_json = json.dumps(payload)
+            req = TrajectoryUploadRequest(
+                session_id=turn_set.session_id,
+                project_id=project_id,
+                turns=[TurnPayload(**t.model_dump()) for t in turn_set.turns],
+                metadata=APISessionMetadata(**turn_set.metadata.model_dump(mode="json")),
+            )
+            payload_json = req.model_dump_json()
             http_span.set_attribute("upload.payload_size_bytes", len(payload_json))
             http_span.set_attribute("upload.payload_json", payload_json)
 
-            resp = self._client.post("/api/megacode/v1/trajectory", json=payload)
+            resp = self._client.post(
+                "/api/megacode/v1/trajectory",
+                content=payload_json,
+                headers={"Content-Type": "application/json"},
+            )
             http_span.set_attribute("http.status_code", resp.status_code)
             resp_data = resp.json()
             http_span.set_attribute("upload.response_json", json.dumps(resp_data))
             self._check_response(resp)
-            result = UploadResult(**resp_data)
+            result = UploadResult.model_validate(resp_data)
             http_span.set_attribute("upload.response.status", getattr(result, "status", ""))
             http_span.set_attribute("upload.response.message", getattr(result, "message", ""))
             return result
@@ -201,7 +211,7 @@ class MegaCodeRemote:
         """Retrieve outputs via GET /api/megacode/v1/outputs/{project_id}/{run_id}."""
         resp = self._client.get(f"/api/megacode/v1/outputs/{project_id}/{run_id}")
         self._check_response(resp)
-        return OutputsResult(**resp.json())
+        return OutputsResult.model_validate(resp.json())
 
     async def _sync_codex(
         self,
@@ -316,25 +326,20 @@ class MegaCodeRemote:
             if project_path is not None:
                 http_span.set_attribute("trigger.synced_project_path", str(project_path))
 
-            payload = {
-                "project_id": project_id,
-                "force": force,
-                "concurrency": concurrency,
-                "include_codex": include_codex,
-            }
-            if session_id is not None:
-                payload["session_id"] = session_id
-            if steps is not None:
-                payload["steps"] = steps
-            if limit is not None:
-                payload["limit"] = limit
-            if model is not None:
-                payload["model"] = model
-
-            http_span.set_attribute("trigger.payload_json", json.dumps(payload))
+            req = PipelineRunRequest(
+                project_id=project_id,
+                steps=steps,
+                force=force,
+                limit=limit,
+                concurrency=concurrency,
+                model=model,
+                include_codex=include_codex,
+            )
+            payload_json = req.model_dump_json(exclude_none=True)
+            http_span.set_attribute("trigger.payload_json", payload_json)
 
             # Propagate trace context via W3C traceparent header
-            extra_headers: dict[str, str] = {}
+            extra_headers: dict[str, str] = {"Content-Type": "application/json"}
             try:
                 from mega_code.client.utils.tracing import get_current_trace_context
 
@@ -347,13 +352,13 @@ class MegaCodeRemote:
 
             async_client = self._get_async_client()
             resp = await async_client.post(
-                "/api/megacode/v1/pipeline/run", json=payload, headers=extra_headers
+                "/api/megacode/v1/pipeline/run", content=payload_json, headers=extra_headers
             )
             http_span.set_attribute("http.status_code", resp.status_code)
             self._check_response(resp)
             resp_data = resp.json()
             http_span.set_attribute("trigger.response_json", json.dumps(resp_data))
-            result = TriggerPipelineResult(**resp_data)
+            result = TriggerPipelineResult.model_validate(resp_data)
             http_span.set_attribute("trigger.response.run_id", result.run_id)
             http_span.set_attribute("trigger.response.status", result.status)
             return result
@@ -404,9 +409,11 @@ class MegaCodeRemote:
                 )
             http_span.set_attribute("status_poll.has_outputs", data.get("outputs") is not None)
 
-            # Parse outputs into OutputsResult if present
+            # Parse nested objects with their Pydantic models
             outputs_raw = data.get("outputs")
-            outputs = OutputsResult(**outputs_raw) if outputs_raw else None
+            outputs = OutputsResult.model_validate(outputs_raw) if outputs_raw else None
+            progress_raw = data.get("progress")
+            progress = PipelineProgress.model_validate(progress_raw) if progress_raw else None
 
             if outputs:
                 http_span.set_attribute(
@@ -425,7 +432,7 @@ class MegaCodeRemote:
                 status=data["status"],
                 started_at=data.get("started_at"),
                 completed_at=data.get("completed_at"),
-                progress=data.get("progress"),
+                progress=progress,
                 outputs=outputs,
                 report=outputs_raw.get("report") if outputs_raw else None,
                 error=data.get("error"),
@@ -444,20 +451,28 @@ class MegaCodeRemote:
           2. Write ~/.local/share/mega-code/profile.json  → local mirror for inspection
              (only written when the API call succeeds)
         """
-        payload = profile.model_dump(by_alias=True)
-        resp = self._client.put("/api/megacode/v1/profile", json=payload)
+        req = ProfileUpdateRequest(
+            language=profile.language,
+            level=profile.level,
+            style=profile.style,
+            eureka=profile.eureka,
+            goals=profile.goals,
+            enabled=profile.enabled,
+            autoPermission=profile.auto_permission,
+        )
+        resp = self._client.put(
+            "/api/megacode/v1/profile",
+            content=req.model_dump_json(),
+            headers={"Content-Type": "application/json"},
+        )
         self._check_response(resp)
-        data = resp.json()
 
         # Mirror to local file only after a successful remote save.
         from mega_code.client.profile import save_profile as _save_local
 
         _save_local(profile)
 
-        return ProfileResult(
-            success=data.get("success", True),
-            message=data.get("message", ""),
-        )
+        return ProfileResult.model_validate(resp.json())
 
     @traced("client.remote.stop_pipeline", kind="CLIENT", openinference_kind="TOOL")
     def stop_pipeline(
@@ -468,21 +483,21 @@ class MegaCodeRemote:
         """Stop a pipeline run via POST /api/megacode/v1/pipeline/stop/{run_id}."""
         resp = self._client.post(f"/api/megacode/v1/pipeline/stop/{run_id}")
         self._check_response(resp)
-        return PipelineStopResult(**resp.json())
+        return PipelineStopResult.model_validate(resp.json())
 
     @traced("client.remote.get_active_pipelines", kind="CLIENT", openinference_kind="TOOL")
     def get_active_pipelines(self) -> ActivePipelinesResult:
         """List active pipelines via GET /api/megacode/v1/pipeline/status."""
         resp = self._client.get("/api/megacode/v1/pipeline/status")
         self._check_response(resp)
-        return ActivePipelinesResult(**resp.json())
+        return ActivePipelinesResult.model_validate(resp.json())
 
     @traced("client.remote.load_profile", kind="CLIENT", openinference_kind="TOOL")
     def load_profile(self) -> UserProfile:
         """Load user profile via GET /api/megacode/v1/profile."""
         resp = self._client.get("/api/megacode/v1/profile")
         self._check_response(resp)
-        return UserProfile(**resp.json())
+        return UserProfile.model_validate(resp.json())
 
     @property
     def server_url(self) -> str:

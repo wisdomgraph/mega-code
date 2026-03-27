@@ -238,62 +238,103 @@ def cmd_profile(args: argparse.Namespace) -> int:
     """View or update user profile."""
     from mega_code.client.api import create_client
     from mega_code.client.api.protocol import UserProfile
+    from mega_code.client.utils.tracing import get_tracer, setup_tracing
 
     _load_env()
+    setup_tracing(service_name="mega-code-client")
+    tracer = get_tracer(__name__)
     client = create_client()
 
-    # Reset
+    # Determine action for tracing
     if args.reset:
-        # Clear local file
-        profile_path = get_profile_path()
-        profile_existed = profile_path.exists()
-        if profile_existed:
-            profile_path.unlink()
-        # Sync to remote server only — local mode handles reset via file deletion above
-        from mega_code.client.api.remote import MegaCodeRemote
+        action = "reset"
+    elif any(x is not None for x in [args.language, args.level, args.style]):
+        action = "update"
+    else:
+        action = "view"
 
-        if isinstance(client, MegaCodeRemote):
-            client.save_profile(profile=UserProfile())
-        if profile_existed:
-            print("Profile reset.")
-        else:
-            print("No profile to reset.")
-        return 0
+    with tracer.start_as_current_span("cmd_profile") as span:
+        span.set_attribute("profile.action", action)
+        span.set_attribute("profile.language", args.language or "")
+        span.set_attribute("profile.level", args.level or "")
+        span.set_attribute("profile.style", args.style or "")
 
-    has_updates = any(x is not None for x in [args.language, args.level, args.style])
+        try:
+            # Reset
+            if action == "reset":
+                # Clear local file
+                profile_path = get_profile_path()
+                profile_existed = profile_path.exists()
+                if profile_existed:
+                    profile_path.unlink()
+                # Sync to remote server only — local mode handles reset via file deletion above
+                from mega_code.client.api.remote import MegaCodeRemote
 
-    if not has_updates:
-        # Show current profile via client (remote mode reads from mega-service DB)
-        user_profile = client.load_profile()
-        if all(v is None for v in [user_profile.language, user_profile.level, user_profile.style]):
-            print("No profile set.")
-            print("\nSet your profile with:")
-            print("  mega-code profile --language English --level Expert --style Concise")
+                if isinstance(client, MegaCodeRemote):
+                    client.save_profile(profile=UserProfile())
+                span.add_event("profile.reset", {"profile.existed": profile_existed})
+                if profile_existed:
+                    print("Profile reset.")
+                else:
+                    print("No profile to reset.")
+                return 0
+
+            if action == "view":
+                # Show current profile via client (remote mode reads from mega-service DB)
+                user_profile = client.load_profile()
+                span.add_event("profile.loaded")
+                if all(
+                    v is None
+                    for v in [user_profile.language, user_profile.level, user_profile.style]
+                ):
+                    print("No profile set.")
+                    print("\nSet your profile with:")
+                    print("  mega-code profile --language English --level Expert --style Concise")
+                    return 0
+
+                print("Current profile:")
+                for key, value in user_profile.model_dump(by_alias=True).items():
+                    print(f"   {key}: {value}")
+                return 0
+
+            # Load existing from authoritative source, merge updates, save
+            user_profile = client.load_profile()
+            data = user_profile.model_dump(by_alias=True)
+
+            if args.language is not None:
+                data["language"] = args.language
+            if args.level is not None:
+                data["level"] = args.level
+            if args.style is not None:
+                data["style"] = args.style
+
+            updated_profile = UserProfile(**data)
+            client.save_profile(profile=updated_profile)
+            span.add_event(
+                "profile.saved",
+                {
+                    "profile.language": updated_profile.language or "",
+                    "profile.level": updated_profile.level or "",
+                    "profile.style": updated_profile.style or "",
+                },
+            )
+
+            print("Profile updated:")
+            for key, value in updated_profile.model_dump(by_alias=True).items():
+                print(f"   {key}: {value}")
             return 0
 
-        print("Current profile:")
-        for key, value in user_profile.model_dump(by_alias=True).items():
-            print(f"   {key}: {value}")
-        return 0
+        except Exception as exc:
+            span.record_exception(exc)
+            raise
+        finally:
+            try:
+                from mega_code.client.utils.ndjson_tracing import export_traces
+                from mega_code.client.utils.tracing import get_span_writer
 
-    # Load existing from authoritative source, merge updates, save
-    user_profile = client.load_profile()
-    data = user_profile.model_dump(by_alias=True)
-
-    if args.language is not None:
-        data["language"] = args.language
-    if args.level is not None:
-        data["level"] = args.level
-    if args.style is not None:
-        data["style"] = args.style
-
-    updated_profile = UserProfile(**data)
-    client.save_profile(profile=updated_profile)
-
-    print("Profile updated:")
-    for key, value in updated_profile.model_dump(by_alias=True).items():
-        print(f"   {key}: {value}")
-    return 0
+                export_traces(writer=get_span_writer())
+            except Exception:
+                pass
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -326,9 +367,9 @@ def cmd_pipeline_status(args: argparse.Namespace) -> int:
     for i, run in enumerate(result.runs, 1):
         progress_str = ""
         if run.progress:
-            phase = run.progress.get("current_phase", "")
-            processed = run.progress.get("sessions_processed", "?")
-            total = run.progress.get("sessions_total", "?")
+            phase = run.progress.current_phase or ""
+            processed = run.progress.sessions_processed or "?"
+            total = run.progress.sessions_total or "?"
             if phase:
                 progress_str = f" | Phase: {phase} ({processed}/{total})"
         started_str = ""
