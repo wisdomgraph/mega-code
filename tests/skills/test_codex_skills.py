@@ -11,10 +11,11 @@ import yaml
 SKILLS_DIR = Path(__file__).parent.parent.parent / "skills"
 SKILL_NAMES = [
     "login",
-    "run",
+    "wisdom-gen",
     "status",
     "profile",
     "help",
+    "stop",
 ]
 
 
@@ -85,14 +86,14 @@ def test_module_entry_points(skill_name):
 
 
 def test_run_skill_includes_codex_flag():
-    content = (SKILLS_DIR / "run" / "SKILL.md").read_text()
+    content = (SKILLS_DIR / "wisdom-gen" / "SKILL.md").read_text()
     assert "--include-codex" in content
 
 
 def test_help_skill_shows_codex_syntax():
     content = (SKILLS_DIR / "help" / "SKILL.md").read_text()
     assert "$mega-code-login" in content
-    assert "$mega-code-run" in content
+    assert "$mega-code-wisdom-gen" in content
     assert "$mega-code-status" in content
 
 

@@ -1,4 +1,4 @@
-"""Async pipeline runner for /mega-code:run command.
+"""Async pipeline runner for /mega-code-wisdom-gen command.
 
 Imports only from mega_code.client.* — no pipeline dependencies.
 
@@ -271,6 +271,7 @@ async def main():
         span.set_attribute("pipeline.storage", storage)
         span.set_attribute("pipeline.project_dir_env", str(project_dir_env))
 
+        project_id = "unknown"
         try:
             # Resolve project directory
             if args.project:
@@ -396,10 +397,10 @@ async def main():
                 span.set_attribute("poll.server_completed_at", status.completed_at)
             if status.progress:
                 span.set_attribute(
-                    "poll.sessions_processed", status.progress.get("sessions_processed", 0)
+                    "poll.sessions_processed", status.progress.sessions_processed or 0
                 )
-                span.set_attribute("poll.sessions_total", status.progress.get("sessions_total", 0))
-                span.set_attribute("poll.current_phase", status.progress.get("current_phase", ""))
+                span.set_attribute("poll.sessions_total", status.progress.sessions_total or 0)
+                span.set_attribute("poll.current_phase", status.progress.current_phase or "")
 
             # Check for server-side timeout — exit code 3 tells the run skill
             # to prompt the user with retry/leave options. The JSON on stdout
@@ -408,7 +409,7 @@ async def main():
                 timeout_info = {
                     "additionalContext": (
                         f"The pipeline timed out on the server ({status.error}).\n"
-                        "You can start a new run with /mega-code:run."
+                        "You can start a new run with /mega-code-wisdom-gen."
                     ),
                     "timeout": {
                         "run_id": run_id,
@@ -473,7 +474,7 @@ async def main():
                     "additionalContext": (
                         f"A pipeline is already running for this project"
                         f" (run_id: {conflict_run_id or 'unknown'}).\n"
-                        "Use /mega-code:stop to stop it, or wait for it to finish."
+                        "Use /mega-code-stop to stop it, or wait for it to finish."
                     ),
                     "conflict": {
                         "run_id": conflict_run_id,

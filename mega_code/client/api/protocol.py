@@ -1,8 +1,8 @@
 """Client protocol and response models for the MEGA-Code API.
 
-All models use Pydantic with no server-side dependencies.
-Pipeline output models (PendingSkillData, etc.) are defined here
-to keep the client package self-contained and installable standalone.
+All Pydantic models for the HTTP layer live here.  Types are kept in sync
+with ``spec/openapi.yaml`` via ``tests/test_spec_sync.py`` — no code
+generator needed.
 """
 
 from __future__ import annotations
@@ -11,28 +11,181 @@ __all__ = [
     "ACTIVE_STATUSES",
     "ERROR_STATUSES",
     "TERMINAL_STATUSES",
+    "APISessionMetadata",
     "ActivePipelineItem",
     "ActivePipelinesResult",
+    "Decision",
+    "ErrorResponse",
+    "HealthResponse",
+    "LessonSummary",
+    "LessonsListResponse",
     "MegaCodeBaseClient",
     "OutputsResult",
     "PendingLessonData",
     "PendingSkillData",
     "PendingStrategyData",
+    "PipelineOutputs",
+    "PipelineProgress",
+    "PipelineRunRequest",
     "PipelineStatusResult",
     "PipelineStopResult",
     "ProfileResult",
+    "ProfileUpdateRequest",
     "SkillArtifactData",
+    "Status",
+    "TrajectoryUploadRequest",
     "TriggerPipelineResult",
+    "TurnPayload",
     "UploadResult",
     "UserProfile",
 ]
 
+from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mega_code.client.models import TurnSet
+
+# =============================================================================
+# Enums
+# =============================================================================
+
+
+class Status(StrEnum):
+    queued = "queued"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+    timeout = "timeout"
+    stopped = "stopped"
+
+
+class Decision(StrEnum):
+    PASS = "PASS"
+    MARGINAL = "MARGINAL"
+    FAIL = "FAIL"
+
+
+# =============================================================================
+# Shared / Error Models
+# =============================================================================
+
+
+class ErrorResponse(BaseModel):
+    """Error detail — either a string or a structured object."""
+
+    detail: str | dict[str, Any]
+
+
+class HealthResponse(BaseModel):
+    status: str = "ok"
+    version: str = "0.1.0"
+
+
+# =============================================================================
+# Trajectory Models
+# =============================================================================
+
+
+class TurnPayload(BaseModel):
+    turn_id: int
+    role: str = Field(
+        ...,
+        description="Raw role string. Accepted: human, user, assistant, tool_use, tool_result.",
+    )
+    content: str
+    tool_name: str | None = None
+    tool_target: str | None = None
+    is_error: bool = False
+    exit_code: int | None = None
+    command: str | None = None
+
+
+class APISessionMetadata(BaseModel):
+    """Transport-level session metadata (distinct from client.models.SessionMetadata)."""
+
+    session_id: str
+    project_path: str | None = None
+    git_branch: str | None = None
+    model_id: str | None = None
+    started_at: datetime | None = None
+
+
+class TrajectoryUploadRequest(BaseModel):
+    session_id: str = Field(..., description="Session UUID.")
+    project_id: str = Field(..., description="Project identifier.")
+    turns: list[TurnPayload] = Field(default_factory=list)
+    metadata: APISessionMetadata
+
+
+# =============================================================================
+# Pipeline Models
+# =============================================================================
+
+
+class PipelineRunRequest(BaseModel):
+    project_id: str = Field(..., description="Project identifier.")
+    steps: list[str] | None = None
+    force: bool = False
+    limit: int | None = None
+    concurrency: int = 64
+    model: str | None = None
+    include_claude: bool = False
+    include_codex: bool = False
+
+
+class PipelineProgress(BaseModel):
+    current_phase: str = ""
+    sessions_total: int = 0
+    sessions_processed: int = 0
+
+
+class PipelineOutputs(BaseModel):
+    sessions_processed: int = 0
+    skill_artifacts: list[SkillArtifactData] = Field(default_factory=list)
+    pending_skills: list[PendingSkillData] = Field(default_factory=list)
+    pending_strategies: list[PendingStrategyData] = Field(default_factory=list)
+    pending_lessons: list[PendingLessonData] = Field(default_factory=list)
+    report: dict[str, Any] | None = None
+
+
+# =============================================================================
+# Profile Models
+# =============================================================================
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Request body for PUT /profile."""
+
+    language: str | None = None
+    level: str | None = None
+    style: str | None = None
+    eureka: bool = True
+    goals: list[str] = Field(default_factory=list)
+    enabled: bool = True
+    autoPermission: bool = False
+
+
+# =============================================================================
+# Lesson Models
+# =============================================================================
+
+
+class LessonSummary(BaseModel):
+    slug: str
+    title: str
+    project_id: str | None = None
+    run_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class LessonsListResponse(BaseModel):
+    lessons: list[LessonSummary] = Field(default_factory=list)
+
 
 # =============================================================================
 # Pipeline Run Status Constants
@@ -53,8 +206,11 @@ ERROR_STATUSES: frozenset[str] = frozenset({"failed", "timeout"})
 """Pipeline finished with an error — client should report the error field."""
 
 # =============================================================================
-# Pipeline Output Models (inlined from pipeline/store/base.py)
+# Pipeline Output Models
 # =============================================================================
+# These hand-written models guarantee non-nullable collection defaults
+# (list vs None) so consumers can safely iterate without None-checks.
+# The generated counterparts use ``list[...] | None = None`` per the spec.
 
 
 class PendingSkillData(BaseModel):
@@ -97,12 +253,7 @@ class PendingStrategyData(BaseModel):
 
 
 class PendingLessonData(BaseModel):
-    """Data for a lesson document generated by the pipeline.
-
-    IMPORTANT: Mirrored in mega_code.server.models.PendingLessonData.
-    Keep both definitions in sync — they are separate to avoid importing
-    server-side models in client code (same pattern as PendingSkillData).
-    """
+    """Data for a lesson document generated by the pipeline."""
 
     slug: str
     title: str
@@ -145,14 +296,19 @@ class TriggerPipelineResult(BaseModel):
 
 
 class PipelineStatusResult(BaseModel):
-    """Status of a pipeline run."""
+    """Status of a pipeline run.
+
+    Uses ``PipelineProgress`` (generated) instead of raw dict for the
+    progress field. The ``status`` field stays as ``str`` so it works
+    with the string-based ``TERMINAL_STATUSES`` / ``ACTIVE_STATUSES`` sets.
+    """
 
     run_id: str
     project_id: str
     status: str
     started_at: str | None = None
     completed_at: str | None = None
-    progress: dict | None = None
+    progress: PipelineProgress | None = None
     outputs: OutputsResult | None = None
     report: dict | None = None
     error: str | None = None
@@ -163,6 +319,9 @@ class UserProfile(BaseModel):
 
     Fields language/level/style are set via CLI. Fields eureka/goals/enabled/autoPermission
     are shared with the MegaEureka VSCode extension.
+
+    Uses ``auto_permission`` with ``alias="autoPermission"`` so the field is
+    Pythonic but serialises to camelCase for the API.
     """
 
     language: str | None = Field(None, description="Preferred language (e.g. English, Thai)")
@@ -170,8 +329,17 @@ class UserProfile(BaseModel):
     style: str | None = Field(None, description="Teaching style (Mentor, Formal, Concise)")
     eureka: bool = Field(True, description="[MegaEureka] Enable learning cards generation")
     goals: list[str] = Field(
-        default_factory=list, description="[MegaEureka] Learning goals for personalized content"
+        default_factory=list,
+        description="[MegaEureka] Learning goals for personalized content",
+        validate_default=True,
     )
+
+    @field_validator("goals", mode="before")
+    @classmethod
+    def _coerce_null_goals(cls, v):
+        """Server may return null for goals — coerce to empty list."""
+        return v if v is not None else []
+
     enabled: bool = Field(True, description="[MegaEureka] Master switch for personalization")
     auto_permission: bool = Field(
         False,
@@ -204,7 +372,7 @@ class ActivePipelineItem(BaseModel):
     project_id: str
     status: str
     started_at: str | None = None
-    progress: dict | None = None
+    progress: PipelineProgress | None = None
 
 
 class ActivePipelinesResult(BaseModel):

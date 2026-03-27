@@ -1,8 +1,7 @@
 ---
 name: mega-code-profile
-description: "View or update your MEGA-Code developer profile (language, level, style) to personalise skill extraction."
-argument-hint: "[--language <lang>] [--level Beginner|Intermediate|Expert] [--style Mentor|Formal|Concise] [--reset]"
-allowed-tools: Bash, AskUserQuestion
+description: "View or update your developer profile. Usage: [--language <lang>] [--level Beginner|Intermediate|Expert] [--style Mentor|Formal|Concise] [--reset]"
+allowed-tools: Bash
 ---
 
 # Developer Profile
@@ -31,12 +30,12 @@ If the auth check fails (non-zero exit), show the output to the user and stop.
 
 ## Interactive Setup (Recommended)
 
-Ask the user for their profile using `AskUserQuestion` with these fields:
+Use `request_user_input` with all three questions in a single call:
 
-- **language**: Preferred communication language — options: `English`, `Korean`, `Thai`
-  (user can also type a custom language via "Other")
-- **level**: `Beginner`, `Intermediate`, or `Expert`
-- **style**: `Mentor`, `Formal`, or `Concise` (reserved for future use)
+1. "Preferred language?" — options: `English`, `Korean`, `Thai`
+   (user can type a custom language via the auto-added "Other" option)
+2. "Experience level?" — options: `Beginner`, `Intermediate`, `Expert`
+3. "Communication style?" — options: `Mentor`, `Formal`, `Concise`
 
 Save with:
 

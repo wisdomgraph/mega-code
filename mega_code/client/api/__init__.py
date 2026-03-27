@@ -37,7 +37,7 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
         if "api_key" not in kwargs:
             api_key = os.environ.get("MEGA_CODE_API_KEY", "")
             if not api_key:
-                raise ValueError("Not logged in. Run /mega-code:login first.")
+                raise ValueError("Not logged in. Run /mega-code-login first.")
             kwargs["api_key"] = api_key
         if "server_url" not in kwargs:
             kwargs["server_url"] = os.environ.get("MEGA_CODE_SERVER_URL", "http://localhost:8000")

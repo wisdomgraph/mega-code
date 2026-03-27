@@ -1,8 +1,7 @@
 ---
 name: mega-code-stop
-description: "Stop a running MEGA-Code pipeline."
-argument-hint: "[run-id]"
-allowed-tools: Bash, Read, AskUserQuestion
+description: "Stop a running MEGA-Code pipeline. Usage: [run-id]"
+allowed-tools: Bash, Read
 ---
 
 # Stop Pipeline
@@ -46,7 +45,7 @@ If the output says "No active pipeline runs.", tell the user and stop.
 
 **Step 2 — Ask user to confirm:**
 
-Use the `AskUserQuestion` tool to present the active runs and let the user choose.
+Use `request_user_input` to present the active runs and let the user choose.
 Always include a cancel option — even if there is only one active run.
 
 Format the question like:

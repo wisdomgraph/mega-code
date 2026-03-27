@@ -8,6 +8,7 @@ Covers:
 5. Agent-scoped session sync gating
 """
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -80,8 +81,10 @@ class TestPipelineBusyResponse:
 
             # Verify each call used the correct project_id
             calls = mock_async.post.call_args_list
-            assert calls[0].kwargs["json"]["project_id"] == "project-a"
-            assert calls[1].kwargs["json"]["project_id"] == "project-b"
+            payload_a = json.loads(calls[0].kwargs["content"])
+            payload_b = json.loads(calls[1].kwargs["content"])
+            assert payload_a["project_id"] == "project-a"
+            assert payload_b["project_id"] == "project-b"
 
     @pytest.mark.asyncio
     async def test_force_flag_sent_in_payload(self, client):
@@ -102,7 +105,7 @@ class TestPipelineBusyResponse:
                 force=True,
             )
 
-            payload = mock_async.post.call_args.kwargs["json"]
+            payload = json.loads(mock_async.post.call_args.kwargs["content"])
             assert payload["force"] is True
 
     @pytest.mark.asyncio
@@ -124,7 +127,7 @@ class TestPipelineBusyResponse:
                 include_codex=True,
             )
 
-            payload = mock_async.post.call_args.kwargs["json"]
+            payload = json.loads(mock_async.post.call_args.kwargs["content"])
             assert payload["include_codex"] is True
 
 
@@ -218,13 +221,11 @@ class TestTriggerPayloadConstruction:
 
             await client.trigger_pipeline_run(project_id="my-proj")
 
-            payload = mock_async.post.call_args.kwargs["json"]
-            assert payload == {
-                "project_id": "my-proj",
-                "force": False,
-                "concurrency": 64,
-                "include_codex": False,
-            }
+            payload = json.loads(mock_async.post.call_args.kwargs["content"])
+            assert payload["project_id"] == "my-proj"
+            assert payload["force"] is False
+            assert payload["concurrency"] == 64
+            assert payload["include_codex"] is False
 
     @pytest.mark.asyncio
     async def test_full_payload_with_optional_fields(self, client):
@@ -250,7 +251,7 @@ class TestTriggerPayloadConstruction:
                 include_codex=True,
             )
 
-            payload = mock_async.post.call_args.kwargs["json"]
+            payload = json.loads(mock_async.post.call_args.kwargs["content"])
             assert payload["steps"] == ["step0", "step1"]
             assert payload["force"] is True
             assert payload["limit"] == 5
@@ -288,12 +289,12 @@ class TestPipelineConstraintsAcceptance:
     client code correctly handles the server's concurrency enforcement.
 
     Manual verification steps:
-    1. Start a pipeline: /mega-code:run --project @my-project
-    2. While running, try again: /mega-code:run --project @my-project
+    1. Start a pipeline: /mega-code-wisdom-gen --project @my-project
+    2. While running, try again: /mega-code-wisdom-gen --project @my-project
        → Expected: server returns 409, client shows "pipeline already running"
-    3. While running, try different project: /mega-code:run --project @other-project
+    3. While running, try different project: /mega-code-wisdom-gen --project @other-project
        → Expected: succeeds, runs independently
-    4. Use --force flag: /mega-code:run --project @my-project --force
+    4. Use --force flag: /mega-code-wisdom-gen --project @my-project --force
        → Expected: server decides whether to allow override
     """
 
