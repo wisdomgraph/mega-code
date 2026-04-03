@@ -15,6 +15,7 @@ __all__ = [
     "ActivePipelineItem",
     "ActivePipelinesResult",
     "Decision",
+    "EnhanceSkillResult",
     "ErrorResponse",
     "HealthResponse",
     "LessonSummary",
@@ -32,12 +33,16 @@ __all__ = [
     "ProfileResult",
     "ProfileUpdateRequest",
     "SkillArtifactData",
+    "SkillRefItem",
     "Status",
     "TrajectoryUploadRequest",
     "TriggerPipelineResult",
     "TurnPayload",
     "UploadResult",
     "UserProfile",
+    "WisdomCurateResult",
+    "WisdomFeedbackResult",
+    "WisdomResultItem",
 ]
 
 from datetime import datetime
@@ -357,6 +362,13 @@ class ProfileResult(BaseModel):
     message: str = Field("", description="Human-readable message")
 
 
+class EnhanceSkillResult(BaseModel):
+    """Result of updating a skill with enhanced content."""
+
+    success: bool = Field(True, description="Whether skill was enhanced")
+    message: str = Field("", description="Human-readable message")
+
+
 class PipelineStopResult(BaseModel):
     """Result of stopping a pipeline run."""
 
@@ -383,6 +395,48 @@ class ActivePipelinesResult(BaseModel):
 
 
 # =============================================================================
+# Wisdom Curate (PCR Skill Networking)
+# =============================================================================
+
+
+class WisdomResultItem(BaseModel):
+    """Single wisdom item from curate results."""
+
+    wisdom_id: str = Field(description="Unique identifier of the wisdom record")
+    score: float = Field(description="Relevance score from the wisdom graph")
+    is_seed: bool = Field(default=False, description="Whether this wisdom is a seed node")
+
+
+class SkillRefItem(BaseModel):
+    """Reference to a curated skill file."""
+
+    name: str = Field(description="Skill name derived from the wisdom graph")
+    path: str = Field(description="Relative path to the skill file within the ZIP")
+    url: str = Field(default="", description="Pre-signed URL to download the skill ZIP")
+
+
+class WisdomCurateResult(BaseModel):
+    """Result from wisdom curate endpoint."""
+
+    session_id: str = Field(description="Session identifier for linking feedback")
+    query: str = Field(description="Original user query")
+    curation: str = Field(description="Markdown curation document with step-by-step workflow")
+    skills: list[SkillRefItem] = Field(default_factory=list, description="Curated skill references")
+    wisdoms: list[WisdomResultItem] = Field(
+        default_factory=list, description="Retrieved wisdom records with scores"
+    )
+    token_count: int = Field(default=0, description="Total LLM tokens consumed")
+    cost_usd: float = Field(default=0.0, description="Total LLM cost in USD")
+
+
+class WisdomFeedbackResult(BaseModel):
+    """Result from wisdom feedback endpoint."""
+
+    session_id: str = Field(description="Session identifier from the curate call")
+    feedback_id: str = Field(description="Unique identifier for the submitted feedback")
+    status: str = Field(default="saved", description="Feedback submission status")
+
+
 # Client Protocol
 # =============================================================================
 
@@ -443,3 +497,14 @@ class MegaCodeBaseClient(Protocol):
     def stop_pipeline(self, *, run_id: str) -> PipelineStopResult: ...
 
     def get_active_pipelines(self) -> ActivePipelinesResult: ...
+
+    def enhance_skill(
+        self,
+        *,
+        skill_name: str,
+        skill_md: str,
+        version: str,
+        metadata: dict | None = None,
+        project_id: str = "",
+        parent_skill_name: str = "",
+    ) -> EnhanceSkillResult: ...

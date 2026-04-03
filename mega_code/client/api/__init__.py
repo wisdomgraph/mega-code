@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import logging
 import os
+from urllib.parse import urlparse
 
 from mega_code.client.api.protocol import MegaCodeBaseClient
 from mega_code.client.api.remote import MegaCodeRemote
+
+logger = logging.getLogger(__name__)
 
 
 def _default_mode() -> str:
@@ -41,6 +45,14 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
             kwargs["api_key"] = api_key
         if "server_url" not in kwargs:
             kwargs["server_url"] = os.environ.get("MEGA_CODE_SERVER_URL", "http://localhost:8000")
+        server_url = kwargs["server_url"]
+        parsed = urlparse(server_url)
+        if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
+            logger.warning(
+                "Server URL %s uses plaintext HTTP — API key will be sent unencrypted. "
+                "Set MEGA_CODE_SERVER_URL to an https:// URL for production use.",
+                server_url,
+            )
         return MegaCodeRemote(**kwargs)
     elif mode == "local":
         from mega_code.pipeline.local_client import MegaCodeLocal

@@ -178,6 +178,7 @@ def _sync(lock: dict, lock_path: Path, target_dir: Path, skill_map: dict[str, Pa
                     child.is_dir()
                     and child.name.startswith("mega-code-")
                     and child.name not in lock_names
+                    and child.name not in skill_map
                 ):
                     shutil.rmtree(child)
                     removed.append(child.name)

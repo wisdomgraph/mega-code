@@ -10,11 +10,259 @@ Functions:
 
 from __future__ import annotations
 
+import json
 import os
 import re
+from copy import deepcopy
+from datetime import UTC, datetime
+
+import yaml
 
 DEFAULT_AUTHOR = "co-authored by www.megacode.ai"
 DEFAULT_VERSION = "1.0.0"
+MEGACODE_AUTHOR_MARKER = "megacode.ai"
+SKILL_METADATA_KEYS = (
+    "author",
+    "version",
+    "tags",
+    "generated_at",
+    "roi",
+)
+DEPRECATED_SKILL_METADATA_KEYS = (
+    "eval_version",
+    "enhanced_from",
+)
+
+
+class _InlineList(list):
+    """Marker list type rendered in YAML flow style."""
+
+
+class _QuotedString(str):
+    """Marker string type rendered with double quotes."""
+
+
+class _SkillFrontmatterDumper(yaml.SafeDumper):
+    """YAML dumper for skill frontmatter formatting."""
+
+
+def _represent_inline_list(dumper: yaml.SafeDumper, data: _InlineList) -> yaml.SequenceNode:
+    return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+
+
+def _represent_quoted_string(dumper: yaml.SafeDumper, data: _QuotedString) -> yaml.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data), style='"')
+
+
+_SkillFrontmatterDumper.add_representer(_InlineList, _represent_inline_list)
+_SkillFrontmatterDumper.add_representer(_QuotedString, _represent_quoted_string)
+
+
+def _quote_skill_metadata_fields(frontmatter: dict) -> None:
+    """Force canonical metadata fields to render with double quotes."""
+    description = frontmatter.get("description")
+    if isinstance(description, str):
+        frontmatter["description"] = _normalize_frontmatter_description(description)
+
+    metadata = frontmatter.get("metadata")
+    if not isinstance(metadata, dict):
+        return
+
+    for key in ("version", "generated_at"):
+        value = metadata.get(key)
+        if isinstance(value, str):
+            metadata[key] = _QuotedString(value)
+
+    roi = metadata.get("roi")
+    if isinstance(roi, list):
+        for entry in roi:
+            if not isinstance(entry, dict):
+                continue
+            for key in ("performance_increase", "token_savings"):
+                value = entry.get(key)
+                if isinstance(value, (int, float)):
+                    value = format_roi_percent(value)
+                if isinstance(value, str):
+                    entry[key] = _QuotedString(value)
+
+
+def parse_frontmatter(content: str) -> dict:
+    """Parse YAML frontmatter from markdown content.
+
+    Returns an empty dict if the content has no valid frontmatter block.
+    """
+    if not content.startswith("---"):
+        return {}
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    try:
+        data = yaml.safe_load(parts[1])
+    except yaml.YAMLError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def split_frontmatter(content: str) -> tuple[dict, str]:
+    """Split markdown into parsed frontmatter and body content."""
+    if not content.startswith("---"):
+        return {}, content
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}, content
+    return parse_frontmatter(content), parts[2].lstrip("\n")
+
+
+def skill_metadata(frontmatter: dict) -> dict:
+    """Return merged skill metadata from nested ``metadata`` or legacy top-level keys."""
+    metadata = frontmatter.get("metadata")
+    if isinstance(metadata, dict):
+        merged = dict(metadata)
+    else:
+        merged = {}
+    for key in SKILL_METADATA_KEYS:
+        if key not in merged and key in frontmatter:
+            merged[key] = frontmatter[key]
+    return merged
+
+
+def skill_frontmatter_value(frontmatter: dict, key: str, default: object = "") -> object:
+    """Read a skill metadata field with nested-metadata fallback."""
+    metadata = skill_metadata(frontmatter)
+    return metadata.get(key, default)
+
+
+def render_frontmatter(frontmatter: dict) -> str:
+    """Render a frontmatter dict without extra section spacing."""
+    rendered = deepcopy(frontmatter)
+    metadata = rendered.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("tags"), list):
+        metadata["tags"] = _InlineList(metadata["tags"])
+    _quote_skill_metadata_fields(rendered)
+    yaml_text = yaml.dump(
+        rendered,
+        Dumper=_SkillFrontmatterDumper,
+        sort_keys=False,
+        allow_unicode=False,
+        default_flow_style=False,
+        width=4096,
+    ).strip()
+    return f"---\n{yaml_text}\n---\n\n"
+
+
+def normalize_skill_frontmatter(frontmatter: dict) -> dict:
+    """Rewrite skill frontmatter into the canonical nested ``metadata`` shape."""
+    normalized: dict = {}
+    for key, value in frontmatter.items():
+        if key == "metadata" or key in SKILL_METADATA_KEYS or key in DEPRECATED_SKILL_METADATA_KEYS:
+            continue
+        normalized[key] = value
+
+    metadata = skill_metadata(frontmatter)
+    if metadata:
+        for key in DEPRECATED_SKILL_METADATA_KEYS:
+            metadata.pop(key, None)
+        normalized["metadata"] = metadata
+    return normalized
+
+
+def _normalize_frontmatter_description(description: str) -> str:
+    """Collapse description whitespace so YAML renders it as one logical line."""
+    return " ".join(description.split())
+
+
+def format_frontmatter_percent(value: object) -> str:
+    """Format ROI values for SKILL.md frontmatter display."""
+    return format_roi_percent(value)
+
+
+def normalize_pending_skill_markdown(
+    *,
+    skill_md: str,
+    skill_name: str,
+    author: str = "",
+    version: str = "",
+    tags: list[str] | None = None,
+    metadata_json: str = "",
+    default_author: str = DEFAULT_AUTHOR,
+    default_version: str = DEFAULT_VERSION,
+) -> str:
+    """Normalize pending-skill markdown into canonical nested frontmatter."""
+    try:
+        metadata_payload = json.loads(metadata_json) if metadata_json else {}
+    except Exception:
+        metadata_payload = {}
+    if not isinstance(metadata_payload, dict):
+        metadata_payload = {}
+
+    frontmatter, body = split_frontmatter(skill_md)
+    resolved_author = str(
+        author or skill_frontmatter_value(frontmatter, "author", "") or default_author
+    )
+    resolved_version = str(
+        version or skill_frontmatter_value(frontmatter, "version", "") or default_version
+    )
+    resolved_tags = tags or skill_frontmatter_value(frontmatter, "tags", [])
+    if not isinstance(resolved_tags, list):
+        resolved_tags = []
+
+    extra_frontmatter: dict[str, object] = {}
+    generated_at = skill_frontmatter_value(frontmatter, "generated_at", "")
+    if not generated_at:
+        generated_at = metadata_payload.get("generated_at", "")
+    if isinstance(generated_at, str) and generated_at:
+        extra_frontmatter["generated_at"] = generated_at
+
+    roi = skill_frontmatter_value(frontmatter, "roi", None)
+    if roi is None:
+        raw_roi = metadata_payload.get("roi")
+        if isinstance(raw_roi, dict):
+            roi = [
+                {
+                    "model": str(raw_roi.get("model", "unknown")),
+                    "performance_increase": format_frontmatter_percent(
+                        raw_roi.get("performance_increase", 0)
+                    ),
+                    "token_savings": format_frontmatter_percent(raw_roi.get("token_savings", 0)),
+                }
+            ]
+        elif isinstance(raw_roi, list):
+            roi = [
+                {
+                    "model": str(item.get("model", "unknown")),
+                    "performance_increase": format_frontmatter_percent(
+                        item.get("performance_increase", 0)
+                    ),
+                    "token_savings": format_frontmatter_percent(item.get("token_savings", 0)),
+                }
+                for item in raw_roi
+                if isinstance(item, dict)
+            ]
+    if roi:
+        extra_frontmatter["roi"] = roi
+
+    if frontmatter:
+        normalized = normalize_skill_frontmatter(frontmatter)
+        metadata_block = dict(normalized.get("metadata", {}))
+        metadata_block.setdefault("author", resolved_author)
+        metadata_block.setdefault("version", resolved_version)
+        if resolved_tags and "tags" not in metadata_block:
+            metadata_block["tags"] = resolved_tags
+        for key, value in extra_frontmatter.items():
+            metadata_block.setdefault(key, value)
+        if metadata_block:
+            normalized["metadata"] = metadata_block
+        return render_frontmatter(normalized) + body
+
+    return ensure_skill_frontmatter(
+        skill_md,
+        skill_name,
+        author=resolved_author,
+        version=resolved_version,
+        generated_at=str(extra_frontmatter.get("generated_at", "")),
+        tags=resolved_tags or None,
+        extra_frontmatter={"roi": extra_frontmatter["roi"]} if "roi" in extra_frontmatter else None,
+    )
 
 
 def get_author() -> str:
@@ -48,6 +296,15 @@ def sanitize_name(name: str) -> str:
     return sanitized
 
 
+def canonical_skill_name(skill_name: str, skill_md: str = "") -> str:
+    """Resolve the canonical skill slug, preferring frontmatter ``name``."""
+    frontmatter = parse_frontmatter(skill_md) if skill_md else {}
+    frontmatter_name = frontmatter.get("name")
+    if isinstance(frontmatter_name, str) and frontmatter_name.strip():
+        return sanitize_name(frontmatter_name)
+    return sanitize_name(skill_name)
+
+
 def bump_minor_version(version: str) -> str:
     """Bump the minor version: 1.0.0 -> 1.1.0, 1.2.0 -> 1.3.0.
 
@@ -58,6 +315,25 @@ def bump_minor_version(version: str) -> str:
     if len(parts) == 3:
         return f"{parts[0]}.{int(parts[1]) + 1}.0"
     return "1.1.0"
+
+
+def parse_semantic_version(version: str) -> tuple[int, int, int]:
+    """Parse ``major.minor.patch`` into a sortable tuple.
+
+    Invalid or partial versions sort before valid semantic versions.
+    """
+    parts = version.split(".")
+    if len(parts) != 3:
+        return (0, 0, 0)
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return (0, 0, 0)
+
+
+def current_timestamp_z() -> str:
+    """Return the current UTC timestamp in canonical skill frontmatter format."""
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _find_frontmatter_end(lines: list[str]) -> int:
@@ -160,25 +436,18 @@ def _inject_metadata_into_existing(
     return "\n".join(result)
 
 
-def _build_extra_frontmatter_lines(extra_frontmatter: dict) -> list[str]:
-    """Build YAML lines for nested extra frontmatter fields (e.g. roi)."""
-    lines: list[str] = [""]
+def _normalize_extra_frontmatter(extra_frontmatter: dict | None) -> dict[str, object]:
+    """Normalize extra skill metadata fields before rendering."""
+    if not extra_frontmatter:
+        return {}
+
+    normalized: dict[str, object] = {}
     for key, value in extra_frontmatter.items():
-        if isinstance(value, list):
-            lines.append(f"{key}:")
-            for item in value:
-                if isinstance(item, dict):
-                    for sub_key, sub_val in item.items():
-                        lines.append(f'  - {sub_key}: "{sub_val}"')
-                else:
-                    lines.append(f"  - {item}")
-        elif isinstance(value, dict):
-            lines.append(f"{key}:")
-            for sub_key, sub_val in value.items():
-                lines.append(f'  {sub_key}: "{sub_val}"')
+        if key == "roi" and isinstance(value, dict):
+            normalized[key] = [value]
         else:
-            lines.append(f"{key}: {value}")
-    return lines
+            normalized[key] = value
+    return normalized
 
 
 def _space_frontmatter_sections(content: str) -> str:
@@ -239,43 +508,45 @@ def ensure_skill_frontmatter(
     Returns:
         SKILL.md content with a valid YAML frontmatter block.
     """
-    if skill_md.strip().startswith("---"):
-        # Build simple extra_fields for flat values in extra_frontmatter
-        extra_fields: dict[str, str] | None = None
-        extra_nested_lines: list[str] = []
-        if extra_frontmatter:
-            extra_fields = {}
-            for k, v in extra_frontmatter.items():
-                if isinstance(v, (dict, list)):
-                    extra_nested_lines.extend(_build_extra_frontmatter_lines({k: v}))
-                else:
-                    extra_fields[k] = str(v)
-            if not extra_fields:
-                extra_fields = None
+    extra_metadata = _normalize_extra_frontmatter(extra_frontmatter)
 
-        result = _inject_metadata_into_existing(
-            skill_md,
-            author=author,
-            version=version,
-            generated_at=generated_at,
-            tags=tags,
-            extra_fields=extra_fields,
-        )
-        # Inject nested extra frontmatter (e.g. roi block)
-        if extra_nested_lines:
-            r_lines = result.split("\n")
-            end_idx = _find_frontmatter_end(r_lines)
-            if end_idx != -1:
-                existing_keys = _collect_top_level_keys(r_lines, 1, end_idx)
-                # Find first real (non-blank) line to extract the top-level key
-                top_key = next(
-                    (ln.split(":", 1)[0].strip() for ln in extra_nested_lines if ln.strip()),
-                    "",
-                )
-                if top_key and top_key not in existing_keys:
-                    r_lines = r_lines[:end_idx] + extra_nested_lines + r_lines[end_idx:]
-                    result = "\n".join(r_lines)
-        return _space_frontmatter_sections(result)
+    if skill_md.strip().startswith("---"):
+        frontmatter, body = split_frontmatter(skill_md)
+        normalized = dict(frontmatter)
+        has_nested_metadata = isinstance(frontmatter.get("metadata"), dict)
+        has_legacy_metadata = any(key in frontmatter for key in SKILL_METADATA_KEYS)
+
+        if has_nested_metadata:
+            metadata = dict(frontmatter["metadata"])
+            if author and "author" not in metadata:
+                metadata["author"] = author
+            if version and "version" not in metadata:
+                metadata["version"] = version
+            if generated_at and "generated_at" not in metadata:
+                metadata["generated_at"] = generated_at
+            if tags and "tags" not in metadata:
+                metadata["tags"] = tags
+            for key, value in extra_metadata.items():
+                metadata.setdefault(key, value)
+            normalized["metadata"] = metadata
+            return render_frontmatter(normalized) + body
+
+        if not has_legacy_metadata:
+            metadata: dict[str, object] = {}
+            if author:
+                metadata["author"] = author
+            if version:
+                metadata["version"] = version
+            if tags:
+                metadata["tags"] = tags
+            if generated_at:
+                metadata["generated_at"] = generated_at
+            metadata.update(extra_metadata)
+            if metadata:
+                normalized["metadata"] = metadata
+            return render_frontmatter(normalized) + body
+
+        return skill_md
 
     # Extract description from first non-heading paragraph
     description = ""
@@ -285,22 +556,26 @@ def ensure_skill_frontmatter(
             description = stripped
             break
 
-    # Build YAML frontmatter
-    fm_lines = ["---", f"name: {skill_name}"]
+    frontmatter: dict[str, object] = {"name": skill_name}
     if description:
-        fm_lines.append("description: |")
-        fm_lines.append(f"  {description}")
+        frontmatter["description"] = description
     else:
-        fm_lines.append(f"description: Skill {skill_name}")
-    fm_lines.extend(
-        _build_metadata_lines(author=author, version=version, generated_at=generated_at, tags=tags)
-    )
-    if extra_frontmatter:
-        fm_lines.extend(_build_extra_frontmatter_lines(extra_frontmatter))
-    fm_lines.append("---")
-    fm_lines.append("")
+        frontmatter["description"] = f"Skill {skill_name}"
 
-    return "\n".join(fm_lines) + skill_md
+    metadata: dict[str, object] = {}
+    if author:
+        metadata["author"] = author
+    if version:
+        metadata["version"] = version
+    if tags:
+        metadata["tags"] = tags
+    if generated_at:
+        metadata["generated_at"] = generated_at
+    metadata.update(extra_metadata)
+    if metadata:
+        frontmatter["metadata"] = metadata
+
+    return render_frontmatter(frontmatter) + skill_md
 
 
 def ensure_strategy_frontmatter(
@@ -396,3 +671,58 @@ def ensure_lesson_frontmatter(
     fm_lines.append("")
 
     return "\n".join(fm_lines) + content
+
+
+# =============================================================================
+# ROI formatting — moved from mega_code.pipeline.store.base so the OSS
+# distribution (which ships only mega_code.client) can format ROI entries
+# without a pipeline dependency.
+# =============================================================================
+
+
+def format_roi_percent(value, *, clamp_min: float | None = None) -> str:
+    """Normalize ROI values into display percentages like ``"98%"``."""
+    if isinstance(value, str):
+        return value if value.endswith("%") else value
+    if isinstance(value, (int, float)):
+        # Fractional ROI inputs (in -1..1 range) are treated as normalized
+        # values and multiplied by 100.  Values outside that range are
+        # treated as already-percentage values.
+        # Negative fractions intentionally display as 0% for frontmatter/UI.
+        if -1 <= value < 0:
+            pct = 0
+        elif 0 <= value <= 1:
+            pct = value * 100
+        else:
+            pct = value
+        if clamp_min is not None:
+            pct = max(clamp_min, pct)
+        return f"{pct:.0f}%"
+    return "0%"
+
+
+def format_eval_roi_entry(eval_roi_data: dict, *, include_analytics: bool = False) -> dict:
+    """Build a normalized ROI entry for metadata/frontmatter storage."""
+    roi_entry: dict = {}
+    if eval_roi_data.get("model"):
+        roi_entry["model"] = str(eval_roi_data["model"])
+
+    roi_entry["performance_increase"] = format_roi_percent(
+        eval_roi_data.get("performance_increase", 0)
+    )
+    roi_entry["token_savings"] = format_roi_percent(
+        eval_roi_data.get("token_savings", 0),
+        clamp_min=0,
+    )
+
+    if include_analytics:
+        analytics_fields = (
+            ("test_count", "test_count"),
+            ("with_skill_avg", "with_success_rate"),
+            ("baseline_avg", "baseline_success_rate"),
+        )
+        for source_key, output_key in analytics_fields:
+            if eval_roi_data.get(source_key) is not None:
+                roi_entry[output_key] = eval_roi_data[source_key]
+
+    return roi_entry

@@ -23,15 +23,18 @@ from mega_code.client.utils.ndjson_tracing import (
     export_traces,
     flush_traces,
     format_traceparent,
+    get_current_span,
 )
 
 
 @pytest.fixture(autouse=True)
 def _clean_global_span_stack():
-    """Ensure the global span stack is empty before/after each test."""
+    """Ensure the global span stacks are empty before/after each test."""
     _ndjson_mod._global_span_stack.clear()
+    _ndjson_mod._global_span_object_stack.clear()
     yield
     _ndjson_mod._global_span_stack.clear()
+    _ndjson_mod._global_span_object_stack.clear()
 
 
 @pytest.fixture
@@ -251,6 +254,48 @@ class TestNdjsonTracer:
         # Child from tracer_b should have parent from tracer_a
         assert spans_by_name["child_from_b"]["parentSpanId"] == parent_span.span_id
         assert spans_by_name["parent_from_a"]["parentSpanId"] == ""
+
+
+# ---- get_current_span ----
+
+
+class TestGetCurrentSpan:
+    def test_returns_none_outside_span(self):
+        """get_current_span returns None when no span is active."""
+        assert get_current_span() is None
+
+    def test_returns_span_inside_context(self, writer):
+        """get_current_span returns the active NdjsonSpan."""
+        tracer = NdjsonTracer(writer, "t" * 32)
+        with tracer.start_as_current_span("my-op") as span:
+            current = get_current_span()
+            assert current is span
+
+    def test_returns_innermost_when_nested(self, writer):
+        """get_current_span returns the innermost span when nested."""
+        tracer = NdjsonTracer(writer, "t" * 32)
+        with tracer.start_as_current_span("outer") as outer:
+            assert get_current_span() is outer
+            with tracer.start_as_current_span("inner") as inner:
+                assert get_current_span() is inner
+            assert get_current_span() is outer
+
+    def test_returns_none_after_exit(self, writer):
+        """get_current_span returns None after all spans exit."""
+        tracer = NdjsonTracer(writer, "t" * 32)
+        with tracer.start_as_current_span("op"):
+            pass
+        assert get_current_span() is None
+
+    def test_works_across_tracers(self, writer):
+        """get_current_span works with spans from different tracer instances."""
+        tracer_a = NdjsonTracer(writer, "t" * 32, name="a")
+        tracer_b = NdjsonTracer(writer, "t" * 32, name="b")
+        with tracer_a.start_as_current_span("parent") as parent:
+            assert get_current_span() is parent
+            with tracer_b.start_as_current_span("child") as child:
+                assert get_current_span() is child
+            assert get_current_span() is parent
 
 
 # ---- Deduplication ----
@@ -609,3 +654,40 @@ class TestTruncateSpanForExport:
         assert sent_payload_attr is not None
         assert len(sent_payload_attr) < len(long_payload)
         assert "truncated" in sent_payload_attr
+
+
+# ---- Public API (tracing.py) get_current_span ----
+
+
+class TestPublicGetCurrentSpan:
+    def test_returns_noop_when_tracing_disabled(self):
+        """Public get_current_span returns NoOpSpan when tracing is disabled."""
+        import mega_code.client.utils.tracing as tracing_mod
+
+        old_enabled = tracing_mod._tracing_enabled
+        try:
+            tracing_mod._tracing_enabled = False
+            span = tracing_mod.get_current_span()
+            # Should be a _NoOpSpan — set_attribute should not raise
+            span.set_attribute("key", "value")
+            span.add_event("event")
+            span.record_exception(RuntimeError("test"))
+        finally:
+            tracing_mod._tracing_enabled = old_enabled
+
+    def test_returns_real_span_when_tracing_enabled(self, writer):
+        """Public get_current_span returns real span when inside a traced context."""
+        import mega_code.client.utils.tracing as tracing_mod
+
+        old_enabled = tracing_mod._tracing_enabled
+        old_writer = tracing_mod._writer
+        try:
+            tracing_mod._tracing_enabled = True
+            tracing_mod._writer = writer
+            tracer = NdjsonTracer(writer, "t" * 32)
+            with tracer.start_as_current_span("test-span") as span:
+                public_span = tracing_mod.get_current_span()
+                assert public_span is span
+        finally:
+            tracing_mod._tracing_enabled = old_enabled
+            tracing_mod._writer = old_writer
