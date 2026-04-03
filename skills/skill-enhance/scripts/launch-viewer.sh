@@ -2,9 +2,9 @@
 # Launch the enhancement viewer with optional previous-iteration context.
 # Usage: launch-viewer.sh <MEGA_DIR> <ITER_DIR> <SKILL_NAME> <ITERATION_NUM> [--foreground]
 #
-# --foreground: Run the viewer in the foreground (blocks until feedback is submitted).
-#               Use in environments where background processes are not reliable (e.g. Codex).
-#               Outputs the feedback JSON to stdout on exit. Does not require stop-viewer.sh.
+# The supported mode is foreground execution for Codex. The viewer waits until the
+# server is bound, opens the browser automatically, exits after feedback is submitted,
+# and then prints the feedback JSON to stdout.
 set -euo pipefail
 
 if [ $# -lt 4 ]; then
@@ -16,9 +16,9 @@ MEGA_DIR="$1"
 ITER_DIR="$2"
 SKILL_NAME="$3"
 ITERATION_NUM="$4"
-FOREGROUND=false
-if [ "${5:-}" = "--foreground" ]; then
-    FOREGROUND=true
+if [ "${5:-}" != "" ] && [ "${5:-}" != "--foreground" ]; then
+    echo "Unsupported argument: ${5}" >&2
+    exit 1
 fi
 
 PREV_WORKSPACE_ARGS=()
@@ -49,70 +49,10 @@ rm -f "$ITER_DIR/viewer.port"
 sleep 0.5
 
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
-
-if [ "$FOREGROUND" = "true" ]; then
-    # Foreground mode: run the viewer directly (blocking).
-    # The viewer exits automatically after feedback is submitted (--exit-on-feedback).
-    # This mode is for environments where background processes are unreliable (e.g. Codex).
-    uv run --directory "$MEGA_DIR" python -m mega_code.client.enhancement_viewer \
-        "$ITER_DIR" \
-        --skill-name "$SKILL_NAME" \
-        --iteration "$ITERATION_NUM" \
-        --no-browser \
-        --exit-on-feedback \
-        ${PREV_WORKSPACE_ARGS[@]+"${PREV_WORKSPACE_ARGS[@]}"}
-    # Output feedback (same as stop-viewer.sh does in background mode)
-    cat "$ITER_DIR/feedback.json" 2>/dev/null || echo '{"reviews": []}'
-    exit 0
-fi
-
-# Background mode: launch with nohup (+ setsid when available) so the viewer survives shell exit
-SETSID=""
-if command -v setsid >/dev/null 2>&1; then
-    SETSID="setsid"
-fi
-nohup $SETSID uv run --directory "$MEGA_DIR" python -m mega_code.client.enhancement_viewer \
+uv run --directory "$MEGA_DIR" python -m mega_code.client.enhancement_viewer \
     "$ITER_DIR" \
     --skill-name "$SKILL_NAME" \
     --iteration "$ITERATION_NUM" \
-    --no-browser \
-    ${PREV_WORKSPACE_ARGS[@]+"${PREV_WORKSPACE_ARGS[@]}"} \
-    >"$ITER_DIR/viewer.log" 2>&1 &
-VIEWER_PID=$!
-
-# Wait until the server writes its port file and responds (up to 15 seconds)
-PORT_FILE="$ITER_DIR/viewer.port"
-ACTUAL_PORT=""
-for i in $(seq 1 30); do
-    # Fail fast if the process already exited
-    if ! kill -0 "$VIEWER_PID" 2>/dev/null; then
-        echo "ERROR: Viewer process exited unexpectedly." >&2
-        echo "Viewer log:" >&2
-        cat "$ITER_DIR/viewer.log" 2>/dev/null >&2
-        rm -f "$ITER_DIR/viewer.pid"
-        exit 1
-    fi
-    # Read the port file once it appears
-    if [ -z "$ACTUAL_PORT" ] && [ -f "$PORT_FILE" ]; then
-        ACTUAL_PORT=$(cat "$PORT_FILE")
-    fi
-    # Health-check the actual port
-    if [ -n "$ACTUAL_PORT" ] && curl -sf "http://localhost:$ACTUAL_PORT" > /dev/null 2>&1; then
-        if command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "http://localhost:$ACTUAL_PORT"
-        elif command -v open >/dev/null 2>&1; then
-            open "http://localhost:$ACTUAL_PORT"
-        fi
-        echo "Viewer is running on http://localhost:$ACTUAL_PORT (PID $VIEWER_PID)"
-        exit 0
-    fi
-    sleep 0.5
-done
-
-# If we get here, the server didn't start
-echo "ERROR: Viewer failed to start within 15 seconds." >&2
-echo "Viewer log:" >&2
-cat "$ITER_DIR/viewer.log" 2>/dev/null >&2
-kill "$VIEWER_PID" 2>/dev/null || true
-rm -f "$ITER_DIR/viewer.pid" "$ITER_DIR/viewer.port"
-exit 1
+    --exit-on-feedback \
+    ${PREV_WORKSPACE_ARGS[@]+"${PREV_WORKSPACE_ARGS[@]}"}
+cat "$ITER_DIR/feedback.json" 2>/dev/null || echo '{"reviews": []}'
