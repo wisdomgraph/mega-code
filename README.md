@@ -146,6 +146,8 @@ npx skills add https://github.com/wisdomgraph/mega-code/tree/codex -a codex
 
 ### Step 2 — Sign in
 
+Open a Codex CLI session, then run:
+
 ```
 $mega-code-login
 ```

@@ -2,6 +2,8 @@
 name: mega-code-skill-enhance
 description: "Evaluate and enhance a mega-code skill using LLM-as-judge A/B testing with an iterative improvement loop."
 argument-hint: "<skill-name>"
+metadata:
+  tags: [evaluation, codex, skills]
 allowed-tools: Bash, Read, Write, Edit
 ---
 
@@ -23,18 +25,13 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
 fi
 export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
-set -a && . "$MEGA_CODE_DATA_DIR/.env" 2>/dev/null && set +a
+set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
 If the auth check fails (non-zero exit), show the output to the user and stop.
 
 If any Python module is missing (e.g. `ModuleNotFoundError`), run `$mega-code-update` first to sync the local package.
-
-**Detect which agent you are** — set `EVAL_AGENT` so the A/B runner uses the same agent:
-- If you are Claude Code, set `EVAL_AGENT=claude`
-- If you are Codex, set `EVAL_AGENT=codex`
-- If unsure, omit it (auto-detection will be used)
 
 All commands below assume `MEGA_DIR` is set.
 
@@ -59,10 +56,10 @@ fi
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper list-skills "${PROJECT_DIR_ARG[@]}" 2>&1
 ```
 
-Parse the JSON output and present the skills to the user using `AskUserQuestion`.
+Parse the JSON output and present the skills to the user using `request_user_input`.
 Only mega-code authored skills are shown. The author marker may be either
 top-level `author` or nested `metadata.author`; both are supported.
-If exactly one skill is returned, do not use `AskUserQuestion`; tell the user which
+If exactly one skill is returned, do not use `request_user_input`; tell the user which
 skill was found and proceed with it directly.
 
 Once a skill is selected, resolve it immediately so the canonical folder name is repaired before any
@@ -138,11 +135,11 @@ Run the A/B test runner. This spawns isolated agent CLI completions — one with
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_runner \
     --test-cases "$ITER_DIR/test-cases.json" \
     --skill-md <skill-path> \
-    --agent "${EVAL_AGENT}" \
+    --agent codex \
     --output "$ITER_DIR/ab-results.json" 2>&1
 ```
 
-The `--agent` flag ensures the A/B runner uses the same agent CLI as the host (you). If `EVAL_AGENT` is empty, omit the `--agent` flag entirely.
+The `--agent` flag must stay `codex` for this skill. Do not add alternate host-agent branches.
 
 If this fails, show the error to the user and stop.
 
@@ -189,42 +186,19 @@ Display the aggregation output to the user (per-test results + ROI metrics + ver
 
 Launch the HTTP review server.
 
-**If `EVAL_AGENT=codex`** — background processes are unreliable in this environment. Use
-foreground mode: the script runs the viewer directly, blocks until the user submits
-feedback, then exits and prints the feedback JSON to stdout. Do NOT call `stop-viewer.sh`.
+This skill is Codex-only. Run the viewer in the foreground in a persistent session.
+Do not use shell backgrounding, `nohup`, `setsid`, or `stop-viewer.sh`.
 
 ```bash
 FEEDBACK_JSON=$(bash "$MEGA_DIR/skills/skill-enhance/scripts/launch-viewer.sh" \
     "$MEGA_DIR" "$ITER_DIR" "$SKILL_NAME" "$ITERATION_NUM" --foreground)
 ```
 
-The script will print the viewer URL to stderr before blocking. Tell the user:
-"The evaluation viewer is running at the URL shown above. Review the outputs, leave feedback in the textboxes, and click 'Submit' — that will close the viewer and return control to me."
-When the command returns, `$FEEDBACK_JSON` contains the feedback. Skip the stop-viewer step.
-
-**Otherwise (Claude Code or other agents)** — the launch script uses `nohup` (and `setsid`
-when available) to keep the viewer alive independent of this shell, saves the PID to
-`$ITER_DIR/viewer.pid`, and waits until the server responds on its assigned port before returning:
-
-```bash
-bash "$MEGA_DIR/skills/skill-enhance/scripts/launch-viewer.sh" \
-    "$MEGA_DIR" "$ITER_DIR" "$SKILL_NAME" "$ITERATION_NUM"
-```
-
-If the script exits non-zero the viewer failed to start. Show the error (including
-`$ITER_DIR/viewer.log`) to the user and stop — do NOT tell them to open the URL.
-
-On success, the script prints the actual URL (e.g. "Viewer is running on http://localhost:<PORT>") and opens the browser automatically.
-Tell the user: "The evaluation viewer has opened in your browser. Review the outputs, leave feedback in the textboxes, and click 'Submit'. The feedback will be saved automatically. Let me know when you're done." Do NOT open the browser yourself or output the URL as a clickable link — the launch script handles browser opening.
-
-Wait for the user to confirm they've reviewed. Then stop the viewer and read feedback:
-
-```bash
-export STOP_REASON=user_confirmed_in_chat
-bash "$MEGA_DIR/skills/skill-enhance/scripts/stop-viewer.sh" "$ITER_DIR"
-```
-
-If the user says they have no feedback, that's fine — proceed with empty feedback.
+The launch script starts the viewer in the foreground. The viewer binds its server and
+opens the browser to the live server URL automatically. Tell the user:
+"The evaluation viewer has opened in your browser. Review the outputs, leave feedback in the textboxes, and click 'Submit' — that will close the viewer and return control to me."
+When the command returns, `$FEEDBACK_JSON` contains the feedback JSON. If the script exits
+non-zero, show the error output to the user and stop.
 
 ## Phase 7 — Enhance Skill
 
@@ -286,7 +260,7 @@ with the enhanced version (semantic version bumped, `generated_at` refreshed, RO
 **Store on server** (creates a new DB row for the canonical enhanced skill name with the bumped semantic version and lineage metadata, while preserving the original pending-skill folder name as the lineage parent):
 
 ```bash
-set -a && . ~/.local/share/mega-code/.env 2>/dev/null && set +a
+set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a
 export MEGA_CODE_CLIENT_MODE=${MEGA_CODE_CLIENT_MODE:-remote}
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
     store-skill \
