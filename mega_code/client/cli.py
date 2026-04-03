@@ -88,10 +88,9 @@ def save_env_file(env_path: Path, env_vars: dict[str, str]) -> None:
         if key not in existing_keys:
             existing_lines.append(f"{key}={value}\n")
 
-    with open(env_path, "w") as f:
+    fd = os.open(env_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         f.writelines(existing_lines)
-
-    env_path.chmod(0o600)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -403,6 +402,51 @@ def cmd_pipeline_stop(args: argparse.Namespace) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════
+def cmd_wisdom_curate(args: argparse.Namespace) -> int:
+    """Curate wisdoms for a problem description."""
+    from mega_code.client.api import create_client
+    from mega_code.client.api.remote import MegaCodeRemote
+
+    _load_env()
+    client = create_client()
+    if not isinstance(client, MegaCodeRemote):
+        print("Wisdom curate requires remote mode.", file=sys.stderr)
+        return 1
+
+    query = " ".join(args.query)
+    try:
+        result = client.wisdom_curate(query=query, session_id=args.session_id, top_k=args.top_k)
+    except (ConnectionError, TimeoutError, ValueError, OSError) as e:
+        print(f"Wisdom curate failed: {e}", file=sys.stderr)
+        return 1
+
+    print(result.model_dump_json(indent=2))
+    return 0
+
+
+def cmd_wisdom_feedback(args: argparse.Namespace) -> int:
+    """Submit feedback on a wisdom curate session."""
+    from mega_code.client.api import create_client
+    from mega_code.client.api.remote import MegaCodeRemote
+
+    _load_env()
+    client = create_client()
+    if not isinstance(client, MegaCodeRemote):
+        print("Wisdom feedback requires remote mode.", file=sys.stderr)
+        return 1
+
+    try:
+        result = client.wisdom_feedback(
+            session_id=args.session_id, feedback_text=args.feedback_text
+        )
+    except (ConnectionError, TimeoutError, ValueError, OSError) as e:
+        print(f"Wisdom feedback failed: {e}", file=sys.stderr)
+        return 1
+
+    print(result.model_dump_json(indent=2))
+    return 0
+
+
 # Main entry point
 # ═══════════════════════════════════════════════════════════════════
 
@@ -481,6 +525,17 @@ def main():
     pstop_parser = subparsers.add_parser("pipeline-stop", help="Stop a running pipeline")
     pstop_parser.add_argument("--run-id", required=True, help="Run ID to stop")
 
+    # Wisdom curate command
+    curate_parser = subparsers.add_parser("wisdom-curate", help="Curate wisdoms for a problem")
+    curate_parser.add_argument("query", nargs="+", help="Problem description")
+    curate_parser.add_argument("--session-id", default="", help="Session ID for linking feedback")
+    curate_parser.add_argument("--top-k", type=int, default=20, help="Max wisdoms to retrieve")
+
+    # Wisdom feedback command
+    fb_parser = subparsers.add_parser("wisdom-feedback", help="Submit feedback on a curate session")
+    fb_parser.add_argument("--session-id", required=True, help="Session ID from curate")
+    fb_parser.add_argument("--feedback-text", required=True, help="Natural language feedback")
+
     args = parser.parse_args()
 
     match args.command:
@@ -499,6 +554,10 @@ def main():
             return cmd_pipeline_status(args)
         case "pipeline-stop":
             return cmd_pipeline_stop(args)
+        case "wisdom-curate":
+            return cmd_wisdom_curate(args)
+        case "wisdom-feedback":
+            return cmd_wisdom_feedback(args)
         case _:
             return 0
 

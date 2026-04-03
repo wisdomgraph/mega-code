@@ -10,6 +10,7 @@ import json
 import logging
 import random as _random
 from pathlib import Path
+from urllib.parse import quote as _url_quote
 
 import httpx
 from tenacity import (
@@ -21,6 +22,7 @@ from tenacity import (
 from mega_code.client.api.protocol import (
     ActivePipelinesResult,
     APISessionMetadata,
+    EnhanceSkillResult,
     OutputsResult,
     PipelineProgress,
     PipelineRunRequest,
@@ -33,6 +35,8 @@ from mega_code.client.api.protocol import (
     TurnPayload,
     UploadResult,
     UserProfile,
+    WisdomCurateResult,
+    WisdomFeedbackResult,
 )
 from mega_code.client.models import TurnSet
 from mega_code.client.utils.tracing import traced
@@ -65,8 +69,10 @@ def _wait_exponential_jitter(retry_state) -> float:
 
 def _log_retry(retry_state) -> None:
     exc = retry_state.outcome.exception()
+    fn_name = getattr(retry_state.fn, "__name__", "request")
     logger.warning(
-        "upload_trajectory attempt %d/%d failed (%s: %s), retrying…",
+        "%s attempt %d/%d failed (%s: %s), retrying…",
+        fn_name,
         retry_state.attempt_number,
         _MAX_ATTEMPTS,
         exc.__class__.__name__,
@@ -123,6 +129,18 @@ class MegaCodeRemote:
         if self._async_client is None or self._async_client.is_closed:
             self._async_client = httpx.AsyncClient(**self._async_client_kwargs)
         return self._async_client
+
+    @staticmethod
+    def _set_current_span_attrs(**attrs) -> None:
+        """Set attributes on the current NDJSON span if available."""
+        from mega_code.client.utils.tracing import get_current_span
+
+        span = get_current_span()
+        for k, v in attrs.items():
+            if isinstance(v, (str, int, float, bool)):
+                span.set_attribute(k, v)
+            else:
+                span.set_attribute(k, json.dumps(v, default=str))
 
     @staticmethod
     def _check_response(resp: httpx.Response) -> None:
@@ -492,12 +510,123 @@ class MegaCodeRemote:
         self._check_response(resp)
         return ActivePipelinesResult.model_validate(resp.json())
 
+    @traced("client.remote.enhance_skill", kind="CLIENT", openinference_kind="TOOL")
+    def enhance_skill(
+        self,
+        *,
+        skill_name: str,
+        skill_md: str,
+        version: str,
+        metadata: dict | None = None,
+        project_id: str = "",
+        parent_skill_name: str = "",
+    ) -> EnhanceSkillResult:
+        """Create a new skill version via POST /api/megacode/v1/skills/{skill_name}/enhance."""
+        from mega_code.client.utils.tracing import get_tracer
+
+        tracer = get_tracer(__name__)
+        url_path = f"/api/megacode/v1/skills/{_url_quote(skill_name, safe='')}/enhance"
+
+        self._set_current_span_attrs(
+            skill_name=skill_name,
+            version=version,
+            project_id=project_id,
+            parent_skill_name=parent_skill_name,
+            has_metadata=metadata is not None,
+        )
+
+        body: dict = {
+            "skill_md": skill_md,
+            "version": version,
+        }
+        if parent_skill_name:
+            body["parent_skill_name"] = parent_skill_name
+        if metadata:
+            body["metadata"] = metadata
+        params: dict = {}
+        if project_id:
+            params["project_id"] = project_id
+
+        with tracer.start_as_current_span("http.POST /skills/enhance") as http_span:
+            http_span.set_attribute("http.method", "POST")
+            http_span.set_attribute("http.url", f"{self._client.base_url}{url_path}")
+            http_span.set_attribute("enhance.skill_name", skill_name)
+            http_span.set_attribute("enhance.version", version)
+            http_span.set_attribute("enhance.project_id", project_id)
+            http_span.set_attribute("enhance.parent_skill_name", parent_skill_name)
+            payload_json = json.dumps(body, default=str)
+            http_span.set_attribute("enhance.payload_size_bytes", len(payload_json))
+            http_span.set_attribute("enhance.payload_json", payload_json)
+            if metadata:
+                http_span.set_attribute("enhance.metadata_json", json.dumps(metadata, default=str))
+            if params:
+                http_span.set_attribute("enhance.params_json", json.dumps(params))
+
+            resp = self._client.post(url_path, json=body, params=params)
+            http_span.set_attribute("http.status_code", resp.status_code)
+            resp_data = resp.json()
+            http_span.set_attribute("enhance.response_json", json.dumps(resp_data))
+            self._check_response(resp)
+            result = EnhanceSkillResult(**resp_data)
+            http_span.set_attribute("enhance.response.success", result.success)
+            http_span.set_attribute("enhance.response.message", getattr(result, "message", ""))
+            return result
+
     @traced("client.remote.load_profile", kind="CLIENT", openinference_kind="TOOL")
     def load_profile(self) -> UserProfile:
         """Load user profile via GET /api/megacode/v1/profile."""
         resp = self._client.get("/api/megacode/v1/profile")
         self._check_response(resp)
         return UserProfile.model_validate(resp.json())
+
+    # -------------------------------------------------------------------------
+    # Wisdom Curate (PCR Skill Networking)
+    # -------------------------------------------------------------------------
+
+    @retry(
+        retry=retry_if_exception(_is_retryable),
+        wait=_wait_exponential_jitter,
+        stop=stop_after_attempt(_MAX_ATTEMPTS),
+        before_sleep=_log_retry,
+        reraise=True,
+    )
+    @traced("client.remote.wisdom_curate", kind="CLIENT", openinference_kind="TOOL")
+    def wisdom_curate(
+        self,
+        *,
+        query: str,
+        session_id: str = "",
+        top_k: int = 20,
+    ) -> WisdomCurateResult:
+        """Curate wisdom via POST /api/megacode/v1/wisdom/curate."""
+        self._set_current_span_attrs(query=query, session_id=session_id, top_k=top_k)
+        body: dict = {"query": query, "top_k": top_k}
+        if session_id:
+            body["session_id"] = session_id
+        resp = self._client.post("/api/megacode/v1/wisdom/curate", json=body)
+        self._check_response(resp)
+        return WisdomCurateResult(**resp.json())
+
+    @retry(
+        retry=retry_if_exception(_is_retryable),
+        wait=_wait_exponential_jitter,
+        stop=stop_after_attempt(_MAX_ATTEMPTS),
+        before_sleep=_log_retry,
+        reraise=True,
+    )
+    @traced("client.remote.wisdom_feedback", kind="CLIENT", openinference_kind="TOOL")
+    def wisdom_feedback(
+        self,
+        *,
+        session_id: str,
+        feedback_text: str,
+    ) -> WisdomFeedbackResult:
+        """Submit wisdom feedback via POST /api/megacode/v1/wisdom/feedback."""
+        self._set_current_span_attrs(session_id=session_id)
+        body = {"session_id": session_id, "feedback_text": feedback_text}
+        resp = self._client.post("/api/megacode/v1/wisdom/feedback", json=body)
+        self._check_response(resp)
+        return WisdomFeedbackResult(**resp.json())
 
     @property
     def server_url(self) -> str:

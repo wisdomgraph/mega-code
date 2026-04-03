@@ -41,6 +41,9 @@ def _is_tracing_enabled() -> bool:
 class _NoOpSpan:
     """No-op span for when tracing is not enabled."""
 
+    span_id: str = ""
+    parent_span_id: str = ""
+
     def set_attribute(self, _key: str, _value: Any) -> None:
         pass
 
@@ -109,9 +112,16 @@ def setup_tracing(service_name: str = "mega-code-client", session_id: str | None
 
     try:
         from mega_code.client.dirs import data_dir
-        from mega_code.client.utils.ndjson_tracing import NdjsonSpanWriter, _make_trace_id
+        from mega_code.client.utils.ndjson_tracing import (
+            NdjsonSpanWriter,
+            _make_trace_id,
+            parse_traceparent,
+        )
 
-        _trace_id = _make_trace_id(session_id)
+        # Inherit trace_id from parent process via TRACEPARENT env var
+        traceparent = os.environ.get("TRACEPARENT", "")
+        parsed = parse_traceparent(traceparent) if traceparent else None
+        _trace_id = parsed[0] if parsed else _make_trace_id(session_id)
         trace_dir = data_dir() / "trace"
         _writer = NdjsonSpanWriter(trace_dir, _trace_id)
         _tracing_enabled = True
@@ -209,6 +219,20 @@ def get_current_trace_context() -> str | None:
     except Exception:
         pass
     return None
+
+
+def get_current_span():
+    """Return the current NdjsonSpan, or a _NoOpSpan if tracing is disabled.
+
+    Always safe to call .set_attribute() on the result (never returns None).
+    """
+    if _tracing_enabled:
+        from mega_code.client.utils.ndjson_tracing import get_current_span as _get
+
+        span = _get()
+        if span is not None:
+            return span
+    return _NoOpSpan()
 
 
 def get_span_writer():

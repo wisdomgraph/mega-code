@@ -15,6 +15,7 @@ allowed-tools: Read
 | `$mega-code-status` | Show pending items and status |
 | `$mega-code-profile` | View or update developer profile |
 | `$mega-code-stop` | Stop a running pipeline |
+| `$mega-code-skill-enhance` | Evaluate and enhance a skill with A/B testing |
 | `$mega-code-update` | Sync installed skills with latest repo version and install new ones |
 | `$mega-code-help` | Show this help |
 
@@ -67,6 +68,7 @@ When no model is specified, the server selects the best model based on your conf
 ## Tips
 
 - Run `$mega-code-wisdom-gen` after significant coding sessions
+- Run `$mega-code-skill-enhance <skill>` to improve an existing skill and review ROI
 - Use `--project` to analyze multiple sessions for stronger patterns
 - Use `@name` to run on a different project without switching directories
 - Skills with more evidence (from multiple sessions) are higher quality

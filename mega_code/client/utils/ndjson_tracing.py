@@ -152,6 +152,14 @@ class NdjsonSpan:
         return self._span_id
 
     @property
+    def parent_span_id(self) -> str:
+        return self._parent_span_id
+
+    @parent_span_id.setter
+    def parent_span_id(self, value: str) -> None:
+        self._parent_span_id = value
+
+    @property
     def trace_id(self) -> str:
         return self._trace_id
 
@@ -244,6 +252,12 @@ class NdjsonSpan:
 # ---------------------------------------------------------------------------
 
 _global_span_stack: list[str] = []
+_global_span_object_stack: list[NdjsonSpan] = []
+
+
+def get_current_span() -> NdjsonSpan | None:
+    """Return the current NdjsonSpan, or None if no span is active."""
+    return _global_span_object_stack[-1] if _global_span_object_stack else None
 
 
 # ---------------------------------------------------------------------------
@@ -278,12 +292,15 @@ class NdjsonTracer:
             kind=kind,
         )
         _global_span_stack.append(span_id)
+        _global_span_object_stack.append(span)
         try:
             with span:
                 yield span
         finally:
             if _global_span_stack and _global_span_stack[-1] == span_id:
                 _global_span_stack.pop()
+            if _global_span_object_stack and _global_span_object_stack[-1] is span:
+                _global_span_object_stack.pop()
 
     def start_span(self, name: str, **kw) -> NdjsonSpan:
         """Create a span without making it current (for manual lifecycle)."""
@@ -588,3 +605,11 @@ def _send_spans(
 def format_traceparent(trace_id: str, span_id: str) -> str:
     """Format W3C traceparent header value."""
     return f"00-{trace_id}-{span_id}-01"
+
+
+def parse_traceparent(header: str) -> tuple[str, str] | None:
+    """Parse W3C traceparent header, returning (trace_id, parent_span_id) or None."""
+    parts = header.strip().split("-")
+    if len(parts) >= 3 and len(parts[1]) == 32 and len(parts[2]) == 16:
+        return parts[1], parts[2]
+    return None

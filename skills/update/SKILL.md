@@ -17,9 +17,20 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
     git clone --depth 1 --branch codex "${MEGA_CODE_REPO_URL:-https://github.com/wisdomgraph/mega-code.git}" "$MEGA_DIR"
   fi
 fi
+if [ -n "${MEGA_CODE_REPO_URL:-}" ]; then
+  _CURRENT_ORIGIN="$(git -C "$MEGA_DIR" remote get-url origin 2>/dev/null)"
+  if [ "$_CURRENT_ORIGIN" != "$MEGA_CODE_REPO_URL" ]; then
+    echo "Updating origin: $_CURRENT_ORIGIN -> $MEGA_CODE_REPO_URL"
+    git -C "$MEGA_DIR" remote set-url origin "$MEGA_CODE_REPO_URL"
+  fi
+fi
 # Pull latest before anything else so new modules are available
 echo "Pulling latest in $MEGA_DIR ..."
-git -C "$MEGA_DIR" pull || echo "Warning: git pull failed, continuing with current version"
+if ! git -C "$MEGA_DIR" pull 2>/dev/null; then
+  echo "Pull failed (diverged history), re-cloning..."
+  rm -rf "$MEGA_DIR"
+  git clone --depth 1 --branch codex "${MEGA_CODE_REPO_URL:-https://github.com/wisdomgraph/mega-code.git}" "$MEGA_DIR"
+fi
 # Re-bootstrap in case dependencies changed
 bash "$MEGA_DIR/scripts/codex-bootstrap.sh" "$MEGA_DIR"
 export MEGA_CODE_AGENT="codex"

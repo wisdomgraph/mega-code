@@ -225,6 +225,7 @@ class TestTriggerPayloadConstruction:
             assert payload["project_id"] == "my-proj"
             assert payload["force"] is False
             assert payload["concurrency"] == 64
+            assert payload["include_claude"] is False
             assert payload["include_codex"] is False
 
     @pytest.mark.asyncio
