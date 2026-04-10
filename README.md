@@ -159,7 +159,6 @@ IMPORTANT: How to use this curation
 This curation contains a step-by-step workflow. Each step may have a Reference: entry pointing to domain-specific knowledge that you likely do NOT already know. Before executing each step, you MUST read the referenced section.
 
 step-1: Visual Hierarchy and Aesthetic Audit
-Stage: diagnosis | P=1.00 | PASS
 
 Portfolio: 1 core + 0 supporting skills selected for complementary coverage.
 
@@ -170,7 +169,6 @@ Reference: design-review/SKILL.md#Phase 3: Visual Polish L136-150
 Reference: design-review/SKILL.md#Phase 4: Accessibility (WCAG 2.1 AA) L153-174
 
 step-2: Advanced UI Component Design Systems
-Stage: planning | P=1.00 | PASS
 
 Portfolio: 1 core + 1 supporting skills selected for complementary coverage.
 
@@ -186,10 +184,8 @@ R: Animations are smooth and do not trigger expensive browser layout or paint cy
 Reference: baseline-ui/SKILL.md#Animation L52-64
 
 step-3: Micro-interaction and Motion Implementation
-Stage: implementation | P=1.00 | PASS
 
 step-4: User Engagement and Retention Testing
-Stage: validation | P=1.00 | PASS
 ```
 
 ---
