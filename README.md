@@ -7,7 +7,7 @@
 </div>
 
 <div align="center">
-  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.1.0-beta"><img src="https://img.shields.io/badge/version-1.1.0--beta-blue" alt="Version"></a>
+  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.1.1-beta"><img src="https://img.shields.io/badge/version-1.1.1--beta-blue" alt="Version"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-green.svg" alt="License"></a>
   <a href="https://github.com/wisdomgraph/mega-code"><img src="https://img.shields.io/badge/plugin-Claude_Code-blueviolet" alt="Claude Code Plugin"></a>
   <a href="https://megacode.ai"><img src="https://img.shields.io/badge/docs-megacode.ai-orange" alt="Docs"></a>
@@ -155,10 +155,17 @@ Situation: The user is currently in the late stages of a web development project
 Symptoms: The current design likely suffers from a generic layout, poor visual hierarchy, or suboptimal color schemes that result in low user engagement metrics and a lack of distinctive brand identity.
 Goals: The user aims to acquire advanced front-end design techniques and UI/UX principles that will significantly elevate the visual quality of the site, ultimately improving user retention rates and overall aesthetic appeal.
 
+Expected ROI
+Metric          Value
+Portfolio P     0.98
+Items           5
+Steps routed    4/4
+
 IMPORTANT: How to use this curation
 This curation contains a step-by-step workflow. Each step may have a Reference: entry pointing to domain-specific knowledge that you likely do NOT already know. Before executing each step, you MUST read the referenced section.
 
 step-1: Visual Hierarchy and Aesthetic Audit
+Stage: diagnosis | P=1.00 | PASS
 
 Portfolio: 1 core + 0 supporting skills selected for complementary coverage.
 
@@ -169,6 +176,7 @@ Reference: design-review/SKILL.md#Phase 3: Visual Polish L136-150
 Reference: design-review/SKILL.md#Phase 4: Accessibility (WCAG 2.1 AA) L153-174
 
 step-2: Advanced UI Component Design Systems
+Stage: planning | P=1.00 | PASS
 
 Portfolio: 1 core + 1 supporting skills selected for complementary coverage.
 
@@ -182,6 +190,13 @@ Reference: delight/SKILL.md#Satisfying Interactions L175-200
 P: Apply performant animation constraints using motion/react and Tailwind CSS to prevent interface slop.
 R: Animations are smooth and do not trigger expensive browser layout or paint cycles.
 Reference: baseline-ui/SKILL.md#Animation L52-64
+
+step-3: Micro-interaction and Motion Implementation
+Stage: implementation | P=1.00 | PASS
+
+step-4: User Engagement and Retention Testing
+Stage: validation | P=1.00 | PASS
+
 ```
 
 ---
@@ -214,13 +229,7 @@ Restart Claude Code to load the plugin.
 
 Authenticates via GitHub or Google. Your API key is saved automatically.
 
-### Step 3 — Add your own LLM API key
-
-MEGA Code uses a **Bring Your Own Key (BYOK)** model — you supply your own Gemini or OpenAI key.
-
-Visit [console.megacode.ai](https://console.megacode.ai) → **Account → API Keys** to register your key.
-
-### Step 4 — Run in any project
+### Step 3 — Run in any project
 
 ```
 /mega-code:wisdom-gen         # Generate skills and strategies from session traces

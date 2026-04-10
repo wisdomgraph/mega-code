@@ -155,7 +155,7 @@ Combine the test cases, A/B outputs, and gradings into a single JSON file:
 ```json
 {
   "skill_name": "<skill-name>",
-  "model": "<model from A/B output, e.g. with_skill_model field, or 'host-agent'>",
+  "model": "<actual model ID powering the agent, e.g. 'claude-opus-4-6' or 'gpt-5-mini' — prefer actual model IDs over generic names like 'host-agent'>",
   "test_cases": <contents of test cases JSON>.cases,
   "ab_outputs": <contents of A/B output JSON>,
   "gradings": <contents of gradings JSON>
@@ -214,17 +214,17 @@ The enhanced skill MUST satisfy every item in this checklist:
 
 Write ONLY the complete enhanced skill content (frontmatter + body).
 
-Write the enhanced content to `$ITER_DIR/enhanced-skill.md` via Bash:
+Write the enhanced content to `$ITER_DIR/draft-skill.md` via Bash:
 
 ```bash
-cat > "$ITER_DIR/enhanced-skill.md" << 'ENHANCED_EOF'
+cat > "$ITER_DIR/draft-skill.md" << 'DRAFT_EOF'
 <your enhanced SKILL.md content here>
-ENHANCED_EOF
+DRAFT_EOF
 ```
 
-### Validate enhanced skill
+### Validate draft skill
 
-Before proceeding to Phase 8, read `$ITER_DIR/enhanced-skill.md` and verify:
+Before proceeding to Phase 8, read `$ITER_DIR/draft-skill.md` and verify:
 - Frontmatter contains `metadata.tags` as a list with at least 2 entries.
 - If tags are missing, edit the file to add them before continuing.
 
@@ -240,14 +240,21 @@ skill's frontmatter:
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
     accept-skill \
     --skill-path "$SKILL_PATH" \
-    --enhanced-path "$ITER_DIR/enhanced-skill.md" \
+    --draft-path "$ITER_DIR/draft-skill.md" \
     --iteration-dir "$ITER_DIR" \
     --iteration "$ITERATION_NUM" \
     --benchmark "$ITER_DIR/benchmark.json" 2>&1
 ```
 
-This backs up the original to `$ITER_DIR/original-skill.md` and replaces `SKILL.md`
-with the enhanced version (semantic version bumped, `generated_at` refreshed, ROI from eval added).
+This backs up the original to `$ITER_DIR/original-skill.md`, writes the accepted
+result to `$ITER_DIR/enhanced-skill.md`, and replaces the installed `SKILL.md`
+(semantic version bumped, `generated_at` refreshed, ROI from eval added).
+
+**Do NOT manually copy or replace skill files.** If this command exits zero
+(look for the `SUCCESS:` line in stdout), it has already backed up the original,
+bumped the version, injected ROI, and replaced the installed SKILL.md. Only
+attempt manual recovery if the command exits non-zero. Warnings in stderr
+(e.g. about metadata.json) do not indicate failure — check the exit code.
 
 **Store on server** (creates a new DB row for the canonical enhanced skill name with the bumped semantic version and lineage metadata, while preserving the original pending-skill folder name as the lineage parent):
 

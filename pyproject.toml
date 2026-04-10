@@ -1,6 +1,6 @@
 [project]
 name = "mega-code"
-version = "1.1.0b1"
+version = "1.1.1b1"
 description = "Open-source Claude Code plugin — collect interaction data, extract skills, and optimize AI workflows"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
