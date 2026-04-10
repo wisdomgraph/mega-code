@@ -155,12 +155,6 @@ Situation: The user is currently in the late stages of a web development project
 Symptoms: The current design likely suffers from a generic layout, poor visual hierarchy, or suboptimal color schemes that result in low user engagement metrics and a lack of distinctive brand identity.
 Goals: The user aims to acquire advanced front-end design techniques and UI/UX principles that will significantly elevate the visual quality of the site, ultimately improving user retention rates and overall aesthetic appeal.
 
-Expected ROI
-Metric          Value
-Portfolio P     0.98
-Items           5
-Steps routed    4/4
-
 IMPORTANT: How to use this curation
 This curation contains a step-by-step workflow. Each step may have a Reference: entry pointing to domain-specific knowledge that you likely do NOT already know. Before executing each step, you MUST read the referenced section.
 
