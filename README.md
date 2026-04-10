@@ -227,7 +227,7 @@ Restart Claude Code to load the plugin.
 /mega-code:login
 ```
 
-Authenticates via GitHub or Google. Your API key is saved automatically.
+Authenticates via GitHub or Google. A service key is automatically issued and saved for your account.
 
 ### Step 3 — Run in any project
 
