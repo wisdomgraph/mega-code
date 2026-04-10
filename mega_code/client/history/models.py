@@ -1,6 +1,6 @@
-"""Data models for Claude Code historical data.
+"""Data models for Codex historical data.
 
-This module provides unified data models for representing Claude Code
+This module provides unified data models for representing Codex
 conversation data from multiple sources (native, MEGA-Code, datasets).
 """
 

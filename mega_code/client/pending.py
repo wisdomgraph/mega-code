@@ -4,7 +4,7 @@ This module handles local file operations for pending pipeline outputs:
 - Save pipeline outputs (from both local and remote runs) to pending folders
 - Scan pending directories for review
 - Clear and delete pending items
-- Format review notifications for Claude Code
+- Format review notifications for Codex CLI
 
 Pending data is user-generated content stored at user level, consistent across
 both local and remote installation modes.

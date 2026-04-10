@@ -1,4 +1,4 @@
-"""MEGA-Code: Open-source Claude Code plugin for AI optimization.
+"""MEGA-Code: Open-source Codex CLI plugin for AI optimization.
 
 Collects interaction data, extracts reusable skills, and optimizes
 AI workflows via the MEGA framework.

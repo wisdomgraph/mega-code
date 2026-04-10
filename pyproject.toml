@@ -1,14 +1,14 @@
 [project]
 name = "mega-code"
-version = "1.0.4"
-description = "Open-source Claude Code plugin — collect interaction data, extract skills, and optimize AI workflows"
+version = "1.1.1-beta"
+description = "Open-source Codex CLI plugin — collect interaction data, extract skills, and optimize AI workflows"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "Mind AI", email = "support@megacode.ai" }
 ]
-keywords = ["claude-code", "plugin", "skills", "optimization", "data-collection"]
+keywords = ["codex-cli", "plugin", "skills", "optimization", "data-collection"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

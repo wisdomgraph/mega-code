@@ -1,4 +1,4 @@
-"""Turn extraction from Claude Code session events (client edition).
+"""Turn extraction from Codex session events (client edition).
 
 This module handles the extraction and transformation of raw session events
 (from events.jsonl) into structured Turn objects for pipeline processing.

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class MegaCodeSource:
-    """Load Claude Code data from MEGA-Code collector storage.
+    """Load Codex data from MEGA-Code collector storage.
 
     The MEGA-Code collector stores session data in a structured format:
     - mapping.json: Maps project paths to folder names

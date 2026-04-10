@@ -604,8 +604,16 @@ class MegaCodeRemote:
         if session_id:
             body["session_id"] = session_id
         resp = self._client.post("/api/megacode/v1/wisdom/curate", json=body)
+        self._set_current_span_attrs(http_status=resp.status_code)
         self._check_response(resp)
-        return WisdomCurateResult(**resp.json())
+        result = WisdomCurateResult(**resp.json())
+        self._set_current_span_attrs(
+            response_token_count=result.token_count,
+            response_cost_usd=result.cost_usd,
+            response_skills_count=len(result.skills),
+            response_wisdoms_count=len(result.wisdoms),
+        )
+        return result
 
     @retry(
         retry=retry_if_exception(_is_retryable),
@@ -625,6 +633,7 @@ class MegaCodeRemote:
         self._set_current_span_attrs(session_id=session_id)
         body = {"session_id": session_id, "feedback_text": feedback_text}
         resp = self._client.post("/api/megacode/v1/wisdom/feedback", json=body)
+        self._set_current_span_attrs(http_status=resp.status_code)
         self._check_response(resp)
         return WisdomFeedbackResult(**resp.json())
 

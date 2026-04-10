@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -18,6 +19,7 @@ import httpx
 
 from mega_code.client.api.protocol import SkillRefItem
 from mega_code.client.dirs import data_dir
+from mega_code.client.utils.tracing import get_current_span, traced
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +34,21 @@ def skills_dir() -> Path:
     return d
 
 
+@traced("skill_installer.install_skill", kind="CLIENT")
 def install_skill(skill: SkillRefItem) -> str:
     """Download ZIP from presigned URL, clean old folder, extract fresh.
 
     Returns: "installed" | "skipped" (no url).
     """
+    span = get_current_span()
+    span.set_attribute("skill.name", skill.name)
+    span.set_attribute("skill.has_url", bool(skill.url))
+
     if not skill.url:
+        span.set_attribute("skill.status", "skipped")
         return "skipped"
+
+    span.set_attribute("skill.url_prefix", skill.url[:80])
 
     # Validate URL scheme (SSRF protection)
     parsed = urlparse(skill.url)
@@ -46,6 +56,8 @@ def install_skill(skill: SkillRefItem) -> str:
         raise ValueError(f"Refusing non-HTTPS URL: {skill.url[:80]}")
 
     # Validate skill name (path traversal protection)
+    if not re.fullmatch(r"[a-zA-Z0-9_\-]+", skill.name):
+        raise ValueError(f"Invalid skill name: {skill.name!r}")
     sd = skills_dir()
     dest = (sd / skill.name).resolve()
     if not dest.is_relative_to(sd.resolve()):
@@ -58,7 +70,9 @@ def install_skill(skill: SkillRefItem) -> str:
 
     # Download + extract (HTTPS-only, no redirects to prevent SSRF)
     resp = httpx.get(skill.url, timeout=_DOWNLOAD_TIMEOUT, follow_redirects=False)
+    span.set_attribute("skill.download_status_code", resp.status_code)
     resp.raise_for_status()
+    span.set_attribute("skill.download_size_bytes", len(resp.content))
     if len(resp.content) > _MAX_DOWNLOAD_SIZE:
         raise ValueError(f"Skill ZIP exceeds {_MAX_DOWNLOAD_SIZE // 1024 // 1024}MB limit")
 
@@ -69,12 +83,17 @@ def install_skill(skill: SkillRefItem) -> str:
                 raise ValueError(f"Zip slip detected: {info.filename}")
         zf.extractall(dest)
 
+    span.set_attribute("skill.dest_path", str(dest))
+    span.set_attribute("skill.status", "installed")
     logger.info("Installed skill %s → %s", skill.name, dest)
     return "installed"
 
 
+@traced("skill_installer.install_skills")
 def install_skills(skills: list[SkillRefItem]) -> dict[str, str]:
     """Install all skills from presigned URLs. Returns {name: status}."""
+    span = get_current_span()
+    span.set_attribute("skills.total_count", len(skills))
     results: dict[str, str] = {}
     for skill in skills:
         try:
@@ -82,6 +101,10 @@ def install_skills(skills: list[SkillRefItem]) -> dict[str, str]:
         except (OSError, ValueError, httpx.HTTPError, zipfile.BadZipFile) as e:
             logger.warning("Failed to install skill %s: %s", skill.name, e)
             results[skill.name] = "failed"
+    span.set_attribute(
+        "skills.installed_count", sum(1 for s in results.values() if s == "installed")
+    )
+    span.set_attribute("skills.failed_count", sum(1 for s in results.values() if s == "failed"))
     return results
 
 
