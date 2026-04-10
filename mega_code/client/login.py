@@ -6,7 +6,7 @@ endpoints. Supports two modes:
 **Combined mode** (default, for terminal use):
     python -m mega_code.client.login
 
-**Two-step mode** (for Claude Code / non-interactive use):
+**Two-step mode** (for Codex CLI / non-interactive use):
     # Step 1: Create session, print JSON with login_url (fast, non-blocking)
     python -m mega_code.client.login --step create
 
@@ -190,7 +190,7 @@ def _save_api_key(api_key: str, base_url: str) -> tuple[Path, dict[str, str]]:
 
 
 # =========================================================================
-# Step functions (two-step mode for Claude Code)
+# Step functions (two-step mode for Codex CLI)
 # =========================================================================
 
 
@@ -201,7 +201,7 @@ def run_create(
     """Step 1: Create a CLI session and print login info as JSON.
 
     Prints a JSON object to stdout with login_url, client_id, and base_url.
-    Claude Code parses this to show the URL and then runs poll in background.
+    Codex CLI parses this to show the URL and then runs poll in background.
 
     Returns 0 on success, 1 on failure.
     """

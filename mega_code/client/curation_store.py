@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from mega_code.client.api.protocol import WisdomCurateResult
 from mega_code.client.dirs import data_dir
+from mega_code.client.utils.tracing import get_current_span, traced
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ def _curations_dir(status: CurationStatus) -> Path:
     return d
 
 
+@traced("curation_store.save_curation")
 def save_curation(result: WisdomCurateResult, status: CurationStatus = "pending") -> Path:
     """Save a curate result to the status subdirectory.
 
@@ -70,6 +72,11 @@ def save_curation(result: WisdomCurateResult, status: CurationStatus = "pending"
 
     Returns the path to the saved JSON file.
     """
+    span = get_current_span()
+    span.set_attribute("curation.session_id", result.session_id)
+    span.set_attribute("curation.status", status)
+    span.set_attribute("curation.token_count", result.token_count)
+    span.set_attribute("curation.cost_usd", result.cost_usd)
     saved = SavedCuration(
         session_id=result.session_id,
         query=result.query,
@@ -82,6 +89,7 @@ def save_curation(result: WisdomCurateResult, status: CurationStatus = "pending"
     _validate_session_id(saved.session_id)
     path = _curations_dir(status) / f"{saved.session_id}.json"
     path.write_text(saved.model_dump_json(indent=2), encoding="utf-8")
+    span.set_attribute("curation.saved_path", str(path))
     logger.info("Saved curation %s → %s", saved.session_id, path)
     return path
 
@@ -110,12 +118,17 @@ def list_curations(status: CurationStatus | None = None) -> list[SavedCuration]:
     return sorted(results, key=lambda c: c.created_at, reverse=True)
 
 
+@traced("curation_store.update_curation_status")
 def update_curation_status(session_id: str, new_status: CurationStatus) -> None:
     """Move curation file from current status dir to new status dir."""
+    span = get_current_span()
+    span.set_attribute("curation.session_id", session_id)
+    span.set_attribute("curation.new_status", new_status)
     _validate_session_id(session_id)
     for status in ("pending", "running", "completed"):
         src = _curations_dir(status) / f"{session_id}.json"
         if src.exists():
+            span.set_attribute("curation.old_status", status)
             if status == new_status:
                 return  # already in correct dir
             # Update status in file content and move atomically
@@ -126,4 +139,5 @@ def update_curation_status(session_id: str, new_status: CurationStatus) -> None:
             src.unlink(missing_ok=True)
             logger.info("Curation %s: %s → %s", session_id, status, new_status)
             return
+    span.add_event("curation.not_found", {"session_id": session_id})
     logger.warning("Curation %s not found in any status directory", session_id)

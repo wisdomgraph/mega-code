@@ -1,4 +1,4 @@
-"""Parquet dataset source for Claude Code historical data.
+"""Parquet dataset source for Codex historical data.
 
 Supports loading from Parquet files containing conversation trajectories,
 such as ZAI CC-Bench and NLILE datasets.
@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class ParquetDatasetSource:
-    """Load Claude Code data from Parquet dataset files.
+    """Load Codex data from Parquet dataset files.
 
     Supports various Parquet formats including:
     - ZAI CC-Bench trajectories (trajectory column with JSON array)
-    - NLILE Claude Code traces (messages_json column)
+    - NLILE Codex traces (messages_json column)
 
     Example:
         source = ParquetDatasetSource(

@@ -15,7 +15,10 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar, overload
+
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +157,25 @@ def get_tracer(name: str):
     return tracer
 
 
+@overload
 def traced(
+    name_or_fn: _F,
+    *,
+    kind: str = ...,
+    openinference_kind: str | None = ...,
+) -> _F: ...
+
+
+@overload
+def traced(
+    name_or_fn: str,
+    *,
+    kind: str = ...,
+    openinference_kind: str | None = ...,
+) -> Callable[[_F], _F]: ...
+
+
+def traced(  # type: ignore[misc]
     name_or_fn=None,
     *,
     kind: str = "INTERNAL",

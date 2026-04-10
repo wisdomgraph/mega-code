@@ -165,7 +165,7 @@ review_notification:
        "Where should items be installed?"
        Options:
        - "Project level" (.agents/skills/ and .agents/rules/ in current project + AGENTS.md)
-       - "User level" (~/.codex/skills/ and ~/.codex/rules/ shared across all projects + ~/.codex/AGENTS.md)
+       - "User level" (~/.agents/skills/ and ~/.agents/rules/ shared across all projects + ~/.agents/AGENTS.md)
 
     If no items are recommended and user does NOT opt into reviewing excluded items, proceed directly to Step 3.
     If user selects "No" for all items, skip installation location and proceed to Step 3.
@@ -177,16 +177,16 @@ review_notification:
 
     **Skills:**
     - Project level → .agents/skills/<name>/SKILL.md
-    - User level → ~/.codex/skills/<name>/SKILL.md
+    - User level → ~/.agents/skills/<name>/SKILL.md
 
     **Strategies:**
     1. Write each strategy file:
        - Project level → .agents/rules/mega-code/<name>.md
-       - User level → ~/.codex/rules/mega-code/<name>.md
+       - User level → ~/.agents/rules/mega-code/<name>.md
 
     2. Update AGENTS.md so Codex loads the strategy references:
        - Project level → project-root AGENTS.md
-       - User level → ~/.codex/AGENTS.md
+       - User level → ~/.agents/AGENTS.md
 
        Read the target AGENTS.md (create if it does not exist).
        Find the section between these markers:

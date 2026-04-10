@@ -339,7 +339,7 @@ def resolve_project_path(project_arg: str) -> Path:
 
     _logger = logging.getLogger(__name__)
 
-    # Strip @ prefix if present (Claude Code autocomplete adds this)
+    # Strip @ prefix if present (Codex autocomplete adds this)
     arg = project_arg.lstrip("@").strip()
 
     if not arg:

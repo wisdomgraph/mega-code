@@ -133,6 +133,7 @@ class TrajectoryUploadRequest(BaseModel):
 
 class PipelineRunRequest(BaseModel):
     project_id: str = Field(..., description="Project identifier.")
+    session_id: str | None = None
     steps: list[str] | None = None
     force: bool = False
     limit: int | None = None

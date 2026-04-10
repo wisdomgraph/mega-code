@@ -1,4 +1,4 @@
-"""DataSource protocol definition for Claude Code historical data.
+"""DataSource protocol definition for Codex historical data.
 
 This module defines the protocol interface that all data sources must implement
 to provide a consistent API for loading conversation data.
@@ -12,7 +12,7 @@ from mega_code.client.history.models import HistorySessionMetadata, Session
 
 @runtime_checkable
 class DataSource(Protocol):
-    """Protocol for Claude Code data sources.
+    """Protocol for Codex data sources.
 
     All data source implementations must conform to this protocol
     to be usable with the DataLoader.

@@ -42,17 +42,7 @@ If a skill name was provided as an argument, use it directly regardless of autho
 If no skill name was provided, list available mega-code skills and ask the user to pick one:
 
 ```bash
-PROJECT_DIR_CANDIDATE="${CLAUDE_PROJECT_DIR:-$(pwd -P)}"
-case "$PROJECT_DIR_CANDIDATE" in
-  *"/.claude/plugins/cache/"*|*"/.claude/plugins/marketplaces/"*)
-    unset PROJECT_DIR_CANDIDATE
-    ;;
-esac
-if [ -n "${PROJECT_DIR_CANDIDATE:-}" ]; then
-  PROJECT_DIR_ARG=(--project-dir "$PROJECT_DIR_CANDIDATE")
-else
-  PROJECT_DIR_ARG=()
-fi
+PROJECT_DIR_ARG=(--project-dir "${CODEX_PROJECT_DIR:-$(pwd -P)}")
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper list-skills "${PROJECT_DIR_ARG[@]}" 2>&1
 ```
 
@@ -66,17 +56,7 @@ Once a skill is selected, resolve it immediately so the canonical folder name is
 later phases. Save the canonical skill name, path, and content for later phases:
 
 ```bash
-PROJECT_DIR_CANDIDATE="${CLAUDE_PROJECT_DIR:-$(pwd -P)}"
-case "$PROJECT_DIR_CANDIDATE" in
-  *"/.claude/plugins/cache/"*|*"/.claude/plugins/marketplaces/"*)
-    unset PROJECT_DIR_CANDIDATE
-    ;;
-esac
-if [ -n "${PROJECT_DIR_CANDIDATE:-}" ]; then
-  PROJECT_DIR_ARG=(--project-dir "$PROJECT_DIR_CANDIDATE")
-else
-  PROJECT_DIR_ARG=()
-fi
+PROJECT_DIR_ARG=(--project-dir "${CODEX_PROJECT_DIR:-$(pwd -P)}")
 RESOLVE_JSON=$(uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
     resolve-skill --name "$SKILL_NAME" "${PROJECT_DIR_ARG[@]}" 2>&1)
 read SKILL_NAME SKILL_PATH < <(echo "$RESOLVE_JSON" | tail -1 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['name'], d['path'])")
@@ -222,17 +202,17 @@ The enhanced skill MUST satisfy every item in this checklist:
 
 Write ONLY the complete enhanced skill content (frontmatter + body).
 
-Write the enhanced content to `$ITER_DIR/enhanced-skill.md` via Bash:
+Write the enhanced content to `$ITER_DIR/draft-skill.md` via Bash:
 
 ```bash
-cat > "$ITER_DIR/enhanced-skill.md" << 'ENHANCED_EOF'
+cat > "$ITER_DIR/draft-skill.md" << 'DRAFT_EOF'
 <your enhanced SKILL.md content here>
-ENHANCED_EOF
+DRAFT_EOF
 ```
 
-### Validate enhanced skill
+### Validate draft skill
 
-Before proceeding to Phase 8, read `$ITER_DIR/enhanced-skill.md` and verify:
+Before proceeding to Phase 8, read `$ITER_DIR/draft-skill.md` and verify:
 - Frontmatter contains `metadata.tags` as a list with at least 2 entries.
 - If tags are missing, edit the file to add them before continuing.
 
@@ -248,7 +228,7 @@ skill's frontmatter:
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
     accept-skill \
     --skill-path "$SKILL_PATH" \
-    --enhanced-path "$ITER_DIR/enhanced-skill.md" \
+    --draft-path "$ITER_DIR/draft-skill.md" \
     --iteration-dir "$ITER_DIR" \
     --iteration "$ITERATION_NUM" \
     --benchmark "$ITER_DIR/benchmark.json" 2>&1

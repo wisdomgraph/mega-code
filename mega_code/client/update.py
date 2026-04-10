@@ -278,6 +278,83 @@ def _install(
         return 0
 
 
+def _migrate_legacy_user_skills(userdir: Path) -> None:
+    """Migrate mega-code skills/rules from ~/.codex/ to ~/.agents/ (one-time, idempotent).
+
+    Users who installed skills before the path change have files under
+    ~/.codex/skills/mega-code-*/ and ~/.codex/rules/mega-code/.  Codex CLI
+    no longer loads from those locations, so we move the files and delete the
+    originals.  Non-mega-code content in ~/.codex/ is never touched.
+    """
+    with _tracer().start_as_current_span("update.migrate_legacy") as span:
+        moved_skills: list[str] = []
+        moved_rules: list[str] = []
+
+        # --- skills: ~/.codex/skills/mega-code-* → ~/.agents/skills/ ---
+        legacy_skills_dir = userdir / ".codex" / "skills"
+        new_skills_dir = userdir / ".agents" / "skills"
+        if legacy_skills_dir.is_dir():
+            for child in sorted(legacy_skills_dir.iterdir()):
+                if child.is_dir() and child.name.startswith("mega-code-"):
+                    dest = new_skills_dir / child.name
+                    if not dest.exists():
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copytree(child, dest)
+                    shutil.rmtree(child)
+                    moved_skills.append(child.name)
+                    span.add_event(
+                        "migrate.skill",
+                        {"skill_name": child.name, "src": str(child), "dst": str(dest)},
+                    )
+
+        # --- rules: ~/.codex/rules/mega-code/ → ~/.agents/rules/mega-code/ ---
+        legacy_rules_dir = userdir / ".codex" / "rules" / "mega-code"
+        new_rules_dir = userdir / ".agents" / "rules" / "mega-code"
+        if legacy_rules_dir.is_dir():
+            for child in sorted(legacy_rules_dir.iterdir()):
+                if child.is_file():
+                    dest = new_rules_dir / child.name
+                    if not dest.exists():
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(child, dest)
+                    child.unlink()
+                    moved_rules.append(child.name)
+                    span.add_event(
+                        "migrate.rule",
+                        {"rule_name": child.name, "src": str(child), "dst": str(dest)},
+                    )
+            # Remove empty legacy dir
+            try:
+                legacy_rules_dir.rmdir()
+            except OSError:
+                pass
+
+        # --- AGENTS.md: warn if user still has strategy refs there ---
+        legacy_agents_md = userdir / ".codex" / "AGENTS.md"
+        if legacy_agents_md.is_file():
+            text = legacy_agents_md.read_text()
+            if "mega-code:strategies" in text:
+                print(
+                    "\nNotice: mega-code strategy references found in ~/.codex/AGENTS.md.\n"
+                    "Please move the <!-- mega-code:strategies:start/end --> block\n"
+                    "to ~/.agents/AGENTS.md so Codex can load them."
+                )
+
+        if moved_skills:
+            print(f"\nMigrated from ~/.codex/ to ~/.agents/ ({len(moved_skills)} skills):")
+            for name in moved_skills:
+                print(f"  {name}")
+        if moved_rules:
+            print(f"\nMigrated rules ({len(moved_rules)}):")
+            for name in moved_rules:
+                print(f"  {name}")
+
+        span.set_attribute("migrate.moved_skills_count", len(moved_skills))
+        span.set_attribute("migrate.moved_rules_count", len(moved_rules))
+        span.set_attribute("migrate.moved_skills_names", ",".join(moved_skills))
+        span.set_attribute("migrate.moved_rules_names", ",".join(moved_rules))
+
+
 def _get_repo_remote(mega_dir: Path) -> str:
     """Read the git remote URL from the repo config file (no subprocess)."""
     config = mega_dir / ".git" / "config"
@@ -316,6 +393,9 @@ def main() -> int:
         root_span.set_attribute("update.mode", mode)
 
         try:
+            # Migrate any skills/rules from the legacy ~/.codex/ location
+            _migrate_legacy_user_skills(userdir)
+
             # Build skill map
             skill_map = _build_skill_map(mega_dir)
 

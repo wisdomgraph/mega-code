@@ -406,19 +406,35 @@ def cmd_wisdom_curate(args: argparse.Namespace) -> int:
     """Curate wisdoms for a problem description."""
     from mega_code.client.api import create_client
     from mega_code.client.api.remote import MegaCodeRemote
+    from mega_code.client.utils.tracing import get_tracer, setup_tracing
 
     _load_env()
-    client = create_client()
-    if not isinstance(client, MegaCodeRemote):
-        print("Wisdom curate requires remote mode.", file=sys.stderr)
-        return 1
+    setup_tracing(service_name="mega-code-client", session_id=args.session_id)
+    tracer = get_tracer(__name__)
 
-    query = " ".join(args.query)
-    try:
-        result = client.wisdom_curate(query=query, session_id=args.session_id, top_k=args.top_k)
-    except (ConnectionError, TimeoutError, ValueError, OSError) as e:
-        print(f"Wisdom curate failed: {e}", file=sys.stderr)
-        return 1
+    with tracer.start_as_current_span("wisdom_curate.main") as span:
+        query = " ".join(args.query)
+        span.set_attribute("wisdom.query", query)
+        span.set_attribute("wisdom.session_id", args.session_id or "")
+        span.set_attribute("wisdom.top_k", args.top_k)
+
+        client = create_client()
+        if not isinstance(client, MegaCodeRemote):
+            span.set_attribute("error", "not-remote")
+            print("Wisdom curate requires remote mode.", file=sys.stderr)
+            return 1
+
+        try:
+            result = client.wisdom_curate(query=query, session_id=args.session_id, top_k=args.top_k)
+        except (ConnectionError, TimeoutError, ValueError, OSError) as e:
+            span.record_exception(e)
+            print(f"Wisdom curate failed: {e}", file=sys.stderr)
+            return 1
+
+        span.set_attribute("wisdom.response.token_count", result.token_count)
+        span.set_attribute("wisdom.response.cost_usd", result.cost_usd)
+        span.set_attribute("wisdom.response.skills_count", len(result.skills))
+        span.set_attribute("wisdom.response.wisdoms_count", len(result.wisdoms))
 
     print(result.model_dump_json(indent=2))
     return 0
@@ -428,23 +444,132 @@ def cmd_wisdom_feedback(args: argparse.Namespace) -> int:
     """Submit feedback on a wisdom curate session."""
     from mega_code.client.api import create_client
     from mega_code.client.api.remote import MegaCodeRemote
+    from mega_code.client.utils.tracing import get_tracer, setup_tracing
 
     _load_env()
-    client = create_client()
-    if not isinstance(client, MegaCodeRemote):
-        print("Wisdom feedback requires remote mode.", file=sys.stderr)
-        return 1
+    setup_tracing(service_name="mega-code-client", session_id=args.session_id)
+    tracer = get_tracer(__name__)
 
-    try:
-        result = client.wisdom_feedback(
-            session_id=args.session_id, feedback_text=args.feedback_text
-        )
-    except (ConnectionError, TimeoutError, ValueError, OSError) as e:
-        print(f"Wisdom feedback failed: {e}", file=sys.stderr)
-        return 1
+    with tracer.start_as_current_span("wisdom_feedback.main") as span:
+        span.set_attribute("wisdom.session_id", args.session_id)
+        span.set_attribute("wisdom.feedback_text_length", len(args.feedback_text))
+
+        client = create_client()
+        if not isinstance(client, MegaCodeRemote):
+            span.set_attribute("error", "not-remote")
+            print("Wisdom feedback requires remote mode.", file=sys.stderr)
+            return 1
+
+        try:
+            result = client.wisdom_feedback(
+                session_id=args.session_id, feedback_text=args.feedback_text
+            )
+        except (ConnectionError, TimeoutError, ValueError, OSError) as e:
+            span.record_exception(e)
+            print(f"Wisdom feedback failed: {e}", file=sys.stderr)
+            return 1
 
     print(result.model_dump_json(indent=2))
     return 0
+
+
+def cmd_skill_install(args: argparse.Namespace) -> int:
+    """Install skills from a JSON file of SkillRefItem objects."""
+    from mega_code.client.api.protocol import SkillRefItem
+    from mega_code.client.skill_installer import install_skills
+    from mega_code.client.utils.tracing import get_tracer, setup_tracing
+
+    _load_env()
+    setup_tracing(service_name="mega-code-client", session_id=args.session_id)
+    tracer = get_tracer(__name__)
+
+    with tracer.start_as_current_span("skill_install.main") as span:
+        span.set_attribute("skill_install.session_id", args.session_id or "")
+        span.set_attribute("skill_install.skills_json", args.skills_json)
+
+        try:
+            with open(args.skills_json, encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            span.record_exception(e)
+            print(f"Failed to read skills JSON: {e}", file=sys.stderr)
+            return 1
+
+        skills = [SkillRefItem(**s) for s in raw]
+        results = install_skills(skills)
+        for name, status in results.items():
+            print(f"{name}: {status}")
+
+        failed = [n for n, s in results.items() if s == "failed"]
+        span.set_attribute("skill_install.failed_count", len(failed))
+        return 1 if failed else 0
+
+
+def cmd_curation_save(args: argparse.Namespace) -> int:
+    """Save a WisdomCurateResult JSON to the curation store."""
+    from mega_code.client.api.protocol import WisdomCurateResult
+    from mega_code.client.curation_store import save_curation
+    from mega_code.client.utils.tracing import get_tracer, setup_tracing
+
+    _load_env()
+    setup_tracing(service_name="mega-code-client", session_id=args.session_id)
+    tracer = get_tracer(__name__)
+
+    with tracer.start_as_current_span("curation_save.main") as span:
+        span.set_attribute("curation_save.session_id", args.session_id or "")
+        span.set_attribute("curation_save.result_json", args.result_json)
+
+        try:
+            with open(args.result_json, encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            span.record_exception(e)
+            print(f"Failed to read result JSON: {e}", file=sys.stderr)
+            return 1
+
+        try:
+            result = WisdomCurateResult(**raw)
+            path = save_curation(result)
+        except (OSError, ValueError) as e:
+            span.record_exception(e)
+            print(f"Failed to save curation: {e}", file=sys.stderr)
+            return 1
+
+        print(f"Saved: {path}")
+        return 0
+
+
+def cmd_skill_list(args: argparse.Namespace) -> int:
+    """List installed skills, one per line."""
+    from mega_code.client.skill_installer import list_installed_skills
+
+    _load_env()
+    for name in list_installed_skills():
+        print(name)
+    return 0
+
+
+def cmd_curation_status(args: argparse.Namespace) -> int:
+    """Update curation lifecycle status."""
+    from mega_code.client.curation_store import update_curation_status
+    from mega_code.client.utils.tracing import get_tracer, setup_tracing
+
+    _load_env()
+    setup_tracing(service_name="mega-code-client", session_id=args.session_id)
+    tracer = get_tracer(__name__)
+
+    with tracer.start_as_current_span("curation_status.main") as span:
+        span.set_attribute("curation_status.session_id", args.session_id)
+        span.set_attribute("curation_status.new_status", args.new_status)
+
+        try:
+            update_curation_status(args.session_id, args.new_status)
+        except ValueError as e:
+            span.record_exception(e)
+            print(f"Failed to update curation status: {e}", file=sys.stderr)
+            return 1
+
+        return 0
 
 
 # Main entry point
@@ -536,6 +661,30 @@ def main():
     fb_parser.add_argument("--session-id", required=True, help="Session ID from curate")
     fb_parser.add_argument("--feedback-text", required=True, help="Natural language feedback")
 
+    # Skill list command
+    subparsers.add_parser("skill-list", help="List installed skills")
+
+    # Skill install command
+    si_parser = subparsers.add_parser("skill-install", help="Install skills from a JSON file")
+    si_parser.add_argument(
+        "--skills-json", required=True, help="Path to JSON array of SkillRefItem"
+    )
+    si_parser.add_argument("--session-id", default="", help="Session ID for trace linking")
+
+    # Curation save command
+    cs_parser = subparsers.add_parser(
+        "curation-save", help="Save a curate result to the curation store"
+    )
+    cs_parser.add_argument("--result-json", required=True, help="Path to WisdomCurateResult JSON")
+    cs_parser.add_argument("--session-id", default="", help="Session ID for trace linking")
+
+    # Curation status command
+    cst_parser = subparsers.add_parser("curation-status", help="Update curation lifecycle status")
+    cst_parser.add_argument("session_id", help="Session ID of the curation to update")
+    cst_parser.add_argument(
+        "new_status", choices=["pending", "running", "completed"], help="New status"
+    )
+
     args = parser.parse_args()
 
     match args.command:
@@ -558,6 +707,14 @@ def main():
             return cmd_wisdom_curate(args)
         case "wisdom-feedback":
             return cmd_wisdom_feedback(args)
+        case "skill-list":
+            return cmd_skill_list(args)
+        case "skill-install":
+            return cmd_skill_install(args)
+        case "curation-save":
+            return cmd_curation_save(args)
+        case "curation-status":
+            return cmd_curation_status(args)
         case _:
             return 0
 

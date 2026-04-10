@@ -7,7 +7,7 @@ details; this script only deals with:
 1. CLI argument parsing and project path resolution
 2. Creating a client, triggering the pipeline, polling for completion
 3. Saving outputs to local pending folders
-4. Formatting the JSON notification for the Claude Code hook
+4. Formatting the JSON notification for the Codex CLI hook
 
 Exit codes:
     0 — success
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
         description="Run MEGA-Code pipeline and save to pending folders",
         epilog="""
 Project argument formats:
-  @mega-code           Name prefix (with @ for Claude Code autocomplete)
+  @mega-code           Name prefix (with @ for Codex autocomplete)
   mega-code            Name prefix (without @)
   mega-code_b39e0992   Exact folder name
   /path/to/project     Filesystem path
@@ -459,7 +459,7 @@ async def main():
             # JSON on stdout serves two consumers:
             # 1. The run skill (SKILL.md) parses it for run_id/project_id
             #    and uses exit code 0 to enter the post-pipeline workflow.
-            # 2. Claude Code hooks use "additionalContext" to inject context.
+            # 2. Codex CLI hooks use "additionalContext" to inject context.
             output = {"additionalContext": notification.strip()}
             print(json.dumps(output))
 

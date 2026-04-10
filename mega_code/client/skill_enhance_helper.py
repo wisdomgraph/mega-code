@@ -203,27 +203,12 @@ def _mapped_project_dir_from_session(session_id: str) -> Path | None:
 
 
 def _project_dir_from_session() -> Path | None:
-    """Return the real project directory for the active Claude session."""
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    """Return the real project directory for the active Codex session."""
+    session_id = os.environ.get("CODEX_THREAD_ID", "").strip()
     if not session_id:
         return None
 
     return _mapped_project_dir_from_session(session_id)
-
-
-def _looks_like_plugin_cache_path(path: Path) -> bool:
-    """Heuristically detect Claude plugin cache or marketplace paths."""
-    normalized = str(path.resolve())
-    plugin_root = Path.home() / ".claude" / "plugins"
-    plugin_prefixes = (
-        str(plugin_root / "cache"),
-        str(plugin_root / "marketplaces"),
-    )
-    return (
-        "/.claude/plugins/cache/" in normalized
-        or "/.claude/plugins/marketplaces/" in normalized
-        or normalized.startswith(plugin_prefixes)
-    )
 
 
 def _apply_cli_project_dir(project_dir: str) -> None:
@@ -232,29 +217,29 @@ def _apply_cli_project_dir(project_dir: str) -> None:
     if not candidate:
         return
     resolved = Path(candidate).resolve()
-    if resolved.exists() and not _looks_like_plugin_cache_path(resolved):
-        os.environ["CLAUDE_PROJECT_DIR"] = str(resolved)
+    if resolved.exists():
+        os.environ["CODEX_PROJECT_DIR"] = str(resolved)
 
 
 def _resolve_current_project_dir() -> Path | None:
     """Resolve the user's real project directory for skill discovery.
 
     Resolution order:
-    1. Session-backed project mapping via ``CLAUDE_SESSION_ID``
-    2. ``CLAUDE_PROJECT_DIR`` if it is not the plugin cache
-    3. Current working directory if it is not the plugin cache
+    1. Session-backed project mapping via ``CODEX_THREAD_ID``
+    2. ``CODEX_PROJECT_DIR``
+    3. Current working directory
     """
     if session_project_dir := _project_dir_from_session():
         return session_project_dir
 
-    env_project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    env_project_dir = os.environ.get("CODEX_PROJECT_DIR", "").strip()
     if env_project_dir:
         resolved = Path(env_project_dir).resolve()
-        if resolved.exists() and not _looks_like_plugin_cache_path(resolved):
+        if resolved.exists():
             return resolved
 
     cwd = Path(os.getcwd()).resolve()
-    if cwd.exists() and not _looks_like_plugin_cache_path(cwd):
+    if cwd.exists():
         return cwd
 
     return None
@@ -699,22 +684,24 @@ def resolve_skill(name: str) -> tuple[str, str, str]:
 @traced("skill_enhance.accept_enhanced_skill")
 def accept_enhanced_skill(
     original_skill_path: Path,
-    enhanced_skill_path: Path,
+    draft_skill_path: Path,
     iteration_dir: Path,
     iteration: int,
     eval_roi: dict | None = None,
-) -> Path:
+) -> tuple[Path, str, str]:
     """Back up original skill to iteration dir, replace with enhanced version.
 
     1. Copy original SKILL.md -> iteration_dir/original-skill.md
-    2. Bump semantic version in enhanced skill frontmatter
-    3. Refresh generated_at in enhanced skill frontmatter
+    2. Bump semantic version in draft skill frontmatter
+    3. Refresh generated_at in draft skill frontmatter
     4. Inject only the new eval ROI into frontmatter if provided
-    5. Replace original SKILL.md with enhanced content
+    5. Write accepted result to iteration_dir/enhanced-skill.md
+    6. Replace original SKILL.md with accepted content
 
     Args:
         original_skill_path: Path to the original SKILL.md file.
-        enhanced_skill_path: Path to the enhanced skill written by host agent.
+        draft_skill_path: Path to the draft skill written by host agent
+            (typically ``iteration_dir/draft-skill.md``).
         iteration_dir: Path to the iteration-N directory.
         iteration: Current iteration number.
         eval_roi: Optional dict with eval ROI data to inject into frontmatter.
@@ -722,14 +709,14 @@ def accept_enhanced_skill(
             ``test_count``, ``with_success_rate``, ``baseline_success_rate``.
 
     Returns:
-        Path to the replaced SKILL.md.
+        Tuple of (final_skill_path, original_version, next_version).
     """
     import shutil
 
     _set_span_attrs(
         {
             "skill_enhance.original_path": str(original_skill_path),
-            "skill_enhance.enhanced_path": str(enhanced_skill_path),
+            "skill_enhance.draft_path": str(draft_skill_path),
             "skill_enhance.iteration_dir": str(iteration_dir),
             "skill_enhance.iteration": iteration,
             "skill_enhance.has_eval_roi": eval_roi is not None,
@@ -741,10 +728,10 @@ def accept_enhanced_skill(
     logger.info("Backed up original skill to %s", backup_path)
 
     original_content = original_skill_path.read_text(encoding="utf-8")
-    enhanced_content = enhanced_skill_path.read_text(encoding="utf-8")
+    draft_content = draft_skill_path.read_text(encoding="utf-8")
 
     original_fm, _ = split_frontmatter(original_content)
-    enhanced_fm, enhanced_body = split_frontmatter(enhanced_content)
+    draft_fm, draft_body = split_frontmatter(draft_content)
 
     original_meta = skill_metadata(original_fm)
     original_version = str(original_meta.get("version", "1.0.0"))
@@ -758,7 +745,7 @@ def accept_enhanced_skill(
     )
     refreshed_generated_at = current_timestamp_z()
 
-    normalized_frontmatter = normalize_skill_frontmatter(enhanced_fm)
+    normalized_frontmatter = normalize_skill_frontmatter(draft_fm)
     metadata = dict(normalized_frontmatter.get("metadata", {}))
 
     if original_version:
@@ -777,13 +764,14 @@ def accept_enhanced_skill(
         metadata["roi"] = [format_eval_roi_entry(eval_roi)]
 
     normalized_frontmatter["metadata"] = metadata
-    enhanced_content = render_frontmatter(normalized_frontmatter) + enhanced_body
+    accepted_content = render_frontmatter(normalized_frontmatter) + draft_body
 
-    enhanced_skill_path.write_text(enhanced_content, encoding="utf-8")
+    accepted_skill_path = iteration_dir / "enhanced-skill.md"
+    accepted_skill_path.write_text(accepted_content, encoding="utf-8")
 
     final_skill_dir = original_skill_path.parent
     original_skill_name = final_skill_dir.name
-    final_skill_name = canonical_skill_name(final_skill_dir.name, enhanced_content)
+    final_skill_name = canonical_skill_name(final_skill_dir.name, accepted_content)
     _write_skill_identity(
         iteration_dir,
         original_skill_name=original_skill_name,
@@ -805,7 +793,7 @@ def accept_enhanced_skill(
 
     final_skill_path = final_skill_dir / original_skill_path.name
 
-    final_skill_path.write_text(enhanced_content, encoding="utf-8")
+    final_skill_path.write_text(accepted_content, encoding="utf-8")
     logger.info(
         "Replaced %s with enhanced version (v%s -> v%s)",
         final_skill_path,
@@ -832,9 +820,13 @@ def accept_enhanced_skill(
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("Failed to update local metadata.json: %s", e)
         elif not _can_update_local_skill_metadata(metadata_path):
-            logger.warning("Refusing path traversal in skill dir: %s", final_skill_dir)
+            logger.warning(
+                "Skipping metadata.json ROI update — skill dir is outside "
+                "pending/feedback paths: %s",
+                final_skill_dir,
+            )
 
-    return final_skill_path
+    return final_skill_path, original_version, next_version
 
 
 @traced("skill_enhance.build_eval_roi")
@@ -1050,7 +1042,9 @@ def main() -> None:
         help="Back up original skill and replace with enhanced version",
     )
     accept_parser.add_argument("--skill-path", required=True, help="Path to original SKILL.md")
-    accept_parser.add_argument("--enhanced-path", required=True, help="Path to enhanced-skill.md")
+    accept_parser.add_argument(
+        "--draft-path", required=True, help="Path to draft-skill.md (LLM-authored draft)"
+    )
     accept_parser.add_argument(
         "--iteration-dir", required=True, help="Path to iteration-N directory"
     )
@@ -1089,7 +1083,7 @@ def main() -> None:
     # Setup tracing
     from mega_code.client.utils.tracing import get_span_writer, get_tracer, setup_tracing
 
-    session_id = os.environ.get("MEGA_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID")
+    session_id = os.environ.get("MEGA_CODE_SESSION_ID") or os.environ.get("CODEX_THREAD_ID")
     setup_tracing(service_name="mega-code-skill-enhance", session_id=session_id)
     tracer = get_tracer(__name__)
 
@@ -1128,19 +1122,24 @@ def main() -> None:
                 eval_roi = None
                 if args.benchmark:
                     eval_roi = _build_eval_roi_from_benchmark(Path(args.benchmark))
-                result_path = accept_enhanced_skill(
+                result_path, old_ver, new_ver = accept_enhanced_skill(
                     original_skill_path=Path(args.skill_path),
-                    enhanced_skill_path=Path(args.enhanced_path),
+                    draft_skill_path=Path(args.draft_path),
                     iteration_dir=Path(args.iteration_dir),
                     iteration=args.iteration,
                     eval_roi=eval_roi,
                 )
+                print(f"SUCCESS: replaced SKILL.md, version {old_ver} -> {new_ver}")
                 print(str(result_path))
 
             elif args.command == "store-skill":
                 iter_dir = Path(args.iteration_dir)
-                final_skill_path = _resolve_final_skill_path(iter_dir, args.skill_path)
-                enhanced_content = final_skill_path.read_text(encoding="utf-8")
+                accepted_artifact = iter_dir / "enhanced-skill.md"
+                if accepted_artifact.exists():
+                    enhanced_content = accepted_artifact.read_text(encoding="utf-8")
+                else:
+                    final_skill_path = _resolve_final_skill_path(iter_dir, args.skill_path)
+                    enhanced_content = final_skill_path.read_text(encoding="utf-8")
 
                 eval_roi = None
                 if args.benchmark:

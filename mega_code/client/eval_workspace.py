@@ -232,7 +232,7 @@ def main() -> None:
 
     from mega_code.client.utils.tracing import get_span_writer, get_tracer, setup_tracing
 
-    session_id = os.environ.get("MEGA_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID")
+    session_id = os.environ.get("MEGA_CODE_SESSION_ID") or os.environ.get("CODEX_THREAD_ID")
     setup_tracing(service_name="mega-code-eval-workspace", session_id=session_id)
     tracer = get_tracer(__name__)
 

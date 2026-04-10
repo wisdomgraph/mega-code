@@ -278,13 +278,13 @@ def _parse_response(cli_name: str, raw: str) -> CompletionResult:
 def _clean_env() -> dict[str, str]:
     """Build a clean subprocess environment without plugin/hook context.
 
-    Strips ``CLAUDE_PLUGIN_ROOT`` and related vars so that ``claude -p``
+    Strips ``CODEX_PLUGIN_ROOT`` and related vars so that ``codex``
     runs as a vanilla session — no hooks, no pending-skill prompts.
     """
     env = dict(os.environ)
     for key in (
-        "CLAUDE_PLUGIN_ROOT",
-        "CLAUDE_PROJECT_DIR",
+        "CODEX_PLUGIN_ROOT",
+        "CODEX_PROJECT_DIR",
         "MEGA_CODE_CLIENT_MODE",
     ):
         env.pop(key, None)
