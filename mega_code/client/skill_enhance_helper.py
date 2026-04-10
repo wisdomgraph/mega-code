@@ -544,22 +544,24 @@ def resolve_skill(name: str) -> tuple[str, str, str]:
 @traced("skill_enhance.accept_enhanced_skill")
 def accept_enhanced_skill(
     original_skill_path: Path,
-    enhanced_skill_path: Path,
+    draft_skill_path: Path,
     iteration_dir: Path,
     iteration: int,
     eval_roi: dict | None = None,
-) -> Path:
+) -> tuple[Path, str, str]:
     """Back up original skill to iteration dir, replace with enhanced version.
 
     1. Copy original SKILL.md -> iteration_dir/original-skill.md
-    2. Bump semantic version in enhanced skill frontmatter
-    3. Refresh generated_at in enhanced skill frontmatter
+    2. Bump semantic version in draft skill frontmatter
+    3. Refresh generated_at in draft skill frontmatter
     4. Inject only the new eval ROI into frontmatter if provided
-    5. Replace original SKILL.md with enhanced content
+    5. Write accepted result to iteration_dir/enhanced-skill.md
+    6. Replace original SKILL.md with accepted content
 
     Args:
         original_skill_path: Path to the original SKILL.md file.
-        enhanced_skill_path: Path to the enhanced skill written by host agent.
+        draft_skill_path: Path to the draft skill written by host agent
+            (typically ``iteration_dir/draft-skill.md``).
         iteration_dir: Path to the iteration-N directory.
         iteration: Current iteration number.
         eval_roi: Optional dict with eval ROI data to inject into frontmatter.
@@ -567,14 +569,14 @@ def accept_enhanced_skill(
             ``test_count``, ``with_success_rate``, ``baseline_success_rate``.
 
     Returns:
-        Path to the replaced SKILL.md.
+        Tuple of (final_skill_path, original_version, next_version).
     """
     import shutil
 
     _set_span_attrs(
         {
             "skill_enhance.original_path": str(original_skill_path),
-            "skill_enhance.enhanced_path": str(enhanced_skill_path),
+            "skill_enhance.draft_path": str(draft_skill_path),
             "skill_enhance.iteration": iteration,
         }
     )
@@ -584,10 +586,10 @@ def accept_enhanced_skill(
     logger.info("Backed up original skill to %s", backup_path)
 
     original_content = original_skill_path.read_text(encoding="utf-8")
-    enhanced_content = enhanced_skill_path.read_text(encoding="utf-8")
+    draft_content = draft_skill_path.read_text(encoding="utf-8")
 
     original_fm, _ = split_frontmatter(original_content)
-    enhanced_fm, enhanced_body = split_frontmatter(enhanced_content)
+    draft_fm, draft_body = split_frontmatter(draft_content)
 
     original_meta = skill_metadata(original_fm)
     original_version = str(original_meta.get("version", "1.0.0"))
@@ -595,7 +597,7 @@ def accept_enhanced_skill(
     next_version = bump_minor_version(original_version)
     refreshed_generated_at = current_timestamp_z()
 
-    normalized_frontmatter = normalize_skill_frontmatter(enhanced_fm)
+    normalized_frontmatter = normalize_skill_frontmatter(draft_fm)
     metadata = dict(normalized_frontmatter.get("metadata", {}))
 
     if original_version:
@@ -614,13 +616,14 @@ def accept_enhanced_skill(
         metadata["roi"] = [format_eval_roi_entry(eval_roi)]
 
     normalized_frontmatter["metadata"] = metadata
-    enhanced_content = render_frontmatter(normalized_frontmatter) + enhanced_body
+    accepted_content = render_frontmatter(normalized_frontmatter) + draft_body
 
-    enhanced_skill_path.write_text(enhanced_content, encoding="utf-8")
+    accepted_skill_path = iteration_dir / "enhanced-skill.md"
+    accepted_skill_path.write_text(accepted_content, encoding="utf-8")
 
     final_skill_dir = original_skill_path.parent
     original_skill_name = final_skill_dir.name
-    final_skill_name = canonical_skill_name(final_skill_dir.name, enhanced_content)
+    final_skill_name = canonical_skill_name(final_skill_dir.name, accepted_content)
     _write_skill_identity(
         iteration_dir,
         original_skill_name=original_skill_name,
@@ -642,7 +645,7 @@ def accept_enhanced_skill(
 
     final_skill_path = final_skill_dir / original_skill_path.name
 
-    final_skill_path.write_text(enhanced_content, encoding="utf-8")
+    final_skill_path.write_text(accepted_content, encoding="utf-8")
     logger.info(
         "Replaced %s with enhanced version (v%s -> v%s)",
         final_skill_path,
@@ -669,9 +672,13 @@ def accept_enhanced_skill(
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("Failed to update local metadata.json: %s", e)
         elif not _can_update_local_skill_metadata(metadata_path):
-            logger.warning("Refusing path traversal in skill dir: %s", final_skill_dir)
+            logger.warning(
+                "Skipping metadata.json ROI update — skill dir is outside "
+                "pending/feedback paths: %s",
+                final_skill_dir,
+            )
 
-    return final_skill_path
+    return final_skill_path, original_version, next_version
 
 
 def _build_eval_roi_from_benchmark(benchmark_path: Path) -> dict:
@@ -814,7 +821,9 @@ def main() -> None:
         help="Back up original skill and replace with enhanced version",
     )
     accept_parser.add_argument("--skill-path", required=True, help="Path to original SKILL.md")
-    accept_parser.add_argument("--enhanced-path", required=True, help="Path to enhanced-skill.md")
+    accept_parser.add_argument(
+        "--draft-path", required=True, help="Path to draft-skill.md (LLM-authored draft)"
+    )
     accept_parser.add_argument(
         "--iteration-dir", required=True, help="Path to iteration-N directory"
     )
@@ -878,19 +887,24 @@ def main() -> None:
         eval_roi = None
         if args.benchmark:
             eval_roi = _build_eval_roi_from_benchmark(Path(args.benchmark))
-        result_path = accept_enhanced_skill(
+        result_path, old_ver, new_ver = accept_enhanced_skill(
             original_skill_path=Path(args.skill_path),
-            enhanced_skill_path=Path(args.enhanced_path),
+            draft_skill_path=Path(args.draft_path),
             iteration_dir=Path(args.iteration_dir),
             iteration=args.iteration,
             eval_roi=eval_roi,
         )
+        print(f"SUCCESS: replaced SKILL.md, version {old_ver} -> {new_ver}")
         print(str(result_path))
 
     elif args.command == "store-skill":
         iter_dir = Path(args.iteration_dir)
-        final_skill_path = _resolve_final_skill_path(iter_dir, args.skill_path)
-        enhanced_content = final_skill_path.read_text(encoding="utf-8")
+        accepted_artifact = iter_dir / "enhanced-skill.md"
+        if accepted_artifact.exists():
+            enhanced_content = accepted_artifact.read_text(encoding="utf-8")
+        else:
+            final_skill_path = _resolve_final_skill_path(iter_dir, args.skill_path)
+            enhanced_content = final_skill_path.read_text(encoding="utf-8")
 
         eval_roi = None
         if args.benchmark:

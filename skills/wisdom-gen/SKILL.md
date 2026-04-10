@@ -141,4 +141,29 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.pending review \
   --run-id <RUN_ID> --project-id <PROJECT_ID>
 ```
 
-3. Follow the printed instructions **exactly** — they contain the full review, install, and archive workflow.
+3. Follow the printed instructions **exactly** for the review, install,
+   and archive steps. Those instructions are a **sub-workflow**, not the
+   end of wisdom-gen. When the sub-workflow completes — whether you
+   installed items, archived them, or skipped everything — you MUST
+   return here and continue with the "MANDATORY — Enhance Generated
+   Skills (post-review handoff)" section below. Do NOT terminate the
+   wisdom-gen workflow at the archive step.
+
+## MANDATORY — Enhance Generated Skills (post-review handoff)
+
+After the review sub-workflow returns, you MUST **run the enhance
+handoff** whenever this pipeline run **generated** any skills.
+Install/archive status is **irrelevant** — an archived skill is still a
+generated skill and is still eligible. The only valid skip is a run
+that produced zero skill candidates (strategies/lessons-only). **If
+unsure, default to running the handoff.**
+
+"Run the handoff" means execute the trigger check and (when applicable)
+the binary prompt defined in the reference — *not* "always perform an
+enhancement". A user "No" answer, or a non-interactive default-to-No,
+is a **valid completion** of the handoff, not a skip.
+
+You MUST now read `references/enhance-handoff.md` and follow it
+end-to-end before terminating wisdom-gen. It owns the trigger check,
+the binary Yes/No prompt, and the per-skill enhancement flow. Do not
+re-implement the decision logic here.

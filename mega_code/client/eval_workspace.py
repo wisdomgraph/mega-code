@@ -15,7 +15,8 @@ Directory structure::
         eval-full.json
         benchmark.json
         feedback.json          # written by HTTP server from browser POST
-        enhanced-skill.md      # written by host agent
+        draft-skill.md         # written by host agent (pre-bump draft)
+        enhanced-skill.md      # written by accept-skill (final accepted version)
       iteration-2/
         ...
 """
