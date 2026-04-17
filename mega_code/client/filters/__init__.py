@@ -11,6 +11,7 @@ Usage:
 """
 
 from mega_code.client.filters.base import TurnFilter
+from mega_code.client.filters.cleaning import CleaningResult, clean_mega_code_turns
 from mega_code.client.filters.paths import PathAnonymizer
 from mega_code.client.filters.secrets import SecretMasker
 from mega_code.client.models import SessionMetadata, Turn
@@ -87,9 +88,11 @@ def filter_metadata(
 
 
 __all__ = [
+    "CleaningResult",
     "PathAnonymizer",
     "SecretMasker",
     "TurnFilter",
+    "clean_mega_code_turns",
     "create_default_pipeline",
     "filter_metadata",
     "filter_turns",

@@ -56,16 +56,12 @@ Every `uv run` command must include:
 --directory "$MEGA_DIR"
 ```
 
-### Load environment before Python commands in skills/scripts
+### Credentials are loaded by Python, not the shell
 
-Before Python commands that depend on credentials or server config, load `.env`:
-
-```bash
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a
-```
-
-If a command talks to the MEGA-Code server, check `MEGA_CODE_API_KEY` first and
-fail with a clear message when it is missing.
+`mega_code.client.api.create_client()` auto-loads `$MEGA_CODE_DATA_DIR/.env`
+(the stable store written by login). Skills and scripts do not source `.env`.
+If a command talks to the MEGA-Code server, gate it with
+`python -m mega_code.client.check_auth` (exit 0 = authenticated).
 
 ### Keep related shell steps in one Bash block
 

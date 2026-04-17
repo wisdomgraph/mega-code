@@ -25,7 +25,6 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
 fi
 export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
-set -a && . "$MEGA_CODE_DATA_DIR/.env" 2>/dev/null && set +a
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
@@ -297,7 +296,7 @@ If the user later asks **in this same conversation** to run the saved curation (
 `$mega-code:wisdom-curate`. Instead, **re-enter Step 7 (Run Now) with the same `SESSION_ID`**
 still held in conversation context. The curation document, installed skills, and session id are
 all still valid. After Step 7 completes, the Feedback section becomes **mandatory** — collect
-and submit the full 6-field feedback exactly as if Run Now had been chosen at Step 6.
+and submit the full 7-field feedback exactly as if Run Now had been chosen at Step 6.
 
 ## Feedback (MANDATORY after Step 7 — Run Now or in-session resume)
 
@@ -308,34 +307,61 @@ result exists to evaluate in that branch.
 
 Use the same `SESSION_ID` from Step 2.
 
-Evaluate how useful the curation was by writing natural language
-feedback covering these 6 required fields:
+### Evidence-based execution
 
-1. **Overall**: rating (1-5) + estimated accuracy/efficiency impact
-2. **Per-step**: each step's rating + which wisdoms were applied/partial/unused
-3. **Missing**: skills or strategies that would have been useful but weren't provided
-4. **Unexpected**: items that were surprisingly useful or harmful
-5. **Recommendations**: per-item improvement suggestions for future routing
-6. **[UPDATE]**: any outdated information, wrong model names, deprecated APIs found
+The curation document contains **Evidence annotations** for each wisdom:
+- **Evidence: Strong** (N positive, M negative) — apply directly with confidence
+- **Evidence: Weak** (N positive, M negative) — verify before applying
+- **Evidence: Limited** (N sessions) — treat as suggestion, validate independently
+- **Evidence: None** — no prior feedback, use your own judgment
 
-Omit the `[UPDATE]` block entirely if nothing was outdated.
+The portfolio-level blockquote (> **Evidence: Strong/Mixed/Limited**) indicates
+overall workflow reliability. Adjust your execution confidence accordingly:
+- Strong → follow steps closely
+- Mixed → follow structure but validate weak-evidence steps
+- Limited → treat as starting point, verify each step
+
+### Evaluation rigor
+
+Rate contribution by verified effect, not apparent relevance or effort:
+- Assign `direct` only if you can identify a specific observed result caused or materially influenced by this contribution.
+- Assign `none` if no measurable outcome changed, even if the contribution appears relevant.
+- Quantify lift, savings, or improvement only when supported by observed evidence.
+- Use the full rating scale without hesitation. Low scores are correct when impact is weak, evidence is thin, or attribution is unclear. If the impact is good, high scores are correct.
+
+### Feedback content (per-step, then per-wisdom)
+
+Write per-wisdom feedback. For each wisdom in the workflow, cover:
+
+1. **Contribution**: `direct` (clearly helpful), `ambient` (partially helpful), or `none`
+2. **Accuracy impact**: quality improvement estimate (-1.0 to 1.0, negative = harmful)
+3. **Efficiency impact**: time/token savings estimate (-1.0 to 1.0, negative = overhead)
+4. **Reason**: why it contributed or not
+5. **Step rating**: how well the step performed (0-5, 0 = not applicable)
+6. **Recommendation**: improvement suggestion (if any)
+7. **Update**: factual correction for outdated content (if any)
+
+### Feedback text template
+
+Compose the feedback text using this template. Repeat the
+`Step N (...)` block once per step in the curated workflow.
+
+```
+Step 1 (<step name>): <rating>/5
+- <wisdom>: <direct|ambient|none>. Lift: <-1.0 to 1.0>, savings: <-1.0 to 1.0>. <reason>.
+  Recommendation: <improvement suggestion>
+  Update: <factual correction>
+
+Step 2 (<step name>): <rating>/5
+- <wisdom>: <direct|ambient|none>. Lift: <-1.0 to 1.0>, savings: <-1.0 to 1.0>. <reason>.
+  Recommendation: <improvement suggestion>
+  Update: <factual correction>
+```
 
 ### Submit feedback
 
 ```bash
 uv run --directory "$MEGA_DIR" mega-code wisdom-feedback \
   --session-id "$SESSION_ID" \
-  --feedback-text "
-Overall: <rating>/5. <impact estimates>
-
-Step 1 (<step name>): <rating>/5
-- <wisdom/item>: <applied|partial|not used>. <effect estimate>.
-
-Missing: <what knowledge was needed but not provided>
-
-Unexpected: <any surprises>
-
-Recommendations:
-- <per-item improvement suggestions>
-"
+  --feedback-text "<paste the composed feedback text here>"
 ```

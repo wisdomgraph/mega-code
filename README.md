@@ -7,7 +7,7 @@
 </div>
 
 <div align="center">
-  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.1.1-beta"><img src="https://img.shields.io/badge/version-1.1.1--beta-blue" alt="Version"></a>
+  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.1.2-beta"><img src="https://img.shields.io/badge/version-1.1.2--beta-blue" alt="Version"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-green.svg" alt="License"></a>
   <a href="https://github.com/wisdomgraph/mega-code/tree/codex"><img src="https://img.shields.io/badge/plugin-Codex_CLI-blueviolet" alt="Codex CLI Plugin"></a>
   <a href="https://megacode.ai"><img src="https://img.shields.io/badge/docs-megacode.ai-orange" alt="Docs"></a>

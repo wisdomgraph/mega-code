@@ -22,9 +22,10 @@ DEFAULT_AUTHOR = "co-authored by www.megacode.ai"
 DEFAULT_VERSION = "1.0.0"
 MEGACODE_AUTHOR_MARKER = "megacode.ai"
 SKILL_METADATA_KEYS = (
-    "author",
     "version",
     "tags",
+    "creator",
+    "author",
     "generated_at",
     "roi",
 )
@@ -68,7 +69,7 @@ def _quote_skill_metadata_fields(frontmatter: dict) -> None:
     if not isinstance(metadata, dict):
         return
 
-    for key in ("version", "generated_at"):
+    for key in ("version", "generated_at", "creator"):
         value = metadata.get(key)
         if isinstance(value, str):
             metadata[key] = _QuotedString(value)
@@ -111,6 +112,18 @@ def split_frontmatter(content: str) -> tuple[dict, str]:
     if len(parts) < 3:
         return {}, content
     return parse_frontmatter(content), parts[2].lstrip("\n")
+
+
+def order_metadata(metadata: dict) -> dict:
+    """Reorder metadata keys into canonical ``SKILL_METADATA_KEYS`` order."""
+    ordered: dict = {}
+    for key in SKILL_METADATA_KEYS:
+        if key in metadata:
+            ordered[key] = metadata[key]
+    for key, value in metadata.items():
+        if key not in ordered:
+            ordered[key] = value
+    return ordered
 
 
 def skill_metadata(frontmatter: dict) -> dict:
@@ -162,7 +175,7 @@ def normalize_skill_frontmatter(frontmatter: dict) -> dict:
     if metadata:
         for key in DEPRECATED_SKILL_METADATA_KEYS:
             metadata.pop(key, None)
-        normalized["metadata"] = metadata
+        normalized["metadata"] = order_metadata(metadata)
     return normalized
 
 
@@ -480,6 +493,7 @@ def ensure_skill_frontmatter(
     skill_name: str,
     *,
     author: str = "",
+    email: str = "",
     version: str = "",
     generated_at: str = "",
     tags: list[str] | None = None,
@@ -501,6 +515,7 @@ def ensure_skill_frontmatter(
         skill_md: The raw SKILL.md content (may or may not have frontmatter).
         skill_name: Already-sanitized kebab-case skill name.
         author: Attribution string (e.g. from :func:`get_author`).
+        email: User email written as ``metadata.creator``.
         version: Semantic version string (e.g. "1.0.0").
         tags: List of lowercase kebab-case tags.
         extra_frontmatter: Optional dict of additional frontmatter fields (e.g. roi).
@@ -518,35 +533,45 @@ def ensure_skill_frontmatter(
 
         if has_nested_metadata:
             metadata = dict(frontmatter["metadata"])
-            if author and "author" not in metadata:
-                metadata["author"] = author
             if version and "version" not in metadata:
                 metadata["version"] = version
-            if generated_at and "generated_at" not in metadata:
-                metadata["generated_at"] = generated_at
             if tags and "tags" not in metadata:
                 metadata["tags"] = tags
+            if email and "creator" not in metadata:
+                metadata["creator"] = email
+            if author and "author" not in metadata:
+                metadata["author"] = author
+            if generated_at and "generated_at" not in metadata:
+                metadata["generated_at"] = generated_at
             for key, value in extra_metadata.items():
                 metadata.setdefault(key, value)
-            normalized["metadata"] = metadata
+            normalized["metadata"] = order_metadata(metadata)
             return render_frontmatter(normalized) + body
 
         if not has_legacy_metadata:
             metadata: dict[str, object] = {}
-            if author:
-                metadata["author"] = author
             if version:
                 metadata["version"] = version
             if tags:
                 metadata["tags"] = tags
+            if email:
+                metadata["creator"] = email
+            if author:
+                metadata["author"] = author
             if generated_at:
                 metadata["generated_at"] = generated_at
             metadata.update(extra_metadata)
             if metadata:
-                normalized["metadata"] = metadata
+                normalized["metadata"] = order_metadata(metadata)
             return render_frontmatter(normalized) + body
 
-        return skill_md
+        normalized = normalize_skill_frontmatter(frontmatter)
+        metadata = dict(normalized.get("metadata", {}))
+        if email and "creator" not in metadata:
+            metadata["creator"] = email
+        if metadata:
+            normalized["metadata"] = order_metadata(metadata)
+        return render_frontmatter(normalized) + body
 
     # Extract description from first non-heading paragraph
     description = ""
@@ -563,17 +588,19 @@ def ensure_skill_frontmatter(
         frontmatter["description"] = f"Skill {skill_name}"
 
     metadata: dict[str, object] = {}
-    if author:
-        metadata["author"] = author
     if version:
         metadata["version"] = version
     if tags:
         metadata["tags"] = tags
+    if email:
+        metadata["creator"] = email
+    if author:
+        metadata["author"] = author
     if generated_at:
         metadata["generated_at"] = generated_at
     metadata.update(extra_metadata)
     if metadata:
-        frontmatter["metadata"] = metadata
+        frontmatter["metadata"] = order_metadata(metadata)
 
     return render_frontmatter(frontmatter) + skill_md
 

@@ -22,7 +22,6 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
 fi
 export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
-set -a && . "$MEGA_CODE_DATA_DIR/.env" 2>/dev/null && set +a
 ```
 
 ## Step 1: Create session (fast, non-blocking)

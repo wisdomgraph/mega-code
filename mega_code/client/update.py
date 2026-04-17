@@ -370,11 +370,29 @@ def _get_repo_remote(mega_dir: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="mega-code update — sync skills from lock file")
-    parser.add_argument("--userdir", required=True, help="User home directory")
-    parser.add_argument("--project_dir", required=True, help="Current project directory")
-    parser.add_argument("--mega_dir", required=True, help="Path to the mega-code pkg directory")
     parser.add_argument(
-        "--install-skills", default=None, help="Comma-separated list of new skills to install"
+        "--userdir", required=True, help="User home directory. Always $HOME in SKILL.md invocation."
+    )
+    parser.add_argument(
+        "--project_dir",
+        required=True,
+        help="Current working directory (the project root). Always $(pwd).",
+    )
+    parser.add_argument(
+        "--mega_dir",
+        required=True,
+        help=(
+            "Path to the checked-out mega-code package directory. "
+            "Resolved from the pkg-breadcrumb file or defaulted to ~/.local/share/mega-code/pkg."
+        ),
+    )
+    parser.add_argument(
+        "--install-skills",
+        default=None,
+        help=(
+            "Comma-separated skill names to install (e.g. mega-code-foo,mega-code-bar). "
+            "When present, switches to install mode; skips sync and new-skills detection."
+        ),
     )
     args = parser.parse_args()
 

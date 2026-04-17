@@ -34,6 +34,10 @@ def create_client(mode: str | None = None, **kwargs) -> MegaCodeBaseClient:
     Returns:
         A MegaCodeBaseClient implementation.
     """
+    from mega_code.client.cli import load_credentials
+
+    load_credentials()
+
     if mode is None:
         mode = os.environ.get("MEGA_CODE_CLIENT_MODE", _default_mode())
 

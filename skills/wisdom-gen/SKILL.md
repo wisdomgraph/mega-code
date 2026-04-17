@@ -146,14 +146,18 @@ You MUST parse and follow the embedded workflow immediately — do NOT just repo
 
 1. Parse `run_id` and `project_id` from the pipeline output JSON (`additionalContext`).
 
-2. Run this command to get the detailed review workflow instructions:
+2. **Inject User Email** — run the email attribution gate.
+   Read `references/email-gate.md` and follow it. Continue to step 3
+   regardless of outcome (cached, skipped, or applied).
+
+3. Run this command to get the detailed review workflow instructions:
 
 ```bash
 uv run --directory "$MEGA_DIR" python -m mega_code.client.pending review \
   --run-id <RUN_ID> --project-id <PROJECT_ID>
 ```
 
-3. Follow the printed instructions **exactly** for the review, install,
+4. Follow the printed instructions **exactly** for the review, install,
    and archive steps. Those instructions are a **sub-workflow**, not the
    end of wisdom-gen. When the sub-workflow completes — whether you
    installed items, archived them, or skipped everything — you MUST
