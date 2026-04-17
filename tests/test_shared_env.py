@@ -13,7 +13,12 @@ from pathlib import Path
 
 import pytest
 
-from mega_code.client.cli import get_env_path, load_env_file, save_env_file
+from mega_code.client.cli import (
+    get_env_path,
+    load_credentials,
+    load_env_file,
+    save_env_file,
+)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Unit tests: shared .env path and file operations
@@ -172,6 +177,73 @@ class TestCrossToolCredentialSharing:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         stable_env = Path.home() / ".local" / "share" / "mega-code" / ".env"
         assert stable_env == get_env_path()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Unit tests: centralized credential loading
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestLoadCredentials:
+    """load_credentials() populates os.environ from the stable .env store."""
+
+    def test_populates_os_environ_with_setdefault(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.delenv("MEGA_CODE_API_KEY", raising=False)
+        monkeypatch.delenv("MEGA_CODE_CLIENT_MODE", raising=False)
+        save_env_file(
+            get_env_path(),
+            {"MEGA_CODE_API_KEY": "mg_file_key", "MEGA_CODE_CLIENT_MODE": "remote"},
+        )
+
+        load_credentials()
+
+        assert os.environ["MEGA_CODE_API_KEY"] == "mg_file_key"
+        assert os.environ["MEGA_CODE_CLIENT_MODE"] == "remote"
+
+    def test_shell_override_wins(self, tmp_path, monkeypatch):
+        """setdefault preserves an explicit shell env override."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.setenv("MEGA_CODE_API_KEY", "mg_shell_key")
+        save_env_file(get_env_path(), {"MEGA_CODE_API_KEY": "mg_file_key"})
+
+        load_credentials()
+
+        assert os.environ["MEGA_CODE_API_KEY"] == "mg_shell_key"
+
+
+class TestCreateClientLoadsCredentials:
+    """create_client() auto-loads credentials from the stable .env."""
+
+    def test_remote_client_reads_api_key_from_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.delenv("MEGA_CODE_API_KEY", raising=False)
+        monkeypatch.delenv("MEGA_CODE_CLIENT_MODE", raising=False)
+        monkeypatch.delenv("MEGA_CODE_SERVER_URL", raising=False)
+        save_env_file(
+            get_env_path(),
+            {
+                "MEGA_CODE_API_KEY": "mg_from_file",
+                "MEGA_CODE_SERVER_URL": "https://example.test",
+            },
+        )
+
+        from mega_code.client.api import create_client
+
+        create_client(mode="remote")
+        assert os.environ["MEGA_CODE_API_KEY"] == "mg_from_file"
+        assert os.environ["MEGA_CODE_SERVER_URL"] == "https://example.test"
+
+    def test_remote_client_raises_when_key_missing_everywhere(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.delenv("MEGA_CODE_API_KEY", raising=False)
+        get_env_path().parent.mkdir(parents=True, exist_ok=True)
+        get_env_path().write_text("")
+
+        from mega_code.client.api import create_client
+
+        with pytest.raises(ValueError, match="Not logged in"):
+            create_client(mode="remote")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -29,6 +29,7 @@ from mega_code.client.skill_utils import (
     current_timestamp_z,
     format_eval_roi_entry,
     normalize_skill_frontmatter,
+    order_metadata,
     parse_frontmatter,
     render_frontmatter,
     skill_frontmatter_value,
@@ -751,6 +752,8 @@ def accept_enhanced_skill(
     if original_version:
         metadata["version"] = next_version
     metadata["author"] = DEFAULT_AUTHOR
+    if "creator" not in metadata and "creator" in original_meta:
+        metadata["creator"] = original_meta["creator"]
     if not isinstance(metadata.get("tags"), list) or not metadata["tags"]:
         if isinstance(original_tags, list) and original_tags:
             metadata["tags"] = original_tags
@@ -763,7 +766,7 @@ def accept_enhanced_skill(
     if eval_roi:
         metadata["roi"] = [format_eval_roi_entry(eval_roi)]
 
-    normalized_frontmatter["metadata"] = metadata
+    normalized_frontmatter["metadata"] = order_metadata(metadata)
     accepted_content = render_frontmatter(normalized_frontmatter) + draft_body
 
     accepted_skill_path = iteration_dir / "enhanced-skill.md"

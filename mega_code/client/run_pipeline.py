@@ -35,7 +35,7 @@ import re
 import sys
 from pathlib import Path
 
-from mega_code.client.cli import get_env_path, load_env_file
+from mega_code.client.cli import load_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -44,23 +44,6 @@ def _parse_conflict_run_id(detail: str) -> str | None:
     """Extract run_id from 409 detail string (e.g. 'run_id=abc-123')."""
     match = re.search(r"run_id=([a-f0-9-]+)", detail)
     return match.group(1) if match else None
-
-
-def _load_env() -> None:
-    """Load environment variables from stable + repo .env files."""
-    # 1. Stable credential store — always loaded first
-    from mega_code.client.dirs import data_dir
-
-    stable_env = data_dir() / ".env"
-    if stable_env.exists():
-        for key, value in load_env_file(stable_env).items():
-            os.environ.setdefault(key, value)
-
-    # 2. Plugin root .env — dev overlay (lower priority than stable credentials)
-    env_path = get_env_path()
-    if env_path.exists():
-        for key, value in load_env_file(env_path).items():
-            os.environ.setdefault(key, value)
 
 
 def parse_args() -> argparse.Namespace:
@@ -175,7 +158,7 @@ Project argument formats:
 
 async def main():
     """Main entry point for pipeline runner."""
-    _load_env()
+    load_credentials()
     args = parse_args()
 
     if args.env_debug:

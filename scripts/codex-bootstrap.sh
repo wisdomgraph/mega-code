@@ -43,6 +43,9 @@ if [ ! -f "$DATA_DIR/profile.json" ]; then
 fi
 
 # ── 4. Ensure stable credential store exists ─────────────────────────
+# One-way migration from the retired legacy location ($MEGA_DIR/.env) to the
+# stable store ($DATA_DIR/.env). This is the only remaining reference to the
+# legacy path and can be deleted once all installs are migrated.
 if [ ! -f "$DATA_DIR/.env" ]; then
     if [ -f "$MEGA_DIR/.env" ] && grep -q "MEGA_CODE_API_KEY" "$MEGA_DIR/.env" 2>/dev/null; then
         cp "$MEGA_DIR/.env" "$DATA_DIR/.env"

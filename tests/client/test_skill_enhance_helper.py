@@ -1478,3 +1478,35 @@ def test_accept_enhanced_skill_logs_clarified_metadata_warning_for_installed_ski
         "Skipping metadata.json ROI update — skill dir is outside pending/feedback paths"
         in caplog.text
     )
+
+
+def test_accept_enhanced_skill_preserves_creator_from_original(tmp_path):
+    """B1: original has creator, draft drops it → final retains it."""
+    original_with_creator = """\
+---
+name: my-test-skill
+description: A test skill.
+metadata:
+  version: "1.0.0"
+  author: "co-authored by www.megacode.ai"
+  creator: "user@example.com"
+---
+
+# My Test Skill
+
+Original content here.
+"""
+    original = tmp_path / "SKILL.md"
+    original.write_text(original_with_creator, encoding="utf-8")
+
+    draft = tmp_path / "draft-skill.md"
+    draft.write_text(_DRAFT_SKILL, encoding="utf-8")
+
+    iter_dir = tmp_path / "iteration-1"
+    iter_dir.mkdir()
+
+    accept_enhanced_skill(original, draft, iter_dir, 1)
+
+    result = original.read_text(encoding="utf-8")
+    assert "creator" in result
+    assert "user@example.com" in result

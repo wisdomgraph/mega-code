@@ -65,6 +65,15 @@ def load_env_file(env_path: Path) -> dict[str, str]:
     return {k: v for k, v in dotenv_values(env_path).items() if v is not None}
 
 
+def load_credentials() -> None:
+    """Load persisted credentials from the stable .env into os.environ.
+
+    Uses setdefault so explicit shell env overrides still win.
+    """
+    for key, value in load_env_file(get_env_path()).items():
+        os.environ.setdefault(key, value)
+
+
 def save_env_file(env_path: Path, env_vars: dict[str, str]) -> None:
     """Save environment variables to .env file."""
     existing_lines = []
@@ -406,6 +415,7 @@ def cmd_wisdom_curate(args: argparse.Namespace) -> int:
     """Curate wisdoms for a problem description."""
     from mega_code.client.api import create_client
     from mega_code.client.api.remote import MegaCodeRemote
+    from mega_code.client.skill_installer import install_skills
     from mega_code.client.utils.tracing import get_tracer, setup_tracing
 
     _load_env()
@@ -435,6 +445,24 @@ def cmd_wisdom_curate(args: argparse.Namespace) -> int:
         span.set_attribute("wisdom.response.cost_usd", result.cost_usd)
         span.set_attribute("wisdom.response.skills_count", len(result.skills))
         span.set_attribute("wisdom.response.wisdoms_count", len(result.wisdoms))
+
+        # Download recommended skills now, while presigned URLs are fresh.
+        # Blank the URLs afterwards so they never cross a heredoc on the way
+        # to a follow-up command (2000-char presigned URLs truncate there).
+        if result.skills:
+            statuses = install_skills(result.skills)
+            span.set_attribute(
+                "wisdom.skills_installed_count",
+                sum(1 for s in statuses.values() if s == "installed"),
+            )
+            span.set_attribute(
+                "wisdom.skills_failed_count",
+                sum(1 for s in statuses.values() if s == "failed"),
+            )
+            for name, status in statuses.items():
+                print(f"[skill] {name}: {status}", file=sys.stderr)
+            for skill in result.skills:
+                skill.url = ""
 
     print(result.model_dump_json(indent=2))
     return 0
@@ -471,38 +499,6 @@ def cmd_wisdom_feedback(args: argparse.Namespace) -> int:
 
     print(result.model_dump_json(indent=2))
     return 0
-
-
-def cmd_skill_install(args: argparse.Namespace) -> int:
-    """Install skills from a JSON file of SkillRefItem objects."""
-    from mega_code.client.api.protocol import SkillRefItem
-    from mega_code.client.skill_installer import install_skills
-    from mega_code.client.utils.tracing import get_tracer, setup_tracing
-
-    _load_env()
-    setup_tracing(service_name="mega-code-client", session_id=args.session_id)
-    tracer = get_tracer(__name__)
-
-    with tracer.start_as_current_span("skill_install.main") as span:
-        span.set_attribute("skill_install.session_id", args.session_id or "")
-        span.set_attribute("skill_install.skills_json", args.skills_json)
-
-        try:
-            with open(args.skills_json, encoding="utf-8") as f:
-                raw = json.load(f)
-        except (OSError, json.JSONDecodeError) as e:
-            span.record_exception(e)
-            print(f"Failed to read skills JSON: {e}", file=sys.stderr)
-            return 1
-
-        skills = [SkillRefItem(**s) for s in raw]
-        results = install_skills(skills)
-        for name, status in results.items():
-            print(f"{name}: {status}")
-
-        failed = [n for n, s in results.items() if s == "failed"]
-        span.set_attribute("skill_install.failed_count", len(failed))
-        return 1 if failed else 0
 
 
 def cmd_curation_save(args: argparse.Namespace) -> int:
@@ -664,13 +660,6 @@ def main():
     # Skill list command
     subparsers.add_parser("skill-list", help="List installed skills")
 
-    # Skill install command
-    si_parser = subparsers.add_parser("skill-install", help="Install skills from a JSON file")
-    si_parser.add_argument(
-        "--skills-json", required=True, help="Path to JSON array of SkillRefItem"
-    )
-    si_parser.add_argument("--session-id", default="", help="Session ID for trace linking")
-
     # Curation save command
     cs_parser = subparsers.add_parser(
         "curation-save", help="Save a curate result to the curation store"
@@ -709,8 +698,6 @@ def main():
             return cmd_wisdom_feedback(args)
         case "skill-list":
             return cmd_skill_list(args)
-        case "skill-install":
-            return cmd_skill_install(args)
         case "curation-save":
             return cmd_curation_save(args)
         case "curation-status":
