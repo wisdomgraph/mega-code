@@ -370,6 +370,7 @@ def cmd_wisdom_curate(args: argparse.Namespace) -> int:
     """Curate wisdoms for a problem description."""
     from mega_code.client.api import create_client
     from mega_code.client.api.remote import MegaCodeRemote
+    from mega_code.client.skill_installer import install_skills
 
     _load_env()
     client = create_client()
@@ -384,8 +385,49 @@ def cmd_wisdom_curate(args: argparse.Namespace) -> int:
         print(f"Wisdom curate failed: {e}", file=sys.stderr)
         return 1
 
+    # Download all recommended skills immediately while presigned URLs are fresh.
+    # Populates skills_dir()/{name}/ so Claude Code can read the full skill folder
+    # (SKILL.md, scripts/, references/, etc.) during Step 7 of the workflow.
+    if result.skills:
+        statuses = install_skills(result.skills)
+        for name, status in statuses.items():
+            print(f"[skill] {name}: {status}", file=sys.stderr)
+        # Clear URLs — consumed. Claude Code locates skills via skills_dir()/{name}/.
+        for skill in result.skills:
+            skill.url = ""
+
     print(result.model_dump_json(indent=2))
     return 0
+
+
+def cmd_skill_install(args: argparse.Namespace) -> int:
+    """Permanently install skill folders from skills_dir() to user or project scope."""
+    from mega_code.client.skill_installer import install_skill_permanent, skills_dir
+
+    _load_env()
+    dest_dir = (
+        Path.home() / ".claude" / "skills"
+        if args.scope == "user"
+        else Path.cwd() / ".claude" / "skills"
+    )
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    failed = []
+    for name in args.names:
+        try:
+            status = install_skill_permanent(name, dest_dir)
+        except ValueError as e:
+            print(f"{name}: error — {e}", file=sys.stderr)
+            failed.append(name)
+            continue
+        print(f"{name}: {status}")
+        if status == "skipped":
+            print(
+                f"  warning: '{name}' not found in {skills_dir()} — run wisdom-curate first",
+                file=sys.stderr,
+            )
+            failed.append(name)
+    return 1 if failed else 0
 
 
 def cmd_wisdom_feedback(args: argparse.Namespace) -> int:
@@ -500,6 +542,18 @@ def main():
     fb_parser.add_argument("--session-id", required=True, help="Session ID from curate")
     fb_parser.add_argument("--feedback-text", required=True, help="Natural language feedback")
 
+    # Skill install command — copy whole skill folder to permanent Claude scope
+    si_parser = subparsers.add_parser(
+        "skill-install", help="Permanently install skills to user or project scope"
+    )
+    si_parser.add_argument("names", nargs="+", help="Skill names to install")
+    si_parser.add_argument(
+        "--scope",
+        choices=["user", "project"],
+        default="user",
+        help="user → ~/.claude/skills/  project → ./.claude/skills/",
+    )
+
     args = parser.parse_args()
 
     match args.command:
@@ -522,6 +576,8 @@ def main():
             return cmd_wisdom_curate(args)
         case "wisdom-feedback":
             return cmd_wisdom_feedback(args)
+        case "skill-install":
+            return cmd_skill_install(args)
         case _:
             return 0
 

@@ -180,6 +180,10 @@ class UserProfile(BaseModel):
         alias="autoPermission",
         description="[MegaEureka] Auto-approve bash permissions in hooks",
     )
+    email: str | None = Field(
+        None,
+        description="Authenticated user's email. Server-populated, read-only on client.",
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -244,6 +248,16 @@ class SkillRefItem(BaseModel):
     url: str = Field(default="", description="Pre-signed URL to download the skill ZIP")
 
 
+class ServedWisdomItem(BaseModel):
+    """Served wisdom metadata for NL feedback session recovery."""
+
+    wisdom_id: str = Field(description="Wisdom identifier")
+    description: str = Field(default="", description="Wisdom description")
+    combined_score: float = Field(description="Similarity score used for transfer curves")
+    stage: str = Field(description="PCR stage (e.g. diagnosis, implementation)")
+    step_id: str = Field(description="Step identifier in the curation workflow")
+
+
 class WisdomCurateResult(BaseModel):
     """Result from wisdom curate endpoint."""
 
@@ -253,6 +267,9 @@ class WisdomCurateResult(BaseModel):
     skills: list[SkillRefItem] = Field(default_factory=list, description="Curated skill references")
     wisdoms: list[WisdomResultItem] = Field(
         default_factory=list, description="Retrieved wisdom records with scores"
+    )
+    served_wisdoms: list[ServedWisdomItem] = Field(
+        default_factory=list, description="Served wisdom metadata for feedback session recovery"
     )
     token_count: int = Field(default=0, description="Total LLM tokens consumed")
     cost_usd: float = Field(default=0.0, description="Total LLM cost in USD")

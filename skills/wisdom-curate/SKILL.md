@@ -105,10 +105,16 @@ uv run --directory "<MEGA_DIR>" mega-code wisdom-curate \
 
 Parse the JSON output and store:
 - `curation`: Markdown curation document (step-by-step workflow).
-- `skills`: List of skill references, each with `name`, `path`, `url`.
+- `skills`: List of skill references, each with `name` and `path` (`url`
+  is empty — the CLI already downloaded every skill to `<SKILLS_DIR>`).
 - `wisdoms`: Underlying wisdom records.
 
-## Step 4: Present Summary + Install Decision
+The CLI downloads the full skill folder (SKILL.md, scripts/, references/,
+etc.) for every recommended skill to `<SKILLS_DIR>/{name}/` as a side
+effect of the curate call, so skill content is immediately available for
+Step 7 without any further network access.
+
+## Step 4: Present Summary + Permanent Install Decision
 
 Parse the `curation` field and present a structured summary:
 
@@ -120,59 +126,58 @@ Steps:
 2. <step title> — Skill: <skill-name>
 3. <step title> — (no skill reference)
 
-N skills recommended for this workflow.
+N skills downloaded and ready.
 ```
 
-Check which skills are already installed (substitute `<SKILLS_DIR>`):
+Check which skills are already permanently installed in Claude's skill
+directories:
 
 ```bash
-ls "<SKILLS_DIR>" 2>/dev/null || echo "(no skills installed)"
+ls ~/.claude/skills 2>/dev/null || echo "(none)"
+ls .claude/skills 2>/dev/null || echo "(none)"
 ```
 
 **Binary decision only** — never offer partial or selective installs.
 Show all skills with their status, then use `AskUserQuestion`:
 
 ```
-The following skills are recommended for this workflow:
+The following skills are ready for this workflow:
 
-1. python-pro — [Already installed]
-2. fastapi — [Not installed]
-3. d3-visualization — [Not installed]
+1. python-pro — [Already permanently installed]
+2. fastapi — [Downloaded, not yet permanently installed]
+3. d3-visualization — [Downloaded, not yet permanently installed]
 
-Would you like to install the 2 new skills? (Yes / Skip)
+Would you like to permanently install the 2 new skills for future use? (Yes / Skip)
 ```
 
-- **Yes** → install ALL not-yet-installed skills (Step 5).
-- **Skip** or any other response → install NOTHING (Step 6).
-- If all skills are already installed, inform the user and go to Step 6.
+- **Yes** → permanently install ALL not-yet-installed skills (Step 5).
+- **Skip** or any other response → skip permanent install, go to Step 6.
+  Skills are still available in `<SKILLS_DIR>` for this workflow.
+- If all skills are already permanently installed, inform the user and go to Step 6.
 
-## Step 5: Install Skills
+## Step 5: Permanently Install Skills
 
-Pipe the JSON array of not-yet-installed skills from Step 3 into the
-installer over stdin.
+Install the whole skill folder (SKILL.md and all supporting files) from
+the local cache to Claude Code's permanent skills directory.
 
-Substitute `<MEGA_DIR>` with the literal from Setup, and replace
-`<JSON array of not-yet-installed skills from Step 3>` with the actual
-JSON array literal (the `skills` field from Step 3, filtered to
-not-yet-installed entries).
+Substitute `<MEGA_DIR>` and list the not-yet-permanently-installed skill
+names as positional arguments. Add `--scope project` to install into the
+current project's `.claude/skills/` instead of the default user scope
+(`~/.claude/skills/`).
 
 ```bash
-uv run --directory "<MEGA_DIR>" python \
-  "${CLAUDE_SKILL_DIR}/scripts/install_skills.py" << 'SKILLS_EOF'
-<JSON array of not-yet-installed skills from Step 3>
-SKILLS_EOF
+uv run --directory "<MEGA_DIR>" mega-code skill-install \
+  <skill-name-1> <skill-name-2> ...
 ```
 
-The script exits non-zero if any individual skill failed; in that case,
-report the failures to the user and stop before Step 6.
-
-Skills are extracted to `<SKILLS_DIR>/{skill-name}/`.
+The command exits non-zero if a skill name is not found in the local
+cache (e.g. it was not returned by Step 3). In that case, report the
+failure to the user and stop before Step 6.
 
 Report per-skill status:
 ```
-Installed: fastapi ✓
-Installed: d3-visualization ✓
-Skipped: python-pro (already installed)
+fastapi: installed
+d3-visualization: installed
 ```
 
 ## Step 6: Save Curation + Run Decision
@@ -279,7 +284,7 @@ Instead, **re-enter Step 7 (Run Now) with the same `<SESSION_ID>`,
 `<DATA_DIR>`, `<MEGA_DIR>` literals** still held in conversation context
 from this Setup. The curation document, installed skills, and session id
 are all still valid. After Step 7 completes, the Feedback section
-becomes **mandatory** — collect and submit the 6-field feedback exactly
+becomes **mandatory** — collect and submit the 7-field feedback exactly
 as if Run Now had been chosen at Step 6.
 
 ## Feedback (MANDATORY after Step 7 — Run Now or in-session resume)
@@ -292,39 +297,55 @@ execution result exists to evaluate in those branches.
 
 Use the same `<SESSION_ID>` literal from Setup.
 
-### Feedback content (6 fields)
+### Evidence-based execution
 
-Evaluate how useful the curation was by writing natural language
-feedback covering these 6 required fields:
+The curation document contains **Evidence annotations** for each wisdom:
+- **Evidence: Strong** (N positive, M negative) — apply directly with confidence
+- **Evidence: Weak** (N positive, M negative) — verify before applying
+- **Evidence: Limited** (N sessions) — treat as suggestion, validate independently
+- **Evidence: None** — no prior feedback, use your own judgment
 
-1. **Overall**: rating (1-5) + estimated accuracy/efficiency impact
-2. **Per-step**: each step's rating + which wisdoms were applied/partial/unused
-3. **Missing**: skills or strategies that would have been useful but weren't provided
-4. **Unexpected**: items that were surprisingly useful or harmful
-5. **Recommendations**: per-item improvement suggestions for future routing
-6. **[UPDATE]**: any outdated information, wrong model names, deprecated APIs found
+The portfolio-level blockquote (> **Evidence: Strong/Mixed/Limited**) indicates
+overall workflow reliability. Adjust your execution confidence accordingly:
+- Strong → follow steps closely
+- Mixed → follow structure but validate weak-evidence steps
+- Limited → treat as starting point, verify each step
+
+### Evaluation rigor
+
+Rate contribution by verified effect, not apparent relevance or effort:
+- Assign `direct` only if you can identify a specific observed result caused or materially influenced by this contribution.
+- Assign `none` if no measurable outcome changed, even if the contribution appears relevant.
+- Quantify lift, savings, or improvement only when supported by observed evidence.
+- Use the full rating scale without hesitation. Low scores are correct when impact is weak, evidence is thin, or attribution is unclear. If the impact is good, high scores are correct.
+
+### Feedback content (per-step, then per-wisdom)
+
+Write per-wisdom feedback. For each wisdom in the workflow, cover:
+
+1. **Contribution**: `direct` (clearly helpful), `ambient` (partially helpful), or `none`
+2. **Accuracy impact**: quality improvement estimate (-1.0 to 1.0, negative = harmful)
+3. **Efficiency impact**: time/token savings estimate (-1.0 to 1.0, negative = overhead)
+4. **Reason**: why it contributed or not
+5. **Step rating**: how well the step performed (0-5, 0 = not applicable)
+6. **Recommendation**: improvement suggestion (if any)
+7. **Update**: factual correction for outdated content (if any)
 
 ### Feedback text template
 
 Compose the feedback text using this template. Repeat the
-`Step N (...)` block once per step in the curated workflow. Omit the
-`[UPDATE]` block entirely if nothing was outdated.
+`Step N (...)` block once per step in the curated workflow.
 
 ```
-Overall: <rating>/5. <impact estimates>
-
 Step 1 (<step name>): <rating>/5
-- <wisdom/item>: <applied|partial|not used>. <effect estimate>.
+- <wisdom>: <direct|ambient|none>. Lift: <-1.0 to 1.0>, savings: <-1.0 to 1.0>. <reason>.
+  Recommendation: <improvement suggestion>
+  Update: <factual correction>
 
-Missing: <what knowledge was needed but not provided>
-
-Unexpected: <any surprises — good or bad>
-
-Recommendations:
-- <per-item improvement suggestions>
-
-[UPDATE]:
-- <outdated info, wrong model names, deprecated APIs encountered>
+Step 2 (<step name>): <rating>/5
+- <wisdom>: <direct|ambient|none>. Lift: <-1.0 to 1.0>, savings: <-1.0 to 1.0>. <reason>.
+  Recommendation: <improvement suggestion>
+  Update: <factual correction>
 ```
 
 ### Submit feedback

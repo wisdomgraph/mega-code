@@ -208,12 +208,11 @@ escaping (§6).
 
 ### 6. `skills/wisdom-gen/SKILL.md` — post-pipeline gate
 
-Insert a new step **inside** `## Post-Pipeline Workflow` (line 128+),
-**after** the step that parses `run_id`/`project_id` from
-`additionalContext` and **before** the pending review sub-workflow step.
-Use a `### Step N: Inject User Email` heading consistent with the
-existing numbered steps in that section. Do NOT add a new top-level
-`##` section; the gate is part of Post-Pipeline Workflow.
+Insert a new **numbered list item** inside `## Post-Pipeline Workflow`
+→ `### Steps:` (line 133), **after** item 1 (parse `run_id`/`project_id`)
+and **before** the current item 2 (review sub-workflow command).
+Renumber the existing items 2 → 3, 3 → 4. Do NOT add a new `###`
+sub-heading; the gate is an item in the existing numbered list.
 
 **Exit-code placement matrix.** The gate runs **only in success paths**:
 
@@ -230,10 +229,8 @@ Implementer MUST guard the gate behind the success condition, never
 file-level.
 
 ````markdown
-### Step N: Inject User Email (before review sub-workflow)
-
-After parsing `run_id` / `project_id`, run the gate before the review
-sub-workflow.
+2. **Inject User Email** — after parsing `run_id` / `project_id`, run
+   the gate before the review sub-workflow.
 
 ```bash
 MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
@@ -312,10 +309,7 @@ draft drops.
 **`tests/client/test_skill_enhance_helper.py`** (update):
 - B1: original has `creator`, draft drops it → final retains it
 
-**`tests/client/test_skill_security_audit.py`** (update):
-- `SKILL_METADATA_KEYS` is now 6-tuple
-
-`test_pending.py` unchanged.
+`test_pending.py`, `test_skill_security_audit.py` unchanged.
 
 ## Known Limitations
 
@@ -357,8 +351,7 @@ draft drops.
 uv run --directory . pytest \
   tests/client/test_skill_utils.py \
   tests/client/test_ensure_user_email.py \
-  tests/client/test_skill_enhance_helper.py \
-  tests/client/test_skill_security_audit.py -v
+  tests/client/test_skill_enhance_helper.py -v
 
 # E2E dry run — clear cache first
 grep -v '^MEGA_CODE_USER_EMAIL=' ~/.local/share/mega-code/.env > /tmp/env.tmp \

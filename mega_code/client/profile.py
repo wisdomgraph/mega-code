@@ -37,5 +37,5 @@ def save_profile(profile: UserProfile | dict) -> None:
     """
     if isinstance(profile, dict):
         profile = UserProfile(**profile)
-    content = json.dumps(profile.model_dump(by_alias=True), indent=2)
+    content = json.dumps(profile.model_dump(by_alias=True, exclude={"email"}), indent=2)
     atomic_write(get_profile_path(), content)

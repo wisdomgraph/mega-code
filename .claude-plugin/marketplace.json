@@ -13,7 +13,7 @@
       "name": "mega-code",
       "source": "./",
       "description": "MEGA Code turns coding sessions into self-evolving wisdom for agents and developers. It automatically generates Skills and Strategies from past sessions, curates the right workflows and Cheatmaps from the Wisdom DB based on user intent, and enhances existing Skills through evaluation and ROI analysis. BYOK model with local extraction pipeline.",
-      "version": "1.1.1-beta",
+      "version": "1.1.2-beta",
       "author": {
         "name": "Mind AI",
         "email": "support@megacode.ai"
