@@ -19,9 +19,6 @@ if [ -z "${CLAUDE_SKILL_DIR:-}" ]; then
 fi
 
 MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
-set -a
-[ -f "$MEGA_DIR/.env" ] && . "$MEGA_DIR/.env"
-set +a
 
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 

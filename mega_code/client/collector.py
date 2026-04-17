@@ -27,7 +27,12 @@ import dotenv
 import httpx
 
 from mega_code.client.api import create_client
-from mega_code.client.filters import filter_metadata, filter_turns
+from mega_code.client.filters import (
+    clean_mega_code_turns,
+    filter_metadata,
+    filter_turns,
+    save_cleaning_debug,
+)
 from mega_code.client.history.sources.mega_code import MegaCodeSource
 from mega_code.client.models import TurnSet
 from mega_code.client.schema import CollectorSessionMetadata, SessionStats, estimate_cost, utcnow
@@ -336,8 +341,24 @@ def _upload_trajectory(session_id: str, project_dir: str | None) -> None:
         if not turns:
             return
 
-        # Filter sensitive data before upload
-        turns = filter_turns(turns, project_dir=project_dir)
+        # Clean mega-code self-referential turns, then anonymize before writing
+        # debug files to disk (SecretMasker + PathAnonymizer must run first to
+        # avoid persisting raw API keys and absolute paths under ~/.local/share).
+        cleaning = clean_mega_code_turns(turns)
+        if not cleaning.kept:
+            return
+
+        from mega_code.client.filters.cleaning import CleaningResult
+
+        masked_original = filter_turns(turns, project_dir=project_dir)
+        masked_removed = filter_turns(cleaning.removed, project_dir=project_dir)
+        masked_kept = filter_turns(cleaning.kept, project_dir=project_dir)
+        save_cleaning_debug(
+            masked_original,
+            CleaningResult(kept=masked_kept, removed=masked_removed),
+            session_dir,
+        )
+        turns = masked_kept
         turn_metadata = filter_metadata(turn_metadata, project_dir=project_dir)
 
         # Build TurnSet

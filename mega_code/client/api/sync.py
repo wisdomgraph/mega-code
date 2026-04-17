@@ -58,15 +58,37 @@ def _session_to_turnset(
     session_dir: Path = Path(""),
 ) -> TurnSet | None:
     """Extract turns from a Session, apply filters, return TurnSet."""
-    from mega_code.client.filters import filter_metadata, filter_turns
+    from mega_code.client.filters import (
+        clean_mega_code_turns,
+        filter_metadata,
+        filter_turns,
+        save_cleaning_debug,
+    )
     from mega_code.client.turns import extract_turns
 
     turns, metadata = extract_turns(session)
     if not turns:
         return None
 
+    # Clean mega-code self-referential turns, then anonymize before writing
+    # debug files to disk (SecretMasker + PathAnonymizer must run first to
+    # avoid persisting raw API keys and absolute paths under ~/.local/share).
+    cleaning = clean_mega_code_turns(turns)
+    if not cleaning.kept:
+        return None
+
     project_dir = metadata.project_path
-    turns = filter_turns(turns, project_dir=project_dir)
+    masked_original = filter_turns(turns, project_dir=project_dir)
+    masked_removed = filter_turns(cleaning.removed, project_dir=project_dir)
+    masked_kept = filter_turns(cleaning.kept, project_dir=project_dir)
+    from mega_code.client.filters.cleaning import CleaningResult
+
+    save_cleaning_debug(
+        masked_original,
+        CleaningResult(kept=masked_kept, removed=masked_removed),
+        session_dir,
+    )
+    turns = masked_kept
     metadata = filter_metadata(metadata, project_dir=project_dir)
 
     return TurnSet(

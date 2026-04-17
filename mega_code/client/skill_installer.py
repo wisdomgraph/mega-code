@@ -95,3 +95,27 @@ def get_skill_path(skill_name: str) -> Path | None:
     """Get path to an installed skill, or None if not found."""
     p = skills_dir() / skill_name
     return p if (p / "SKILL.md").exists() else None
+
+
+def install_skill_permanent(skill_name: str, dest_dir: Path) -> str:
+    """Copy entire skill folder from skills_dir() to dest_dir/{skill_name}.
+
+    Copies the whole folder (SKILL.md, scripts/, references/, etc.).
+    Returns: "installed" | "skipped" (not found in local cache).
+    """
+    sd = skills_dir()
+    src = (sd / skill_name).resolve()
+    if not src.is_relative_to(sd.resolve()):
+        raise ValueError(f"Invalid skill name: {skill_name}")
+    if not (src / "SKILL.md").exists():
+        return "skipped"
+
+    dest = (dest_dir / skill_name).resolve()
+    if not dest.is_relative_to(dest_dir.resolve()):
+        raise ValueError(f"Invalid skill name: {skill_name}")
+
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(src, dest)
+    logger.info("Permanently installed skill %s → %s", skill_name, dest)
+    return "installed"

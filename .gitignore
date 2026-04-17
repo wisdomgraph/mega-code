@@ -33,3 +33,4 @@ htmlcov/
 .local/
 .env
 .copybara-tmp/
+turns_cleaning/

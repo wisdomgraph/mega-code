@@ -288,7 +288,7 @@ class MegaCodeRemote:
           2. Write ~/.local/share/mega-code/profile.json  → local mirror for inspection
              (only written when the API call succeeds)
         """
-        payload = profile.model_dump(by_alias=True)
+        payload = profile.model_dump(by_alias=True, exclude={"email"})
         resp = self._client.put("/api/megacode/v1/profile", json=payload)
         self._check_response(resp)
         data = resp.json()
