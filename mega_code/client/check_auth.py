@@ -13,7 +13,7 @@ import sys
 
 import httpx
 
-from mega_code.client.cli import get_env_path, load_env_file
+from mega_code.client.cli import load_credentials
 
 _NOT_LOGGED_IN = "Not logged in. Run $mega-code-login first."
 _KEY_EXPIRED = "API key expired or invalid. Run $mega-code-login to re-authenticate."
@@ -27,9 +27,7 @@ def check_auth() -> bool:
     Connection errors propagate — if we can't verify the key, we don't
     pretend it's valid.
     """
-    # Load .env so create_client() can find MEGA_CODE_API_KEY
-    for key, value in load_env_file(get_env_path()).items():
-        os.environ.setdefault(key, value)
+    load_credentials()
 
     if not os.environ.get("MEGA_CODE_API_KEY"):
         print(_NOT_LOGGED_IN)

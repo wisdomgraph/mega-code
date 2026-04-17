@@ -57,16 +57,32 @@ def _session_to_turnset(
     session: Session,
     session_dir: Path = Path(""),
 ) -> TurnSet | None:
-    """Extract turns from a Session, apply filters, return TurnSet."""
-    from mega_code.client.filters import filter_metadata, filter_turns
+    """Extract turns from a Session, clean self-referential turns, apply filters, return TurnSet."""
+    from mega_code.client.filters import clean_mega_code_turns, filter_metadata, filter_turns
     from mega_code.client.turns import extract_turns
+    from mega_code.client.utils.tracing import get_tracer
 
     turns, metadata = extract_turns(session)
     if not turns:
         return None
 
+    # Clean self-referential MEGA-Code turns
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span("sync.clean_mega_code_turns") as span:
+        cleaning = clean_mega_code_turns(turns)
+        span.set_attribute("cleaning.total_turns", len(turns))
+        span.set_attribute("cleaning.kept_count", len(cleaning.kept))
+        span.set_attribute("cleaning.removed_count", len(cleaning.removed))
+        if cleaning.removed:
+            removed_ids = [t.turn_id for t in cleaning.removed]
+            span.set_attribute("cleaning.removed_turn_ids", str(removed_ids))
+
+    if not cleaning.kept:
+        return None
+
+    # Anonymize kept turns only (SecretMasker + PathAnonymizer)
     project_dir = metadata.project_path
-    turns = filter_turns(turns, project_dir=project_dir)
+    turns = filter_turns(cleaning.kept, project_dir=project_dir)
     metadata = filter_metadata(metadata, project_dir=project_dir)
 
     return TurnSet(
