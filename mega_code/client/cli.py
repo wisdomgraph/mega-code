@@ -65,6 +65,15 @@ def load_env_file(env_path: Path) -> dict[str, str]:
     return {k: v for k, v in dotenv_values(env_path).items() if v is not None}
 
 
+def load_credentials() -> None:
+    """Load persisted credentials from the stable .env into os.environ.
+
+    Uses setdefault so explicit shell env overrides still win.
+    """
+    for key, value in load_env_file(get_env_path()).items():
+        os.environ.setdefault(key, value)
+
+
 def save_env_file(env_path: Path, env_vars: dict[str, str]) -> None:
     """Save environment variables to .env file."""
     existing_lines = []

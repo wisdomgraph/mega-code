@@ -25,7 +25,6 @@ if [ -z "$MEGA_DIR" ] || [ ! -f "$MEGA_DIR/pyproject.toml" ]; then
 fi
 export MEGA_CODE_DATA_DIR="$HOME/.local/share/mega-code"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$MEGA_DIR/.uv-cache}"
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
@@ -240,7 +239,6 @@ with the enhanced version (semantic version bumped, `generated_at` refreshed, RO
 **Store on server** (creates a new DB row for the canonical enhanced skill name with the bumped semantic version and lineage metadata, while preserving the original pending-skill folder name as the lineage parent):
 
 ```bash
-set -a && . "$MEGA_DIR/.env" 2>/dev/null && set +a
 export MEGA_CODE_CLIENT_MODE=${MEGA_CODE_CLIENT_MODE:-remote}
 uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
     store-skill \

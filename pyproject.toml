@@ -1,6 +1,6 @@
 [project]
 name = "mega-code"
-version = "1.1.1-beta"
+version = "1.1.2-beta"
 description = "Open-source Codex CLI plugin — collect interaction data, extract skills, and optimize AI workflows"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
