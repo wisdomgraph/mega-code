@@ -150,52 +150,33 @@ The agent reads these files at the start of every session. It does not repeat th
 ```markdown
 Wisdom Curation
 
-Problem
-Situation: The user is currently in the late stages of a web development project and is looking to refine the visual aesthetics and user interface components of their existing website to achieve a more professional look.
-Symptoms: The current design likely suffers from a generic layout, poor visual hierarchy, or suboptimal color schemes that result in low user engagement metrics and a lack of distinctive brand identity.
-Goals: The user aims to acquire advanced front-end design techniques and UI/UX principles that will significantly elevate the visual quality of the site, ultimately improving user retention rates and overall aesthetic appeal.
-
-Expected ROI
-Metric          Value
-Portfolio P     0.98
-Items           5
-Steps routed    4/4
-
 IMPORTANT: How to use this curation
 This curation contains a step-by-step workflow. Each step may have a Reference: entry pointing to domain-specific knowledge that you likely do NOT already know. Before executing each step, you MUST read the referenced section.
 
 step-1: Visual Hierarchy and Aesthetic Audit
-Stage: diagnosis | P=1.00 | PASS
 
 Portfolio: 1 core + 0 supporting skills selected for complementary coverage.
 
-1. [H] Visual and Accessibility Audit (score=0.508)
+1. [H] Visual and Accessibility Audit
 P: Assess visual polish against an 8px spacing scale, typography hierarchy, and semantic color usage. Verify WCAG 2.1 AA compliance, specifically color contrast ratios and keyboard tab order.
 R: UI components are fully keyboard-accessible and screen-reader friendly. The design system remains consistent by using a single source of truth for primitives.
 Reference: design-review/SKILL.md#Phase 3: Visual Polish L136-150
 Reference: design-review/SKILL.md#Phase 4: Accessibility (WCAG 2.1 AA) L153-174
 
 step-2: Advanced UI Component Design Systems
-Stage: planning | P=1.00 | PASS
 
 Portfolio: 1 core + 1 supporting skills selected for complementary coverage.
 
-1. [H] micro-interaction-and-animation-implementation (score=0.501)
+1. [H] micro-interaction-and-animation-implementation
 P: Apply subtle CSS transitions and spring physics to buttons, toggles, and form elements to create satisfying tactile feedback.
 R: Interface elements provide immediate, satisfying visual and haptic feedback within 1 second.
 Reference: delight/SKILL.md#Micro-interactions & Animation L84-122
 Reference: delight/SKILL.md#Satisfying Interactions L175-200
 
-2. [M] Animation and Motion Constraints (score=0.372)
+2. [M] Animation and Motion Constraints
 P: Apply performant animation constraints using motion/react and Tailwind CSS to prevent interface slop.
 R: Animations are smooth and do not trigger expensive browser layout or paint cycles.
 Reference: baseline-ui/SKILL.md#Animation L52-64
-
-step-3: Micro-interaction and Motion Implementation
-Stage: implementation | P=1.00 | PASS
-
-step-4: User Engagement and Retention Testing
-Stage: validation | P=1.00 | PASS
 ```
 
 ---
