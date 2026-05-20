@@ -35,11 +35,19 @@ from mega_code.client.cli import get_env_path, load_env_file, save_env_file
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SERVER_URL = "https://console.megacode.ai"
+
 _MEGA_SERVICE_API_PATH = "/api/mega-service/v1"
+
 _DEFAULT_PROVIDER = "google"
+
 _POLL_INTERVAL_SECONDS = 3
-_POLL_TIMEOUT_SECONDS = 600  # 10 minutes, matches server-side expiry
-_MAX_TRANSIENT_RETRIES = 3  # consecutive network failures before aborting
+
+_POLL_TIMEOUT_SECONDS = 600
+
+# 10 minutes, matches server-side expiry
+_MAX_TRANSIENT_RETRIES = 3
+
+# consecutive network failures before aborting
 
 
 def _resolve_mega_service_url() -> str:

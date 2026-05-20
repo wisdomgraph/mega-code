@@ -12,7 +12,7 @@ allowed-tools: Read
 |---------|-------------|
 | `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:wisdom-gen` | Run skill extraction pipeline |
-| `/mega-code:skill-enhance` | Evaluate and enhance a skill with A/B testing |
+| `/mega-code:skill-enhance` | Enhance a skill (remote server by default; pass `--hitl` for local human-in-the-loop A/B) |
 | `/mega-code:wisdom-curate` | Curate a wisdom-backed workflow with skill installation |
 | `/mega-code:status` | Show pending items and status |
 | `/mega-code:stop` | Stop a running pipeline |
@@ -69,7 +69,7 @@ When no model is specified, the server selects the best model based on your conf
 ## Tips
 
   - Run /mega-code:wisdom-gen after significant coding sessions
-  - Run /mega-code:skill-enhance <skill> to improve an existing skill and review ROI
+  - Run /mega-code:skill-enhance <skill> to enhance a skill via the remote server (requires `MEGA_CODE_CLIENT_MODE=remote`); add `--hitl` to use the local human-in-the-loop A/B flow instead
   - Use --project to analyze multiple sessions for stronger patterns
   - Skills with more evidence (from multiple sessions) are higher quality
   - Review and edit skills before installing for best results

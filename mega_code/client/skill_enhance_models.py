@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 EVAL_LIFT_THRESHOLD = max(
     0.0, min(1.0, float(os.getenv("MEGA_CODE_BEHAVIORAL_LIFT_THRESHOLD", "0.05")))
 )
+
 EVAL_SAVINGS_THRESHOLD = max(
     0.0, min(1.0, float(os.getenv("MEGA_CODE_BEHAVIORAL_SAVINGS_THRESHOLD", "0.2")))
 )
-
 
 # =============================================================================
 # Pydantic Models

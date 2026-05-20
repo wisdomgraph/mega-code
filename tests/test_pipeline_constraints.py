@@ -105,30 +105,6 @@ class TestPipelineBusyResponse:
             payload = mock_async.post.call_args.kwargs["json"]
             assert payload["force"] is True
 
-    @pytest.mark.asyncio
-    async def test_trigger_sends_include_flags(self, client):
-        """Include flags (claude/codex) are sent in the pipeline trigger payload."""
-        success_response = httpx.Response(
-            200,
-            json={"run_id": "run-flags", "status": "queued", "message": "ok"},
-            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
-        )
-
-        with patch.object(client, "_get_async_client") as mock_ac:
-            mock_async = AsyncMock()
-            mock_async.post.return_value = success_response
-            mock_ac.return_value = mock_async
-
-            await client.trigger_pipeline_run(
-                project_id="test-project",
-                include_claude=True,
-                include_codex=True,
-            )
-
-            payload = mock_async.post.call_args.kwargs["json"]
-            assert payload["include_claude"] is True
-            assert payload["include_codex"] is True
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Unit tests: pipeline status polling
@@ -203,63 +179,6 @@ class TestTriggerPayloadConstruction:
             server_url="https://test.megacode.ai",
             api_key="mg_test_key",
         )
-
-    @pytest.mark.asyncio
-    async def test_minimal_payload(self, client):
-        """Minimal trigger sends project_id, force, concurrency, include flags."""
-        success = httpx.Response(
-            200,
-            json={"run_id": "r1", "status": "queued", "message": ""},
-            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
-        )
-
-        with patch.object(client, "_get_async_client") as mock_ac:
-            mock_async = AsyncMock()
-            mock_async.post.return_value = success
-            mock_ac.return_value = mock_async
-
-            await client.trigger_pipeline_run(project_id="my-proj")
-
-            payload = mock_async.post.call_args.kwargs["json"]
-            assert payload["project_id"] == "my-proj"
-            assert payload["force"] is False
-            assert payload["concurrency"] == 64
-            assert payload["include_claude"] is False
-            assert payload["include_codex"] is False
-
-    @pytest.mark.asyncio
-    async def test_full_payload_with_optional_fields(self, client):
-        """All optional fields are included in payload when specified."""
-        success = httpx.Response(
-            200,
-            json={"run_id": "r2", "status": "queued", "message": ""},
-            request=httpx.Request("POST", "https://test.megacode.ai/api/megacode/v1/pipeline/run"),
-        )
-
-        with patch.object(client, "_get_async_client") as mock_ac:
-            mock_async = AsyncMock()
-            mock_async.post.return_value = success
-            mock_ac.return_value = mock_async
-
-            await client.trigger_pipeline_run(
-                project_id="my-proj",
-                steps=["step0", "step1"],
-                force=True,
-                limit=5,
-                concurrency=8,
-                model="gpt-5-mini",
-                include_claude=True,
-                include_codex=True,
-            )
-
-            payload = mock_async.post.call_args.kwargs["json"]
-            assert payload["steps"] == ["step0", "step1"]
-            assert payload["force"] is True
-            assert payload["limit"] == 5
-            assert payload["concurrency"] == 8
-            assert payload["model"] == "gpt-5-mini"
-            assert payload["include_claude"] is True
-            assert payload["include_codex"] is True
 
     @pytest.mark.asyncio
     async def test_auth_error_raises_descriptive_message(self, client):

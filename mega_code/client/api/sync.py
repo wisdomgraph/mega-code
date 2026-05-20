@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,6 +55,20 @@ def _save_ledger(ledger_path: Path, ledger: dict) -> None:
     atomic_write(ledger_path, json.dumps(ledger, indent=2))
 
 
+def _cleaning_debug_dir(session_dir: Path, session_id: str) -> Path:
+    """Resolve the /tmp directory for cleaning-debug artefacts.
+
+    Layout: ``<tmpdir>/mega-code/cleaning/<project_folder>/<session_id>/``
+    where ``project_folder`` is the mega-code anchor folder name (or
+    ``unknown`` when callers don't pass a parent). Anchoring under
+    ``tempfile.gettempdir()`` keeps masked conversation content off the
+    user's persistent storage — it is only kept long enough to debug a
+    cleaning regression.
+    """
+    project_folder = session_dir.parent.name or "unknown"
+    return Path(tempfile.gettempdir()) / "mega-code" / "cleaning" / project_folder / session_id
+
+
 def _session_to_turnset(
     session: Session,
     session_dir: Path = Path(""),
@@ -78,16 +94,24 @@ def _session_to_turnset(
         return None
 
     project_dir = metadata.project_path
-    masked_original = filter_turns(turns, project_dir=project_dir)
-    masked_removed = filter_turns(cleaning.removed, project_dir=project_dir)
     masked_kept = filter_turns(cleaning.kept, project_dir=project_dir)
-    from mega_code.client.filters.cleaning import CleaningResult
 
-    save_cleaning_debug(
-        masked_original,
-        CleaningResult(kept=masked_kept, removed=masked_removed),
-        session_dir,
-    )
+    # Cleaning debug is opt-in: enable with MEGA_CODE_DEBUG_CLEANING=1 to
+    # land masked turns-original.jsonl / turns-removed.jsonl under /tmp.
+    # Default off — we have no production reader for these files and they
+    # contain (masked) conversation content.
+    if os.environ.get("MEGA_CODE_DEBUG_CLEANING"):
+        from mega_code.client.filters.cleaning import CleaningResult
+
+        masked_original = filter_turns(turns, project_dir=project_dir)
+        masked_removed = filter_turns(cleaning.removed, project_dir=project_dir)
+        debug_dir = _cleaning_debug_dir(session_dir, session.metadata.session_id)
+        save_cleaning_debug(
+            masked_original,
+            CleaningResult(kept=masked_kept, removed=masked_removed),
+            debug_dir,
+        )
+
     turns = masked_kept
     metadata = filter_metadata(metadata, project_dir=project_dir)
 
@@ -153,6 +177,10 @@ def _upload_sessions(
         turn_set = loader()
         if not turn_set or not turn_set.turns:
             logger.debug("Skipping empty %ssession: %s", label, session_id)
+            entry = {"skipped": True, "checked_at": datetime.now(UTC).isoformat()}
+            if extra_entry is not None:
+                entry.update(extra_entry(session_id))
+            ledger.setdefault(ledger_key, {})[session_id] = entry
             continue
 
         result: UploadResult = client.upload_trajectory(
@@ -187,7 +215,15 @@ def sync_trajectories(
     client: MegaCodeBaseClient,
     project_id: str,
 ) -> int:
-    """Ensure all local sessions are uploaded to the server.
+    """Ensure all local mega-code session subdirs are uploaded to the server.
+
+    Legacy path: only relevant for users with pre-PR-79 mirrors. Since the
+    lifecycle hooks were removed and ``collector.py`` deleted, no new UUID
+    subdirectories are created under ``project_dir``. Claude transcripts are
+    now read directly from ``~/.claude/projects/`` via ``claude_sync.py``;
+    this function is kept so that existing local mirrors finish uploading on
+    upgrade and so non-Claude/non-Codex agents can still opt in via
+    ``--include-*``.
 
     Args:
         project_dir: Local mega-code project data folder.
@@ -224,47 +260,4 @@ def sync_trajectories(
         sessions=sessions,
         client=client,
         project_id=project_id,
-    )
-
-
-@traced("client.sync_claude_trajectories")
-def sync_claude_trajectories(
-    project_dir: Path,
-    client: MegaCodeBaseClient,
-    project_id: str,
-) -> int:
-    """Upload matching Claude Code native sessions as trajectories.
-
-    Args:
-        project_dir: Local mega-code project data folder.
-        client: Authenticated client (typically MegaCodeRemote).
-        project_id: Project identifier for the server.
-
-    Returns:
-        Number of newly uploaded Claude sessions.
-    """
-    from mega_code.client.history.loader import load_sessions_from_project
-
-    all_sessions = load_sessions_from_project(
-        project_dir,
-        include_claude=True,
-        include_codex=False,
-    )
-
-    claude_sessions = [s for s in all_sessions if s.metadata.source == "claude_native"]
-    if not claude_sessions:
-        logger.info("No Claude native sessions found for project")
-        return 0
-
-    sessions = [
-        (s.metadata.session_id, lambda s=s: _session_to_turnset(s)) for s in claude_sessions
-    ]
-
-    return _upload_sessions(
-        ledger_path=project_dir / "sync-ledger.json",
-        ledger_key="claude_sessions",
-        sessions=sessions,
-        client=client,
-        project_id=project_id,
-        label="Claude ",
     )

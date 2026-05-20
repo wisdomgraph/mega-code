@@ -20,7 +20,6 @@ Usage:
     python -m mega_code.client.run_pipeline --project
     python -m mega_code.client.run_pipeline --project @mega-code
     python -m mega_code.client.run_pipeline --model gemini-3-flash
-    python -m mega_code.client.run_pipeline --project --include-claude
     python -m mega_code.client.run_pipeline --poll-existing <run_id> --project <project_id>
 """
 
@@ -38,6 +37,33 @@ from pathlib import Path
 from mega_code.client.cli import get_env_path, load_env_file
 
 logger = logging.getLogger(__name__)
+
+
+def _detect_current_claude_session(project_cwd: str) -> str | None:
+    """Pick the most-recently-modified Claude transcript for ``project_cwd``.
+
+    Hook-less fallback for the no-flag wisdom-gen case: the actively-written
+    JSONL has the freshest mtime, so its session id is almost always the
+    "current" one. Returns None if no matching transcript exists.
+    """
+    from mega_code.client.history.sources.claude_native import ClaudeNativeSource
+
+    src = ClaudeNativeSource()
+    entries = list(src.iter_sessions_by_project_paths([project_cwd]))
+    if not entries:
+        return None
+
+    def _mtime(entry: dict) -> float:
+        full = entry.get("fullPath")
+        if not full:
+            return 0.0
+        try:
+            return Path(full).stat().st_mtime
+        except OSError:
+            return 0.0
+
+    entries.sort(key=_mtime, reverse=True)
+    return entries[0].get("sessionId")
 
 
 def _parse_conflict_run_id(detail: str) -> str | None:
@@ -143,21 +169,6 @@ Project argument formats:
         help="Max concurrent operations (default: 4)",
     )
     parser.add_argument(
-        "--include-claude",
-        action="store_true",
-        help="Include related Claude Code sessions when loading from project (default: False)",
-    )
-    parser.add_argument(
-        "--include-codex",
-        action="store_true",
-        help="Include related Codex CLI sessions when loading from project (default: False)",
-    )
-    parser.add_argument(
-        "--include-all",
-        action="store_true",
-        help="Include sessions from all sources (Claude + Codex + future integrations)",
-    )
-    parser.add_argument(
         "--poll-timeout",
         type=int,
         default=None,
@@ -229,14 +240,39 @@ async def main():
     else:
         logger.info("Model not specified — server will select based on configured LLM keys")
 
-    # Resolve include flags
-    include_claude = args.include_claude or args.include_all
-    include_codex = args.include_codex or args.include_all
-
     # Get environment variables
     session_id = args.session_id or os.environ.get("CLAUDE_SESSION_ID")
     project_dir_env = Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
     storage = args.storage or os.environ.get("MEGA_CODE_PIPELINE_STORAGE", "local")
+    agent = os.environ.get("MEGA_CODE_AGENT", "")
+
+    # Friendlier default for direct `python -m mega_code.client.run_pipeline`
+    # invocation: if MEGA_CODE_AGENT is unset and ~/.claude/projects/ exists,
+    # assume the active agent is Claude. Without this, the dispatch in
+    # remote.trigger_pipeline_run falls through to the legacy
+    # sync_trajectories path which scans for UUID subdirs that the
+    # collector no longer creates (post hooks-removal), silently
+    # syncing zero sessions.
+    #
+    # Known limitation: a user who has historically used Claude Code (so
+    # the dir exists) but is currently running from another agent (e.g.
+    # Codex) without MEGA_CODE_AGENT set will be misclassified as Claude
+    # and skip their actual agent's sync. In practice every shipped
+    # SKILL.md exports MEGA_CODE_AGENT explicitly, so this only affects
+    # ad-hoc CLI invocations.
+    if not agent and (Path.home() / ".claude" / "projects").is_dir():
+        agent = "claude"
+
+    # Hook-less fallback for no-flag wisdom-gen: detect the current Claude
+    # session by newest-mtime JSONL under ~/.claude/projects/<dir>/. The
+    # CLAUDE_SESSION_ID env var was a hook-only injection; slash-command
+    # subprocesses don't get it, so without this auto-detection the
+    # no-flag run would fall through to whole-project mode.
+    if not session_id and args.project is None and not args.session_id and agent == "claude":
+        detected = _detect_current_claude_session(str(project_dir_env))
+        if detected:
+            logger.info(f"Auto-detected current Claude session: {detected}")
+            session_id = detected
 
     # Determine execution mode
     mode = resolve_mode(args.mode)
@@ -258,16 +294,12 @@ async def main():
             project_id = mega_code_project_dir.name
             span.set_attribute("pipeline.project_dir", str(mega_code_project_dir))
 
-            # Determine session_id or project_path for trigger
+            # Resolve target session_id (None when running the whole project).
             resolved_session_id: str | None = None
-            resolved_project_path: Path | None = None
-
             if args.session_id:
                 resolved_session_id = args.session_id
             elif session_id and args.project is None:
                 resolved_session_id = session_id
-            else:
-                resolved_project_path = mega_code_project_dir
 
             # --- Client protocol: create → trigger → poll → save ---
 
@@ -286,15 +318,24 @@ async def main():
                 "force": args.force,
                 "limit": args.limit,
                 "concurrency": args.concurrency,
-                "include_claude": include_claude,
-                "include_codex": include_codex,
                 "model": model_name,
+                "agent": agent,
             }
 
+            # Always pass project_path so the sync step runs (even for
+            # single-session mode — the server can't run the pipeline on a
+            # session it has never received). When session_id is also set,
+            # the dispatch in remote.trigger_pipeline_run uploads only that
+            # one transcript instead of every matching session.
+            trigger_kwargs["project_path"] = mega_code_project_dir
             if resolved_session_id:
                 trigger_kwargs["session_id"] = resolved_session_id
-            elif resolved_project_path:
-                trigger_kwargs["project_path"] = resolved_project_path
+
+            # Pass project_cwd whenever a Claude/Codex sync is expected.
+            # The mega-code anchor dir never matches a session cwd, so the
+            # native syncs need the real working directory.
+            if agent in ("claude", "codex"):
+                trigger_kwargs["project_cwd"] = str(project_dir_env)
 
             # Validate and resolve poll timeout before triggering (fail fast)
             if args.poll_timeout is not None and args.poll_timeout < 0:
@@ -324,6 +365,14 @@ async def main():
             else:
                 logger.info("Triggering pipeline via client...")
                 trigger_result = await client.trigger_pipeline_run(**trigger_kwargs)
+                # Sentinel: single-session sync filtered to zero turns, so
+                # the server was never asked to run anything. Print a
+                # friendly notification on stdout (the slash command parses
+                # it via additionalContext) and exit cleanly.
+                if trigger_result.status == "skipped_empty_session":
+                    logger.info(trigger_result.message)
+                    print(json.dumps({"additionalContext": trigger_result.message}))
+                    sys.exit(0)
                 run_id = trigger_result.run_id
                 logger.info(f"Pipeline triggered: run_id={run_id}, status={trigger_result.status}")
 

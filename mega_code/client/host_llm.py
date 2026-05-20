@@ -59,7 +59,9 @@ _AGENT_CLIS: list[tuple[str, list[str], str, list[str]]] = [
 
 # Concurrency limiter — how many parallel CLI calls we allow.
 _MAX_CONCURRENCY = int(os.getenv("MEGA_CODE_EVAL_CONCURRENCY", "4"))
+
 _EVAL_TIMEOUT_SECONDS = float(os.getenv("MEGA_CODE_EVAL_TIMEOUT", "300"))
+
 _semaphores: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
     weakref.WeakKeyDictionary()
 )

@@ -19,11 +19,12 @@ skills/status/     -> /mega-code:status
 skills/profile/    -> /mega-code:profile
 skills/login/      -> /mega-code:login
 skills/help/       -> /mega-code:help
-
-hooks/hooks.json   -> SessionStart / SessionEnd / UserPromptSubmit / Stop
-scripts/           -> session-start.sh, check_pending_skills.py,
-                      run_pipeline_async.py
 ```
+
+Session ingestion is hook-less: `wisdom-gen` triggers an on-demand sync
+that scans `~/.claude/projects/` directly, filters by the user's cwd,
+and uploads matching transcripts. State lives in
+`~/.local/share/mega-code/projects/<folder>/claude-sync-ledger.json`.
 
 ## Non-negotiable runtime rules
 
@@ -78,23 +79,6 @@ Authoring rules:
 - Keep command examples copy-pastable.
 - Do not hardcode plugin install paths; use `${CLAUDE_PLUGIN_ROOT}` in hooks and `MEGA_DIR` in skills.
 - If a skill invokes Python entry points, prefer existing modules in `mega_code.client` or scripts in `scripts/`.
-
-## Hook conventions
-
-Hook config lives in `hooks/hooks.json`.
-
-Required rules:
-
-- Reference `${CLAUDE_PLUGIN_ROOT}` in every hook command.
-- Every hook entry must include a `timeout`.
-- Use at most `30` seconds for collection/data hooks and at most `5` seconds for quick checks.
-- Supported events in this repo are `SessionStart`, `SessionEnd`, `UserPromptSubmit`, and `Stop`.
-
-When editing hooks:
-
-- Keep commands non-interactive.
-- Prefer existing scripts/modules over inline shell.
-- Preserve fast-path behavior for prompt-time hooks.
 
 ## Preferred implementation pattern
 

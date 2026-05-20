@@ -37,10 +37,9 @@ from mega_code.client.skill_utils import (
     split_frontmatter,
 )
 from mega_code.client.stats import find_session_dir, get_project_folder_name, load_mapping
-from mega_code.client.utils.tracing import traced
+from mega_code.client.utils.tracing import set_span_attributes, traced
 
 logger = logging.getLogger(__name__)
-
 
 try:
     from opentelemetry import trace as _otel_trace
@@ -61,6 +60,7 @@ def _set_span_attrs(attrs: dict) -> None:
 
 
 _DEFAULT_MAX_SKILLS = 5
+
 _SKILL_IDENTITY_FILENAME = "skill-identity.json"
 
 
@@ -111,16 +111,33 @@ def _is_mega_code_skill(author: str) -> bool:
     return MEGACODE_AUTHOR_MARKER in author.lower()
 
 
+@traced("skill_enhance.scan_skills_dir")
 def _scan_skills_dir(
     skills_dir: Path,
     *,
     limit: int | None = None,
     mega_code_only: bool = True,
 ) -> list[dict]:
-    """Scan a Claude skills directory for skills."""
-    results = []
+    """Scan a Claude skills directory for skills.
+
+    Span attributes are set so the picker's "0 candidates" outcome can be
+    diagnosed from a trace alone — without re-running the slash command,
+    you can tell whether the directory was missing, every skill was
+    skipped as non-mega-authored, or every dir lacked SKILL.md.
+    """
+    set_span_attributes(
+        scan_dir=str(skills_dir),
+        scan_dir_exists=skills_dir.exists(),
+        scan_limit=limit if limit is not None else -1,
+        scan_mega_code_only=mega_code_only,
+    )
+
+    results: list[dict] = []
+    skipped_non_mega = 0
+    skipped_no_skill_md = 0
 
     if not skills_dir.exists():
+        set_span_attributes(scan_result_count=0)
         return results
 
     for skill_dir in sorted(skills_dir.iterdir()):
@@ -130,12 +147,14 @@ def _scan_skills_dir(
             continue
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.exists():
+            skipped_no_skill_md += 1
             continue
 
         content = skill_md.read_text(encoding="utf-8")
         fm = parse_frontmatter(content)
         author = str(skill_frontmatter_value(fm, "author", ""))
         if mega_code_only and not _is_mega_code_skill(author):
+            skipped_non_mega += 1
             continue
 
         name = canonical_skill_name(skill_dir.name, content)
@@ -148,14 +167,33 @@ def _scan_skills_dir(
             }
         )
 
+    set_span_attributes(
+        scan_result_count=len(results),
+        scan_skipped_non_mega=skipped_non_mega,
+        scan_skipped_no_skill_md=skipped_no_skill_md,
+        scan_result_names=[r["name"] for r in results],
+    )
     return results
 
 
 def _project_skills_dir() -> Path:
-    """Return the project-scoped Claude skills directory."""
+    """Return the project-scoped Claude skills directory.
+
+    Refuses to fall back to a plugin-cache cwd: installing under the plugin
+    cache is always wrong (the cache is overwritten on every plugin update,
+    and the user's VCS will not see it). Callers that need a guaranteed real
+    project root should pass ``--project-dir`` upstream.
+    """
     project_dir = _resolve_current_project_dir()
     if project_dir is None:
-        project_dir = Path(os.getcwd()).resolve()
+        cwd = Path(os.getcwd()).resolve()
+        if _looks_like_plugin_cache_path(cwd):
+            raise RuntimeError(
+                "Cannot resolve a real project directory: cwd is under the "
+                "Claude plugin cache and no CLAUDE_PROJECT_DIR / session "
+                "mapping is set. Pass --project-dir <path> to the caller."
+            )
+        project_dir = cwd
     return project_dir / ".claude" / "skills"
 
 
@@ -865,7 +903,7 @@ def main() -> None:
     # Setup tracing
     from mega_code.client.utils.tracing import setup_tracing
 
-    setup_tracing(service_name="mega-code-skill-enhance")
+    setup_tracing(service_name="mega-code-client")
 
     if args.command == "list-skills":
         _apply_cli_project_dir(args.project_dir)

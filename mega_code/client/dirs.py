@@ -3,8 +3,6 @@
 Follows XDG Base Directory Specification on Linux and macOS (CLI convention).
 Migration from the legacy path (~/.local/mega-code) is handled by
 session-start.sh, not here — this module is pure path resolution.
-
-See docs/design-docs/2026-xdg-data-dirs.md for rationale.
 """
 
 import os

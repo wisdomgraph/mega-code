@@ -77,8 +77,7 @@ class Message(BaseModel):
 class HistorySessionMetadata(BaseModel):
     """Session-level metadata for the multi-source history loader.
 
-    Not to be confused with ``schema.CollectorSessionMetadata`` (collector file I/O)
-    or ``models.SessionMetadata`` (pipeline TurnSet metadata).
+    Not to be confused with ``models.SessionMetadata`` (pipeline TurnSet metadata).
     """
 
     session_id: str = Field(description="Unique session identifier")
@@ -95,10 +94,7 @@ class HistorySessionMetadata(BaseModel):
 
 
 class HistorySessionStats(BaseModel):
-    """Aggregated session statistics for the multi-source history loader.
-
-    Not to be confused with ``schema.SessionStats`` (collector real-time stats).
-    """
+    """Aggregated session statistics for the multi-source history loader."""
 
     message_count: int = Field(default=0, description="Total number of messages")
     user_message_count: int = Field(default=0, description="Number of user messages")

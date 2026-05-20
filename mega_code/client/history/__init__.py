@@ -35,7 +35,6 @@ from mega_code.client.history.loader import (
     DataLoader,
     create_loader,
     load_session_by_id,
-    load_sessions_from_project,
 )
 from mega_code.client.history.models import (
     HistorySessionMetadata,
@@ -78,5 +77,4 @@ __all__ = [
     # Main API
     "create_loader",
     "load_session_by_id",
-    "load_sessions_from_project",
 ]
