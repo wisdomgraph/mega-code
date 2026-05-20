@@ -22,6 +22,7 @@ from mega_code.client.dirs import data_dir
 logger = logging.getLogger(__name__)
 
 _MAX_DOWNLOAD_SIZE = min(int(os.environ.get("SKILL_MAX_DOWNLOAD_MB", "100")), 500) * 1024 * 1024
+
 _DOWNLOAD_TIMEOUT = min(int(os.environ.get("SKILL_DOWNLOAD_TIMEOUT", "120")), 300)
 
 

@@ -1,6 +1,6 @@
 ---
 description: Run the MEGA-Code skill extraction pipeline to analyze Claude Code sessions and generate reusable skills and strategies.
-argument-hint: "[--project [@<name>]] [--model <model>] [--poll-timeout <seconds>] [--include-claude]"
+argument-hint: "[--project [@<name>]] [--model <model>] [--poll-timeout <seconds>]"
 allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
 disable-model-invocation: true
 ---
@@ -26,6 +26,7 @@ The default poll timeout is **20 minutes**. For longer runs, use `--poll-timeout
 
 ```bash
 MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
+export MEGA_CODE_AGENT="claude"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 
@@ -37,13 +38,12 @@ All commands below assume `MEGA_DIR` is set.
 
 | Flag | Behavior |
 |------|----------|
-| *(none)* | Process current session only |
+| *(none)* | Process current session only (auto-detected as the most-recently-modified Claude transcript for this `cwd`) |
 | `--project` | All sessions in current project |
 | `--project @name` | Specific project by name prefix |
 | `--session-id <uuid>` | Specific session |
 | `--model <alias>` | LLM model (default: server picks best) |
 | `--poll-timeout <seconds>` | Max seconds to poll for completion (default: 1200 = 20 min; 0 = indefinite) |
-| `--include-claude` | Include related Claude Code sessions from the project |
 
 **Project argument formats** (all equivalent):
 `@mega-code` · `mega-code` · `mega-code_b39e0992` · `/path/to/project`
@@ -56,8 +56,13 @@ All variables must be in **one single Bash call** so `$LOG` and `$MEGA_DIR` stay
 LOG="/tmp/mega-code-run-$(date +%Y%m%d-%H%M%S).log" && \
   echo "Pipeline log: $LOG" && \
   export CLAUDE_PROJECT_DIR="$PWD" && \
+  export MEGA_CODE_AGENT="claude" && \
   uv run --directory "$MEGA_DIR" python -m mega_code.client.run_pipeline [FLAGS] 2>&1 | tee "$LOG"
 ```
+
+`MEGA_CODE_AGENT="claude"` selects the Claude sync branch so the
+pipeline scans `~/.claude/projects/` and uploads transcripts whose
+`cwd` matches `$CLAUDE_PROJECT_DIR`.
 
 Replace `[FLAGS]` with desired combination from the table above.
 Tell the user the log path so they can monitor with `tail -f` or check after completion.

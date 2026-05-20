@@ -1,0 +1,107 @@
+{
+  "_comment": "Canonical content_hash test vectors per design §3.9.3. Generated from server.storage.bundle.compute_content_hash; the mega-code client packager (gateway plan §1B) must reproduce these byte-for-byte. Do not hand-edit — regenerate via tests/fixtures/regenerate_content_hash_vectors.py if the algorithm ever changes.",
+  "vectors": [
+    {
+      "name": "single_skill_md",
+      "files": [
+        {
+          "relpath": "SKILL.md",
+          "sha256": "9e8b62f81ea5c66fa06ee53da032751386b37702153070c0e14dd1d316282fa7",
+          "size": 8,
+          "utf8_text": "# hello\n"
+        }
+      ],
+      "content_hash": "13420e8cf57152463a82c49f4cf88355b4d3d215b8e2c10214f51bd7acaf680a"
+    },
+    {
+      "name": "multi_file",
+      "files": [
+        {
+          "relpath": "SKILL.md",
+          "sha256": "39a7e470b92a747aa7828887aab6d2806853b49a6f09ae1a095e351cdf82651f",
+          "size": 8,
+          "utf8_text": "# multi\n"
+        },
+        {
+          "relpath": "scripts/foo.py",
+          "sha256": "cc42155088fca5730758db72b2a5bca33112a941dfaa2d43098ec422ce4ea213",
+          "size": 9,
+          "utf8_text": "print(1)\n"
+        }
+      ],
+      "content_hash": "972d7ce7684f7402b8fd3cbbb10b3f9c24fc6a8ffa1fad3e07bce2f2b15e9c74"
+    },
+    {
+      "name": "nested_dir",
+      "files": [
+        {
+          "relpath": "SKILL.md",
+          "sha256": "74f9052e0ced72a79007b1d0c539101f93eab0e791dd5ae9e88450bcac580d09",
+          "size": 9,
+          "utf8_text": "# nested\n"
+        },
+        {
+          "relpath": "a/b/c/leaf.txt",
+          "sha256": "26d0bac9f0c7a35b2f3322a0f4ad4517265f56b2c0f4b2ed7cb5cbd30c5868e2",
+          "size": 5,
+          "utf8_text": "leaf\n"
+        }
+      ],
+      "content_hash": "fe7b0435c4968e2f9347269df62ce06f3f0dfddcba4bb5f0d76730e0b445b07c"
+    },
+    {
+      "name": "unicode_filename",
+      "files": [
+        {
+          "relpath": "SKILL.md",
+          "sha256": "8573e3d2ef46591aa607f088420595dccd0f62ab8549fadb4a637d3ffc4cc1bb",
+          "size": 6,
+          "utf8_text": "# uni\n"
+        },
+        {
+          "relpath": "数据/文件.md",
+          "sha256": "6667b2d1aab6a00caa5aee5af8ad9f1465e567abf1c209d15727d57b3e8f6e5f",
+          "size": 5,
+          "utf8_text": "data\n"
+        }
+      ],
+      "content_hash": "f19e8629dbc9494b1e0b636c1ddf667d007490789f2d28e0eaccf2b490534ca0"
+    },
+    {
+      "name": "empty_file",
+      "files": [
+        {
+          "relpath": "SKILL.md",
+          "sha256": "f7ff302fd49cbfcfc2b3c1c9c891c6bf1d6fc1712bb2ebe5b00a8d64b709411d",
+          "size": 8,
+          "utf8_text": "# empty\n"
+        },
+        {
+          "relpath": "empty.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size": 0,
+          "utf8_text": ""
+        }
+      ],
+      "content_hash": "7b067444efa01461270f2935c0865b030f82c389f534f818edef11defd345971"
+    },
+    {
+      "name": "single_byte",
+      "files": [
+        {
+          "relpath": "SKILL.md",
+          "sha256": "81bba565c8a206803f7ba828eef57064ffdfb460370ac2a5f1a36f4098edba14",
+          "size": 8,
+          "utf8_text": "# 1byte\n"
+        },
+        {
+          "relpath": "one.bin",
+          "sha256": "4b68ab3847feda7d6c62c1fbcbeebfa35eab7351ed5e78f4ddadea5df64b8015",
+          "size": 1,
+          "utf8_text": "X"
+        }
+      ],
+      "content_hash": "0e0a26ba508d2d39928c1f269937a1849af9897b2a8515edca47608553c4bfd4"
+    }
+  ]
+}

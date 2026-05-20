@@ -127,7 +127,10 @@ class ClaudeNativeSource:
             if session_id in indexed_ids:
                 continue
 
-            # Read first progress entry for metadata
+            # Extract metadata from the first entry that carries it.
+            # Older Claude Code versions wrote a dedicated ``progress`` entry;
+            # newer versions attach ``cwd`` / ``gitBranch`` / ``isSidechain``
+            # directly to user/assistant message entries. Accept either shape.
             cwd = None
             git_branch = None
             is_sidechain = False
@@ -141,7 +144,7 @@ class ClaudeNativeSource:
                             entry = json.loads(line)
                         except json.JSONDecodeError:
                             continue
-                        if entry.get("type") == "progress" and entry.get("cwd"):
+                        if entry.get("cwd"):
                             cwd = entry["cwd"]
                             git_branch = entry.get("gitBranch")
                             is_sidechain = entry.get("isSidechain", False)
@@ -368,12 +371,16 @@ class ClaudeNativeSource:
             entries = self._load_sessions_index(project_dir)
             for entry in entries:
                 if entry.get("sessionId") == session_id:
-                    return self._load_session_from_entry(entry, project_dir)
+                    return self.load_session_from_entry(entry, project_dir)
 
         raise KeyError(f"Session not found: {session_id}")
 
-    def _load_session_from_entry(self, entry: dict[str, Any], project_dir: Path) -> Session:
+    def load_session_from_entry(self, entry: dict[str, Any], project_dir: Path) -> Session:
         """Load a session from an index entry.
+
+        Public helper used by the Claude sync path and the history loader to
+        materialise a ``Session`` from one ``iter_sessions_by_project_paths``
+        result without re-walking the index.
 
         Args:
             entry: Entry from sessions-index.json.
@@ -417,7 +424,7 @@ class ClaudeNativeSource:
                 if entry.get("isSidechain", False):
                     continue
                 try:
-                    yield self._load_session_from_entry(entry, project_dir)
+                    yield self.load_session_from_entry(entry, project_dir)
                 except Exception as e:
                     session_id = entry.get("sessionId", "unknown")
                     logger.warning(f"Failed to load session {session_id}: {e}")

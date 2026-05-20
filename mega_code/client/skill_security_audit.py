@@ -22,7 +22,9 @@ from mega_code.client.skill_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
 console = Console()
+
 error_console = Console(stderr=True)
 
 _PATTERN_RULES = [
@@ -114,6 +116,7 @@ _PATTERN_RULES = [
 ]
 
 _SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3}
+
 _ALLOWED_IGNORE_PATTERNS = {"env_reference"}
 
 

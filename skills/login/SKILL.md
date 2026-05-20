@@ -12,6 +12,7 @@ Authenticate with MEGA-Code to obtain an API key using a two-step OAuth flow.
 
 ```bash
 MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
+export MEGA_CODE_AGENT="claude"
 ```
 
 ## Step 1: Create session (fast, non-blocking)

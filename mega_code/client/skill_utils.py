@@ -19,8 +19,11 @@ from datetime import UTC, datetime
 import yaml
 
 DEFAULT_AUTHOR = "co-authored by www.megacode.ai"
+
 DEFAULT_VERSION = "1.0.0"
+
 MEGACODE_AUTHOR_MARKER = "megacode.ai"
+
 SKILL_METADATA_KEYS = (
     "version",
     "tags",
@@ -29,6 +32,7 @@ SKILL_METADATA_KEYS = (
     "generated_at",
     "roi",
 )
+
 DEPRECATED_SKILL_METADATA_KEYS = (
     "eval_version",
     "enhanced_from",
@@ -56,6 +60,7 @@ def _represent_quoted_string(dumper: yaml.SafeDumper, data: _QuotedString) -> ya
 
 
 _SkillFrontmatterDumper.add_representer(_InlineList, _represent_inline_list)
+
 _SkillFrontmatterDumper.add_representer(_QuotedString, _represent_quoted_string)
 
 

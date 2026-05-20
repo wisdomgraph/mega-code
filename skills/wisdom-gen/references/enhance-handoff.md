@@ -40,8 +40,7 @@ lessons only). If unsure, default to running the handoff.
 Once the trigger check passes, use `AskUserQuestion` to ask **one**
 question:
 
-- **Question:** "Would you like to inject your secret sauce into the
-  generated skill(s) and enhance their performance? Try skill-enhance."
+- **Question:** "Enhance the generated skill to better fit your needs?"
 - **Options:** "Yes" / "No"
 
 If **No**, end the wisdom-gen workflow with no extra output — this is a
@@ -91,28 +90,29 @@ in-context recall and the CLI re-derivation above have failed.
      user pick one. Additionally offer an "All of them" option which
      enables **confirmation-gated sequential** mode (see step 3).
 
-2. **Run skill-enhance for the chosen skill.** Follow
-   `skills/skill-enhance/SKILL.md` with `SKILL_NAME` pre-set. **Skip
-   Phase 1's interactive picker entirely** and begin by running
-   `resolve-skill --name "$SKILL_NAME"` directly. This is the
-   pre-supplied-name branch of Phase 1, documented in
-   `skills/skill-enhance/SKILL.md` under the rule *"If a skill name was
-   provided as an argument, use it directly."* `resolve-skill` repairs
-   the canonical folder name and yields `SKILL_PATH`. From there,
-   continue with Phases 2–8 in order.
+2. **Run skill-enhance (remote) for the chosen skill.** Follow
+   `skills/skill-enhance/SKILL.md` with `SKILL_NAME` pre-set. The
+   unified command defaults to the **remote** server flow; do **not**
+   pass `--hitl` here. **Skip Phase 0 (argument dispatch — there is no
+   `--hitl` flag) and skip Phase 2's interactive picker.** Begin from
+   Phase 1 (setup & auth preflight), then in Phase 2 jump straight to
+   the `resolve-skill --name "$SKILL_NAME"` call (the pre-supplied-name
+   branch). `resolve-skill` repairs the canonical folder name and
+   yields `ORIGINAL_SKILL_PATH` / `ORIGINAL_SCOPE`. From there, continue
+   with Phases 3–5 in order (run module → exit-code branching →
+   loop-or-exit).
 
 3. **Confirmation-gated batch mode** (only if the user chose "All of
    them"): the gate fires *between* skills, after each skill has fully
-   completed Phase 8. Each skill independently goes through skill-enhance
-   Phase 6, which opens an HTML viewer in the browser and blocks until
-   the user submits feedback — so the user will already have interacted
-   with each skill before reaching the "Continue with the next skill?"
-   prompt. The flow per skill is:
+   completed the remote run. The remote flow blocks until terminal
+   status is reached and prompts the user once (install location and
+   optional cross-scope cleanup), so by the time control returns the
+   user has already interacted with that skill. The flow per skill is:
 
    ```
-   resolve-skill
-     → Phase 2..6 (viewer)
-     → Phase 7..8
+   Phase 1 (setup) → resolve-skill
+     → Phase 3 (remote run, blocks until done)
+     → Phase 4 (install-location prompt + install / terminal-no-install)
      → AskUserQuestion "Continue with next skill (<next-name>)?" → Yes / Stop
    ```
 
@@ -122,11 +122,12 @@ in-context recall and the CLI re-derivation above have failed.
 ## Project directory handling
 
 When wisdom-gen was invoked with `--project @name` (i.e., a project
-other than `$PWD`), do **not** propagate that to skill-enhance's
-`PROJECT_DIR_ARG` detection. Force `PROJECT_DIR_CANDIDATE="$PWD"` in
-the inlined skill-enhance phases so that helper paths like `list-skills`
-and `resolve-skill` resolve relative to the user's actual working
-directory rather than the remote project alias.
+other than `$PWD`), do **not** propagate that alias to the remote
+skill-enhance flow. The remote skill resolves `<PROJECT_DIR>` from
+`setup.sh` (captured as `pwd -P` before `uv run --directory` shifts
+cwd); ensure the handoff runs from the user's actual working directory
+so `resolve-skill` resolves relative to it rather than the project
+alias.
 
 ## Failure handling
 
@@ -140,10 +141,12 @@ directory rather than the remote project alias.
   first. (Note: a normally-archived skill is *expected* to be found —
   `resolve_skill` scans archived runs via `_scan_archived_skills`. This
   failure path covers edge cases, not the normal archive flow.)
-- If `skill-enhance` Phase 3 (security audit) returns a BLOCK / SKIP
-  verdict, surface the verdict to the user, end enhancement for that
-  skill, and (in batch mode) continue with the next skill on user
-  confirmation.
+- If the remote run reaches a terminal-no-install state (e.g.
+  `failed`, `rejected`, `quarantined`, `enhancement_blocked`,
+  `invariant_violation`) per Phase 4 of `skill-enhance`, surface the
+  rejection detail (status, invariants, reason) to the user, end
+  enhancement for that skill, and (in batch mode) continue with the
+  next skill on user confirmation.
 - If `skill-enhance` fails for any other reason on one skill in a batch,
   surface the error, ask whether to continue with the remaining skills,
   and do **not** roll back any prior install/archive actions.

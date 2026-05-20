@@ -38,8 +38,11 @@ from mega_code.client.utils.tracing import traced
 logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 5
+
 _INITIAL_RETRY_DELAY = 0.5
+
 _MAX_RETRY_DELAY = 8.0
+
 _RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
 
 
@@ -187,6 +190,123 @@ class MegaCodeRemote:
         self._check_response(resp)
         return OutputsResult(**resp.json())
 
+    @staticmethod
+    def _resolve_match_path(label: str, project_path: Path, project_cwd: str | None) -> str | None:
+        """Resolve the real working directory used to match native sessions.
+
+        Prefers ``project_cwd`` when provided; otherwise looks the project
+        name up in the local stats mapping. Logs a warning and returns
+        ``None`` if neither resolves — the caller should treat that as a
+        no-op sync.
+        """
+        if project_cwd:
+            return project_cwd
+
+        from mega_code.client.stats import load_mapping
+
+        mapping = load_mapping()
+        match_path = mapping.get(project_path.name)
+        if not match_path:
+            logger.warning(
+                "%s sync skipped: project_cwd not provided and could not "
+                "resolve real project path from mapping for %s",
+                label,
+                project_path.name,
+            )
+            return None
+        return match_path
+
+    async def _sync_claude(
+        self,
+        project_path: Path,
+        project_id: str,
+        project_cwd: str | None,
+    ) -> None:
+        """Sync Claude Code native sessions to the server.
+
+        Matches sessions whose JSONL transcripts under
+        ``~/.claude/projects/`` record ``project_cwd`` as their cwd. Falls
+        back to ``load_mapping()`` when ``project_cwd`` is not provided.
+        """
+        from mega_code.client.api.claude_sync import sync_claude_trajectories
+
+        claude_match_path = self._resolve_match_path("Claude", project_path, project_cwd)
+        if claude_match_path is None:
+            return
+
+        logger.info(
+            "Claude sync: claude_match_path=%s (project_cwd=%s)",
+            claude_match_path,
+            project_cwd,
+        )
+        synced = await asyncio.to_thread(
+            sync_claude_trajectories,
+            project_path,
+            self,
+            project_id,
+            claude_match_path,
+        )
+        logger.info("Claude sync: uploaded %d session(s)", synced)
+
+    async def _sync_claude_single(
+        self,
+        session_id: str,
+        project_path: Path,
+        project_id: str,
+        project_cwd: str | None,
+    ) -> int:
+        """Sync exactly one Claude session — the no-flag wisdom-gen path.
+
+        Returns the number of sessions uploaded (0 or 1). 0 means the
+        session was either not found, empty, or filtered to zero turns —
+        callers can use this to skip the trigger POST entirely.
+        """
+        from mega_code.client.api.claude_sync import sync_single_claude_session
+
+        claude_match_path = self._resolve_match_path(
+            "Claude single-session", project_path, project_cwd
+        )
+        if claude_match_path is None:
+            return 0
+
+        synced = await asyncio.to_thread(
+            sync_single_claude_session,
+            session_id,
+            project_path,
+            self,
+            project_id,
+            claude_match_path,
+        )
+        logger.info("Claude single-session sync: uploaded %d session(s)", synced)
+        return synced
+
+    async def _sync_codex(
+        self,
+        project_path: Path,
+        project_id: str,
+        project_cwd: str | None,
+    ) -> None:
+        """Sync Codex CLI sessions to the server."""
+        from mega_code.client.api.codex_sync import sync_codex_trajectories
+
+        codex_match_path = self._resolve_match_path("Codex", project_path, project_cwd)
+        if codex_match_path is None:
+            return
+
+        logger.info(
+            "Codex sync: codex_match_path=%s (project_cwd=%s)",
+            codex_match_path,
+            project_cwd,
+        )
+        synced = await asyncio.to_thread(
+            sync_codex_trajectories,
+            project_path,
+            self,
+            project_id,
+            codex_match_path,
+        )
+        logger.info("Codex sync: uploaded %d session(s)", synced)
+
     @traced("client.remote.trigger_pipeline_run")
     async def trigger_pipeline_run(
         self,
@@ -199,40 +319,69 @@ class MegaCodeRemote:
         limit: int | None = None,
         concurrency: int = 64,
         model: str | None = None,
-        include_claude: bool = False,
-        include_codex: bool = False,
+        project_cwd: str | None = None,
+        agent: str = "",
     ) -> TriggerPipelineResult:
         """Trigger pipeline run via POST /api/megacode/v1/pipeline/run.
 
         If project_path is given, syncs local trajectories to the server
-        first via sync_trajectories(), then triggers the pipeline.
+        first. The active ``agent`` controls which sessions are synced —
+        Claude sessions when ``agent="claude"``, Codex sessions when
+        ``agent="codex"``, MEGA-Code trajectories when ``agent`` is unset
+        (the empty-string default; callers typically configure it through
+        ``MEGA_CODE_AGENT``).
+
+        Args:
+            project_cwd: The real working directory (e.g. /Users/foo/proj).
+                Used for cwd matching when scanning native session
+                transcripts. Without it, agent-native syncs become no-ops.
+            agent: The active coding agent identity (``"claude"``,
+                ``"codex"``, or ``""`` for the MEGA-Code branch). Selects
+                exactly one sync branch.
         """
         # Sync local sessions to server if project_path provided.
-        # sync_trajectories is sync (uses self._client internally),
-        # so offload to a thread to avoid blocking the event loop.
+        # Native sync helpers offload to threads internally. When the caller
+        # targets a single session_id under Claude (the no-flag wisdom-gen
+        # path), upload only that one transcript instead of every matching
+        # session — preserving "no-flag = current session only" semantics.
         if project_path is not None:
-            from mega_code.client.api.sync import sync_trajectories
+            if agent == "claude" and session_id is not None:
+                synced = await self._sync_claude_single(
+                    session_id, project_path, project_id, project_cwd
+                )
+                # Short-circuit if the target session uploaded nothing
+                # (filtered to zero turns, missing, or empty transcript).
+                # No point asking the server to run a pipeline on a session
+                # it has never received.
+                if synced == 0:
+                    logger.info(
+                        "Skipping pipeline trigger: single-session sync "
+                        "uploaded 0 transcripts for session %s",
+                        session_id,
+                    )
+                    return TriggerPipelineResult(
+                        run_id="",
+                        status="skipped_empty_session",
+                        message=(
+                            "Current session has no learnable content yet "
+                            "(filtered to zero turns or empty transcript). "
+                            "Do some real work in this session and retry, "
+                            "or use --project to run on the whole project."
+                        ),
+                    )
+            elif agent == "claude":
+                await self._sync_claude(project_path, project_id, project_cwd)
+            elif agent == "codex":
+                await self._sync_codex(project_path, project_id, project_cwd)
+            else:
+                from mega_code.client.api.sync import sync_trajectories
 
-            await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
-
-        if project_path is not None and include_claude:
-            from mega_code.client.api.sync import sync_claude_trajectories
-
-            await asyncio.to_thread(sync_claude_trajectories, project_path, self, project_id)
-
-        if include_codex and project_path is not None:
-            from mega_code.client.api.codex_sync import sync_codex_trajectories
-
-            await asyncio.to_thread(
-                sync_codex_trajectories, project_path, self, project_id, str(project_path)
-            )
+                await asyncio.to_thread(sync_trajectories, project_path, self, project_id)
 
         payload = {
             "project_id": project_id,
             "force": force,
             "concurrency": concurrency,
-            "include_claude": include_claude,
-            "include_codex": include_codex,
         }
         if session_id is not None:
             payload["session_id"] = session_id

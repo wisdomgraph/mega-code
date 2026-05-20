@@ -111,13 +111,9 @@ def _load_env() -> None:
         os.environ.setdefault(key, value)
 
 
-# ═══════════════════════════════════════════════════════════════════
-# Commands
-# ═══════════════════════════════════════════════════════════════════
-
-
 def cmd_status(args: argparse.Namespace) -> int:
     """Check mega-code installation status."""
+    # # Resolve all the on-disk locations up front so each probe below is a pure print.
     data_root = get_data_dir()
     data_dir = get_projects_data_dir()
     plugin_root = _get_plugin_root()
@@ -125,7 +121,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print("MEGA-Code Status")
     print("=" * 60)
 
-    # Check plugin installation
+    # # Plugin probe: report install path if found, else hint at the install command.
     print("\nPlugin:")
     if plugin_root:
         print(f"   Root: {plugin_root}")
@@ -134,7 +130,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("   Status: Not detected")
         print("   Install via: /install-plugin mega-code@mind-ai-mega-code")
 
-    # Check profile
+    # # Profile probe: load profile.json and surface api_key / server_url / client_mode without leaking the key value.
     profile_path = data_root / "profile.json"
     print(f"\nProfile: {profile_path}")
     if profile_path.exists():
@@ -152,13 +148,13 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         print("   Status: Not initialized (will be created on first session)")
 
-    # Check Python environment
+    # # Python-env probe: check that the plugin's .venv exists (uv will auto-sync if missing).
     if plugin_root:
         venv_path = plugin_root / ".venv"
         print(f"\nEnvironment: {venv_path}")
         print(f"   Status: {'Ready' if venv_path.is_dir() else 'Not synced (will auto-sync)'}")
 
-    # Check data — count sessions across all project folders
+    # # Data probe: walk projects/<hash>/<session>/ two levels deep to tally how much usage history exists.
     print(f"\nData: {data_dir}")
     if data_dir.exists():
         session_count = sum(
@@ -173,7 +169,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         print("   Status: No data yet")
 
-    # Overall
+    # # Verdict: exit 0 iff the plugin is installed so shell callers can use `mega-code status` as a guard.
     print("\n" + "=" * 60)
     if plugin_root:
         print("MEGA-Code is installed and ready")

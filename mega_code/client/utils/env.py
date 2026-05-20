@@ -1,7 +1,7 @@
 """Shared environment utilities for MEGA-Code CLI scripts.
 
 Provides common helpers for environment variable diagnostics and loading
-used by collector.py, run_pipeline.py, and check_pending_skills.py.
+used by run_pipeline.py and other CLI entry points.
 """
 
 import os

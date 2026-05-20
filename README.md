@@ -7,7 +7,7 @@
 </div>
 
 <div align="center">
-  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.1.2-beta"><img src="https://img.shields.io/badge/version-1.1.2--beta-blue" alt="Version"></a>
+  <a href="https://github.com/wisdomgraph/mega-code/releases/tag/v1.1.3"><img src="https://img.shields.io/badge/version-1.1.3-blue" alt="Version"></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-green.svg" alt="License"></a>
   <a href="https://github.com/wisdomgraph/mega-code"><img src="https://img.shields.io/badge/plugin-Claude_Code-blueviolet" alt="Claude Code Plugin"></a>
   <a href="https://megacode.ai"><img src="https://img.shields.io/badge/docs-megacode.ai-orange" alt="Docs"></a>
@@ -100,6 +100,10 @@ This allows the agent to use the right knowledge in the right structure, instead
 **3. skill-enhance**  
 MEGA Code evaluates generated skills, measures their ROI, and produces enhanced versions. Instead of merely accumulating more assets, the system improves the quality, efficiency, and transferability of the skills you already have.
 
+One command, two modes:
+- `/mega-code:skill-enhance <skill>` — **remote mode (default)**, the entire A/B + iteration loop runs on the MEGA Code server. The client packages the skill, uploads it, blocks on a polling loop, and installs the enhanced version on success. Requires `MEGA_CODE_CLIENT_MODE=remote` and a valid `MEGA_CODE_API_KEY`. Runs the full evaluator pipeline at scale, returning per-model ROI deltas in the result envelope.
+- `/mega-code:skill-enhance <skill> --hitl` — **local human-in-the-loop mode**, the host agent (Claude Code) drives the A/B grading loop synchronously with an HTML review viewer. No server calls beyond the initial wisdom storage; works offline once installed. (`--hitl` is case-insensitive.)
+
 **What gets generated locally:**
 
 ```bash
@@ -150,54 +154,55 @@ The agent reads these files at the start of every session. It does not repeat th
 ```markdown
 Wisdom Curation
 
-Problem
-Situation: The user is currently in the late stages of a web development project and is looking to refine the visual aesthetics and user interface components of their existing website to achieve a more professional look.
-Symptoms: The current design likely suffers from a generic layout, poor visual hierarchy, or suboptimal color schemes that result in low user engagement metrics and a lack of distinctive brand identity.
-Goals: The user aims to acquire advanced front-end design techniques and UI/UX principles that will significantly elevate the visual quality of the site, ultimately improving user retention rates and overall aesthetic appeal.
-
-Expected ROI
-Metric          Value
-Portfolio P     0.98
-Items           5
-Steps routed    4/4
-
 IMPORTANT: How to use this curation
 This curation contains a step-by-step workflow. Each step may have a Reference: entry pointing to domain-specific knowledge that you likely do NOT already know. Before executing each step, you MUST read the referenced section.
 
 step-1: Visual Hierarchy and Aesthetic Audit
-Stage: diagnosis | P=1.00 | PASS
 
 Portfolio: 1 core + 0 supporting skills selected for complementary coverage.
 
-1. [H] Visual and Accessibility Audit (score=0.508)
+1. [H] Visual and Accessibility Audit
 P: Assess visual polish against an 8px spacing scale, typography hierarchy, and semantic color usage. Verify WCAG 2.1 AA compliance, specifically color contrast ratios and keyboard tab order.
 R: UI components are fully keyboard-accessible and screen-reader friendly. The design system remains consistent by using a single source of truth for primitives.
 Reference: design-review/SKILL.md#Phase 3: Visual Polish L136-150
 Reference: design-review/SKILL.md#Phase 4: Accessibility (WCAG 2.1 AA) L153-174
 
 step-2: Advanced UI Component Design Systems
-Stage: planning | P=1.00 | PASS
 
 Portfolio: 1 core + 1 supporting skills selected for complementary coverage.
 
-1. [H] micro-interaction-and-animation-implementation (score=0.501)
+1. [H] micro-interaction-and-animation-implementation
 P: Apply subtle CSS transitions and spring physics to buttons, toggles, and form elements to create satisfying tactile feedback.
 R: Interface elements provide immediate, satisfying visual and haptic feedback within 1 second.
 Reference: delight/SKILL.md#Micro-interactions & Animation L84-122
 Reference: delight/SKILL.md#Satisfying Interactions L175-200
 
-2. [M] Animation and Motion Constraints (score=0.372)
+2. [M] Animation and Motion Constraints
 P: Apply performant animation constraints using motion/react and Tailwind CSS to prevent interface slop.
 R: Animations are smooth and do not trigger expensive browser layout or paint cycles.
 Reference: baseline-ui/SKILL.md#Animation L52-64
-
-step-3: Micro-interaction and Motion Implementation
-Stage: implementation | P=1.00 | PASS
-
-step-4: User Engagement and Retention Testing
-Stage: validation | P=1.00 | PASS
-
 ```
+
+---
+
+## When Are Skills Generated?
+
+### The 5 Core Conditions for Skill Creation
+
+**1. Repeated Work Patterns (minimum 2 occurrences)**  
+One-off tasks are never turned into skills. A skill candidate must be a **proven repeated pattern** found across at least 2 separate conversation sessions or task groups.
+
+**2. Active User Involvement (30%+ contribution)**  
+Tasks where the AI acted alone do not become skills. The work must reflect sufficient user intent — through direct guidance, error correction, or approval of a specific approach. For professional domain skills, user contribution must account for at least 30% of the work.
+
+**3. Verified Efficiency Gains (performance metrics)**  
+After a skill is generated, MEGA Code runs a self-evaluation. The skill must pass a **performance improvement threshold** — either a 5%+ increase in task success rate, or a 20%+ reduction in token usage (cost and speed) — before it receives final approval.
+
+**4. Quality Score Threshold (reliability standard)**  
+Skills are evaluated against actual evidence (screen recordings, command executions, etc.) — not assumptions. Content must be specific and structured, and only **high-quality** skills that score above the quality threshold (3.0) are registered.
+
+**5. Value of Error Resolution (exception cases included)**  
+Beyond standard task procedures, instances where a user corrected an AI mistake are treated as highly valuable. This error-prevention knowledge is converted into skills — even with lower user contribution ratios — to prevent the same mistakes from recurring in future sessions.
 
 ---
 
@@ -234,7 +239,7 @@ Authenticates via GitHub or Google. A service key is automatically issued and sa
 ```
 /mega-code:wisdom-gen         # Generate skills and strategies from session traces
 /mega-code:wisdom-curate      # Retrieve the right skills, workflows, and cheatmaps for your intent
-/mega-code:skill-enhance      # Evaluate skills, measure ROI, and generate enhanced versions
+/mega-code:skill-enhance      # Enhance a skill (remote server by default; add --hitl for local human-in-the-loop A/B)
 /mega-code:status             # Check results and pipeline status
 ```
 
@@ -270,7 +275,7 @@ The current release includes:
 | `/mega-code:login` | Sign in via GitHub or Google OAuth |
 | `/mega-code:wisdom-gen` | Generate Skills and Strategies from session traces |
 | `/mega-code:wisdom-curate` | Retrieve relevant Skills, workflows, and Cheatmaps for your current intent |
-| `/mega-code:skill-enhance` | Evaluate and enhance a Skill with ROI analysis |
+| `/mega-code:skill-enhance` | Enhance a Skill (remote server by default; pass `--hitl` for local human-in-the-loop A/B) |
 | `/mega-code:status` | Show generated assets and pipeline status |
 | `/mega-code:stop` | Stop a running pipeline |
 | `/mega-code:profile` | View or update your developer profile (language, level, style) |
@@ -283,7 +288,8 @@ The current release includes:
 /mega-code:profile                  # Set your language, level, and style
 /mega-code:wisdom-gen --project     # Generate skills and strategies from project session traces
 /mega-code:wisdom-curate            # Retrieve the best workflow and cheatmap for the current task
-/mega-code:skill-enhance <skill>    # Evaluate and enhance a skill
+/mega-code:skill-enhance <skill>          # Enhance a skill on the server (remote — requires MEGA_CODE_CLIENT_MODE=remote)
+/mega-code:skill-enhance <skill> --hitl   # Local human-in-the-loop A/B (host-driven, HTML review viewer)
 /mega-code:status                   # See what was generated
 /mega-code:stop                     # Stop a pipeline if needed
 ```
@@ -323,22 +329,24 @@ so you can iterate quickly without any git commits to GitHub.
 plugin/
 ├── .claude-plugin/
 │   └── plugin.json          # Plugin metadata
-├── hooks/
-│   └── hooks.json           # Lifecycle hooks (SessionStart, etc.)
 ├── skills/
 │   ├── login/SKILL.md       # /mega-code:login
 │   ├── wisdom-gen/SKILL.md  # /mega-code:wisdom-gen
-│   ├── skill-enhance/SKILL.md # /mega-code:skill-enhance
+│   ├── skill-enhance/SKILL.md       # /mega-code:skill-enhance (remote A/B + iteration loop, default)
+│   ├── skill-enhance-hitl/SKILL.md  # internal — backs /mega-code:skill-enhance --hitl (local host-driven A/B)
 │   ├── status/SKILL.md      # /mega-code:status
 │   ├── stop/SKILL.md        # /mega-code:stop
 │   ├── profile/SKILL.md     # /mega-code:profile
 │   └── help/SKILL.md        # /mega-code:help
 ├── mega_code/
 │   └── client/              # Python client modules
-├── scripts/
-│   └── session-start.sh     # Bootstrap script
 └── pyproject.toml
 ```
+
+Session ingestion is hook-less. On each `wisdom-gen`, the client scans
+`~/.claude/projects/<dir>/<uuid>.jsonl` directly, filters by the user's
+working directory, and uploads matching transcripts. Upload state lives
+in `~/.local/share/mega-code/projects/<folder>/claude-sync-ledger.json`.
 
 ## mega-code:wisdom-gen Behaviour
 

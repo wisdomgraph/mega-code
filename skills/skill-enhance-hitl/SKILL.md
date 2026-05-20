@@ -1,0 +1,307 @@
+---
+description: Internal — local human-in-the-loop A/B + iteration flow backing `/mega-code:skill-enhance --hitl`. Not invoked directly.
+argument-hint: "<skill-name>"
+allowed-tools: Bash, Read, Write, Edit, AskUserQuestion
+disable-model-invocation: true
+user-invocable: false
+---
+
+This skill is not exposed as its own slash command. It is loaded by
+`skills/skill-enhance/SKILL.md` (Phase 0 dispatch) when the user invokes
+`/mega-code:skill-enhance --hitl`.
+
+Run on-demand A/B evaluation of a mega-code skill, review results in an HTML viewer,
+collect user feedback, and produce an enhanced version of the skill. The host agent (you)
+handles test generation, grading, and enhancement; isolated A/B completions run via subprocess.
+
+## Setup
+
+```bash
+MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
+set -a && . ~/.local/share/mega-code/.env 2>/dev/null && set +a
+export MEGA_CODE_AGENT="claude"
+uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
+```
+
+If the auth check fails (non-zero exit), show the output to the user and stop.
+
+**Detect which agent you are** — set `EVAL_AGENT` so the A/B runner uses the same agent:
+- If you are Claude Code, set `EVAL_AGENT=claude`
+- If you are Codex, set `EVAL_AGENT=codex`
+- If unsure, omit it (auto-detection will be used)
+
+All commands below assume `MEGA_DIR` is set.
+
+## Phase 1 — Skill Selection & Workspace Setup
+
+If a skill name was provided as an argument, use it directly regardless of authorship. The list-skills command only shows mega-code authored skills, but direct skill name arguments are not restricted by author.
+
+If no skill name was provided, list available mega-code skills and ask the user to pick one:
+
+```bash
+PROJECT_DIR_CANDIDATE="${CLAUDE_PROJECT_DIR:-$(pwd -P)}"
+case "$PROJECT_DIR_CANDIDATE" in
+  *"/.claude/plugins/cache/"*|*"/.claude/plugins/marketplaces/"*)
+    unset PROJECT_DIR_CANDIDATE
+    ;;
+esac
+if [ -n "${PROJECT_DIR_CANDIDATE:-}" ]; then
+  PROJECT_DIR_ARG=(--project-dir "$PROJECT_DIR_CANDIDATE")
+else
+  PROJECT_DIR_ARG=()
+fi
+uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper list-skills "${PROJECT_DIR_ARG[@]}" 2>&1
+```
+
+Parse the JSON output and present the skills to the user using `AskUserQuestion`.
+Only mega-code authored skills are shown. The author marker may be either
+top-level `author` or nested `metadata.author`; both are supported.
+If exactly one skill is returned, do not use `AskUserQuestion`; tell the user which
+skill was found and proceed with it directly.
+
+Once a skill is selected, resolve it immediately so the canonical folder name is repaired before any
+later phases. Save the canonical skill name, path, and content for later phases:
+
+```bash
+PROJECT_DIR_CANDIDATE="${CLAUDE_PROJECT_DIR:-$(pwd -P)}"
+case "$PROJECT_DIR_CANDIDATE" in
+  *"/.claude/plugins/cache/"*|*"/.claude/plugins/marketplaces/"*)
+    unset PROJECT_DIR_CANDIDATE
+    ;;
+esac
+if [ -n "${PROJECT_DIR_CANDIDATE:-}" ]; then
+  PROJECT_DIR_ARG=(--project-dir "$PROJECT_DIR_CANDIDATE")
+else
+  PROJECT_DIR_ARG=()
+fi
+RESOLVE_JSON=$(uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
+    resolve-skill --name "$SKILL_NAME" "${PROJECT_DIR_ARG[@]}" 2>&1)
+read SKILL_NAME SKILL_PATH < <(echo "$RESOLVE_JSON" | tail -1 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['name'], d['path'])")
+echo "$RESOLVE_JSON" | tail -1 | python3 -c "import sys,json; print(json.load(sys.stdin)['content'])"
+```
+
+**Create iteration workspace:**
+
+```bash
+ITER_JSON=$(uv run --directory "$MEGA_DIR" python -m mega_code.client.eval_workspace \
+    create-iteration --skill-name "$SKILL_NAME" --skill-path "$SKILL_PATH" 2>&1)
+read ITER_DIR ITERATION_NUM < <(echo "$ITER_JSON" | tail -1 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['path'], d['iteration'])")
+```
+
+## Phase 2 — Generate Test Cases
+
+You are the LLM. Read the skill content carefully, then generate test cases following
+the schema and guidelines in `references/test-case-schema.md`.
+
+Write the JSON to the iteration workspace via Bash:
+
+```bash
+cat > "$ITER_DIR/test-cases.json" << 'TESTCASES_EOF'
+<your generated JSON here>
+TESTCASES_EOF
+```
+
+## Phase 3 — Security Scan
+
+Run a static security audit before any A/B execution. This phase is a real gate.
+
+```bash
+uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_security_audit \
+    --skill-path "$SKILL_PATH" \
+    --iteration-dir "$ITER_DIR" 2>&1
+AUDIT_EXIT=$?
+```
+
+Read both `$ITER_DIR/security-review.json` and `$SKILL_PATH`. Use both inputs together —
+the JSON provides structured signals; the skill content provides context.
+
+Explain to the user in plain language: why the skill was labeled `trusted` or `semitrusted`,
+what evidence or red flags contributed, and the resulting A/B policy. Treat trust as a
+provenance hint, not as a reason to suppress dangerous findings.
+
+Apply the trust policy from `references/trust-policy.md` to determine whether to proceed,
+warn, or skip A/B testing.
+
+Use the checklist in `references/security-checklist.md` to deepen the assessment.
+
+## Phase 4 — Run A/B Tests
+
+Run the A/B test runner. This spawns isolated agent CLI completions — one with the skill as system prompt, one without — for each test case:
+
+```bash
+uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_runner \
+    --test-cases "$ITER_DIR/test-cases.json" \
+    --skill-md <skill-path> \
+    --agent "${EVAL_AGENT}" \
+    --output "$ITER_DIR/ab-results.json" 2>&1
+```
+
+The `--agent` flag ensures the A/B runner uses the same agent CLI as the host (you). If `EVAL_AGENT` is empty, omit the `--agent` flag entirely.
+
+If this fails, show the error to the user and stop.
+
+Read the A/B output JSON to use in the grading phase.
+
+## Phase 5 — Grade Outputs
+
+Read the A/B results from `$ITER_DIR/ab-results.json`. Grade both outputs for each test
+case following the process and schema in `references/grading-schema.md`.
+
+Write gradings to the iteration workspace:
+
+```bash
+cat > "$ITER_DIR/gradings.json" << 'GRADINGS_EOF'
+<your generated gradings JSON here>
+GRADINGS_EOF
+```
+
+## Phase 6 — HTML Review & User Feedback
+
+Combine the test cases, A/B outputs, and gradings into a single JSON file:
+
+```json
+{
+  "skill_name": "<skill-name>",
+  "model": "<actual model ID powering the agent, e.g. 'claude-opus-4-6' or 'gpt-5-mini' — prefer actual model IDs over generic names like 'host-agent'>",
+  "test_cases": <contents of test cases JSON>.cases,
+  "ab_outputs": <contents of A/B output JSON>,
+  "gradings": <contents of gradings JSON>
+}
+```
+
+Write this combined file to `$ITER_DIR/eval-full.json`.
+
+Run aggregation to compute metrics:
+
+```bash
+uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_aggregator \
+    --eval-data "$ITER_DIR/eval-full.json" \
+    --iteration-dir "$ITER_DIR" 2>&1
+```
+
+Display the aggregation output to the user (per-test results + ROI metrics + verdict).
+
+Launch the HTTP review server in the background. It opens the browser automatically
+and handles feedback POSTs. Save the PID so we can kill it after the user is done:
+
+```bash
+bash "$MEGA_DIR/skills/skill-enhance-hitl/scripts/launch-viewer.sh" \
+    "$MEGA_DIR" "$ITER_DIR" "$SKILL_NAME" "$ITERATION_NUM"
+```
+
+Tell the user: "The evaluation viewer has opened in your browser. Review the outputs, leave feedback in the textboxes, and click 'Submit'. The feedback will be saved automatically. Let me know when you're done." Do NOT open the browser yourself or output the URL as a clickable link — the launch script handles browser opening.
+
+Wait for the user to confirm they've reviewed. Then stop the viewer and read feedback:
+
+```bash
+bash "$MEGA_DIR/skills/skill-enhance-hitl/scripts/stop-viewer.sh" "$ITER_DIR"
+```
+
+If the user says they have no feedback, that's fine — proceed with empty feedback.
+
+## Phase 7 — Enhance Skill
+
+Follow the principles in `references/enhancement-principles.md` to produce an improved
+version of the skill.
+
+Read the following files:
+- `$ITER_DIR/eval-full.json` — eval data with test cases, A/B outputs, and gradings
+- `$ITER_DIR/feedback.json` — user feedback from the HTML viewer
+- `<skill-path>` — the current SKILL.md being improved
+
+Based on the eval results and feedback, produce an improved version of the SKILL.md.
+The enhanced skill MUST satisfy every item in this checklist:
+
+1. **Frontmatter present** — starts with `---` / `---` YAML block
+2. **`name`** and **`description`** — present and accurate
+3. **`metadata.tags`** — REQUIRED. If the original skill has tags, copy them exactly.
+   If not, generate at least 3 relevant tags from the skill's domain
+   (e.g. `tags: [git, automation, devops]`)
+4. **Skill body enhanced** — incorporates eval findings and user feedback
+
+Write ONLY the complete enhanced skill content (frontmatter + body).
+
+Write the enhanced content to `$ITER_DIR/draft-skill.md` via Bash:
+
+```bash
+cat > "$ITER_DIR/draft-skill.md" << 'DRAFT_EOF'
+<your enhanced SKILL.md content here>
+DRAFT_EOF
+```
+
+### Validate draft skill
+
+Before proceeding to Phase 8, read `$ITER_DIR/draft-skill.md` and verify:
+- Frontmatter contains `metadata.tags` as a list with at least 2 entries.
+- If tags are missing, edit the file to add them before continuing.
+
+## Phase 8 — Store & Iterate
+
+**Back up original, inject ROI, and replace with enhanced version:**
+
+Read the benchmark data from `$ITER_DIR/benchmark.json` to extract the eval ROI.
+Then pass it to `accept_enhanced_skill` so the ROI is injected into the enhanced
+skill's frontmatter:
+
+```bash
+uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
+    accept-skill \
+    --skill-path "$SKILL_PATH" \
+    --draft-path "$ITER_DIR/draft-skill.md" \
+    --iteration-dir "$ITER_DIR" \
+    --iteration "$ITERATION_NUM" \
+    --benchmark "$ITER_DIR/benchmark.json" 2>&1
+```
+
+This backs up the original to `$ITER_DIR/original-skill.md`, writes the accepted
+result to `$ITER_DIR/enhanced-skill.md`, and replaces the installed `SKILL.md`
+(semantic version bumped, `generated_at` refreshed, ROI from eval added).
+
+**Do NOT manually copy or replace skill files.** If this command exits zero
+(look for the `SUCCESS:` line in stdout), it has already backed up the original,
+bumped the version, injected ROI, and replaced the installed SKILL.md. Only
+attempt manual recovery if the command exits non-zero. Warnings in stderr
+(e.g. about metadata.json) do not indicate failure — check the exit code.
+
+**Store on server** (creates a new DB row for the canonical enhanced skill name with the bumped semantic version and lineage metadata, while preserving the original pending-skill folder name as the lineage parent):
+
+```bash
+set -a && . ~/.local/share/mega-code/.env 2>/dev/null && set +a
+export MEGA_CODE_CLIENT_MODE=${MEGA_CODE_CLIENT_MODE:-remote}
+uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
+    store-skill \
+    --skill-name "$SKILL_NAME" \
+    --iteration-dir "$ITER_DIR" \
+    --iteration "$ITERATION_NUM" \
+    --skill-path "$SKILL_PATH" \
+    --benchmark "$ITER_DIR/benchmark.json" 2>&1
+```
+
+If the store-skill command succeeds, tell the user the skill was stored on the server. If it fails (non-zero exit), show the error output and warn that the enhanced skill was saved locally but not stored on the server.
+
+**Upload the full skill bundle to S3** (SKILL.md + references/ + scripts/ + assets/ — captures adjacent files that `store-skill` doesn't. The packager filters wisdom-gen sidecars: `evidence.json` and `injection.json` unconditionally, plus `metadata.json` only when its content matches the wisdom-gen shape (has both `skill_id` and `run_id` keys) — third-party `metadata.json` files with other shapes still travel. ROI already rides in the SKILL.md frontmatter). Idempotent: re-running the same iteration replays the prior upload without producing duplicate rows.
+
+```bash
+BUNDLE_DIR="$(dirname "$SKILL_PATH")"
+uv run --directory "$MEGA_DIR" python -m mega_code.client.prebuilt_upload \
+    --skill-id "$SKILL_NAME" \
+    --bundle-dir "$BUNDLE_DIR" \
+    --iteration "$ITERATION_NUM" 2>&1
+```
+
+If the prebuilt-upload command succeeds (look for the `SUCCESS: prebuilt-upload` line), tell the user the bundle was uploaded to S3. If it fails (non-zero exit), show the error and warn that the bundle wasn't uploaded — the local + Postgres writes still succeeded. Do not retry inline; a fresh `/mega-code:skill-enhance` run with the same iteration will replay automatically.
+
+**Ask the user** if they want to iterate:
+
+"The skill has been enhanced and saved. The original is backed up at `$ITER_DIR/original-skill.md`. Would you like to run another iteration to validate the enhancement?"
+
+If the user wants another iteration:
+1. Create a new iteration directory (increment automatically):
+   ```bash
+   ITER_JSON=$(uv run --directory "$MEGA_DIR" python -m mega_code.client.eval_workspace \
+       create-iteration --skill-name "$SKILL_NAME" --skill-path "$SKILL_PATH" 2>&1)
+   read ITER_DIR ITERATION_NUM < <(echo "$ITER_JSON" | tail -1 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['path'], d['iteration'])")
+   ```
+2. Go back to **Phase 2** — the skill being evaluated is now the enhanced version (already replaced in-place)
+
+If the user is done, show a summary of what was done and where the files are.

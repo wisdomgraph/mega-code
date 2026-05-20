@@ -6,19 +6,17 @@
 # not persist across blocks — literal substitution is the cheapest transport).
 #
 # Usage: bash setup.sh
-# Requires: CLAUDE_SKILL_DIR (set by Claude Code), and optionally
-#           CLAUDE_SESSION_ID (used as session id when present).
+# Optional env: CLAUDE_SESSION_ID — used as session id when present.
+#
+# Self-locating: derives MEGA_DIR from its own path (BASH_SOURCE) so it
+# works regardless of caller env. Layout: MEGA_DIR/skills/wisdom-curate/scripts/setup.sh
 #
 # Exits non-zero if auth check fails.
 
 set -eu
 
-if [ -z "${CLAUDE_SKILL_DIR:-}" ]; then
-  echo "setup.sh: CLAUDE_SKILL_DIR is not set — must be invoked from Claude Code skill context" >&2
-  exit 1
-fi
-
-MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MEGA_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 

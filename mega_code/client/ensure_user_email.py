@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 from mega_code.client.cli import get_env_path, load_env_file, save_env_file
 
 _ENV_KEY = "MEGA_CODE_USER_EMAIL"
+
 _INPUT_ENV_KEY = "MEGA_CODE_EMAIL_INPUT"
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

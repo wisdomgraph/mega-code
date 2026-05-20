@@ -12,6 +12,7 @@ Stop a currently running MEGA-Code skill extraction pipeline.
 
 ```bash
 MEGA_DIR="$(cd "${CLAUDE_SKILL_DIR}/../.." && pwd)"
+export MEGA_CODE_AGENT="claude"
 uv run --directory "$MEGA_DIR" python -m mega_code.client.check_auth
 ```
 

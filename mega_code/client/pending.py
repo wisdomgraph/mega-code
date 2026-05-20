@@ -49,9 +49,13 @@ def _load_config() -> dict:
 
 # Pending directories under user data (resolved via dirs.data_dir()).
 _MEGA_CODE_DATA_DIR = _data_dir() / "data"
+
 PENDING_SKILLS_DIR = _MEGA_CODE_DATA_DIR / "pending-skills"
+
 PENDING_STRATEGIES_DIR = _MEGA_CODE_DATA_DIR / "pending-strategies"
+
 FEEDBACK_DIR = _MEGA_CODE_DATA_DIR / "feedback"
+
 DEDUP_METADATA_PATH = _MEGA_CODE_DATA_DIR / "dedup_metadata.json"
 
 # Maximum length for description truncation
@@ -175,8 +179,8 @@ from mega_code.client.skill_utils import (
 
 # Backwards-compatible aliases for internal callers
 _sanitize_name = sanitize_name
-_ensure_skill_frontmatter = ensure_skill_frontmatter
 
+_ensure_skill_frontmatter = ensure_skill_frontmatter
 
 # =============================================================================
 # Save pipeline outputs to pending folders
