@@ -27,6 +27,7 @@ from mega_code.client.utils.tracing import set_span_attributes, traced
 logger = logging.getLogger(__name__)
 
 _GATEWAY_PREFIX = "/api/megacode/v1/skill-enhance"
+
 _RETRYABLE_STATUS = {429, 502, 503, 504}
 
 
@@ -212,8 +213,14 @@ class GatewayClient:
         stop=stop_after_attempt(5),
         reraise=True,
     )
-    def upload(self, *, archive_bytes: bytes, source: str, skill_id: str) -> dict[str, Any]:
+    def upload(self, *, archive_bytes: bytes, source: str, prefix: str = "") -> dict[str, Any]:
         """``POST /skill-enhance/uploads``. Returns the ``UploadResponse`` body.
+
+        The skill name is read server-side from the SKILL.md frontmatter, so
+        the package lands at ``staging/{source}/{prefix?}/{skill_name}/``.
+        ``prefix`` is an optional caller-supplied namespace (e.g.
+        ``<user_id>/<uuid>``); omit it to root the package directly under the
+        source.
 
         The upstream ``UploadResponse`` carries ``{s3_uri, content_hash,
         file_count, uploaded_bytes, source_revision, job_id}`` — the caller
@@ -221,12 +228,12 @@ class GatewayClient:
         ``content_hash`` is also returned for parity-checking against the
         packager's locally-computed hash.
         """
-        set_span_attributes(skill_id=skill_id, source=source, archive_bytes=len(archive_bytes))
+        set_span_attributes(prefix=prefix, source=source, archive_bytes=len(archive_bytes))
         try:
             resp = self._client.post(
                 f"{_GATEWAY_PREFIX}/uploads",
                 files={"archive": ("archive.zip", archive_bytes, "application/zip")},
-                data={"source": source, "skill_id": skill_id},
+                data={"source": source, "prefix": prefix},
             )
         except (httpx.NetworkError, httpx.TimeoutException) as exc:
             raise NetworkError(f"network failure during upload: {exc}") from exc

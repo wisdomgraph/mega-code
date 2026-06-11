@@ -15,7 +15,9 @@ from pathlib import Path
 
 import pytest
 
+from mega_code.client.api.protocol import _SYSTEM_FILES
 from mega_code.client.remote_enhance.packager import (
+    _WISDOM_GEN_SKIP_BASENAMES,
     MAX_ARCHIVE_BYTES,
     BundleFile,
     PackagerError,
@@ -158,6 +160,9 @@ def _bundle_relpaths(bundle) -> set[str]:
         "Thumbs.db",  # Windows thumbnail cache
         "desktop.ini",  # Windows folder config
         ".gitignore",  # informational; matches zip_skill.sh
+        "injection.json",  # wisdom-gen system file (protocol._SYSTEM_FILES)
+        "evidence.json",  # wisdom-gen system file
+        "resource_plan.json",  # wisdom-gen system file (B7 bundle plan)
         "module/__pycache__/foo.cpython-311.pyc",
         "src/foo.pyc",  # pyc anywhere
         "src/foo.pyo",  # pyo anywhere
@@ -191,6 +196,35 @@ def test_skips_noise_silently(tmp_path, noise_relpath):
     assert _bundle_relpaths(bundle) == {"SKILL.md"}, (
         f"noise path {noise_relpath!r} should be silently skipped, got {_bundle_relpaths(bundle)}"
     )
+
+
+def test_wisdom_gen_skip_basenames_derive_from_system_files(tmp_path):
+    """The packager's system-file skip-list is _SYSTEM_FILES minus metadata.json
+    (which is content-shape filtered, not basename filtered)."""
+    assert set(_WISDOM_GEN_SKIP_BASENAMES) == set(_SYSTEM_FILES) - {"metadata.json"}
+    assert "metadata.json" not in _WISDOM_GEN_SKIP_BASENAMES
+
+
+def test_wisdom_gen_metadata_dropped_but_foreign_metadata_survives(tmp_path):
+    """metadata.json is filtered by content shape, not basename: a wisdom-gen
+    sidecar (skill_id + run_id) is dropped, a foreign metadata.json is kept."""
+    skill_dir = tmp_path / "skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# x\n", encoding="utf-8")
+
+    # Wisdom-gen sidecar shape → dropped.
+    (skill_dir / "metadata.json").write_text(
+        json.dumps({"skill_id": "s1", "run_id": "r1", "roi": {}}), encoding="utf-8"
+    )
+    bundle = package_skill(skill_dir)
+    assert _bundle_relpaths(bundle) == {"SKILL.md"}
+
+    # Foreign metadata.json (marketplace shape) → preserved.
+    (skill_dir / "metadata.json").write_text(
+        json.dumps({"id": "abc", "author": "someone"}), encoding="utf-8"
+    )
+    bundle = package_skill(skill_dir)
+    assert _bundle_relpaths(bundle) == {"SKILL.md", "metadata.json"}
 
 
 def test_useful_files_alongside_noise_still_bundled(tmp_path):

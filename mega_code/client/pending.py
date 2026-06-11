@@ -34,7 +34,12 @@ from mega_code.client.api.protocol import TERMINAL_STATUSES
 from mega_code.client.dirs import data_dir as _data_dir
 
 if TYPE_CHECKING:
-    from mega_code.client.api.protocol import MegaCodeBaseClient, PipelineStatusResult
+    from mega_code.client.api.protocol import (
+        MegaCodeBaseClient,
+        PipelineStatusResult,
+        SkillBundle,
+        ValidationFinding,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +240,11 @@ def save_outputs_to_pending(
         (skill_dir / "injection.json").write_text(skill_data.injection_rules, encoding="utf-8")
         (skill_dir / "evidence.json").write_text(skill_data.evidence, encoding="utf-8")
         (skill_dir / "metadata.json").write_text(skill_data.metadata, encoding="utf-8")
+
+        # write_resources avoids `<slug>/` re-nesting since SKILL.md and the
+        # JSON sidecars are already written above.
+        if skill_data.skill_bundle is not None:
+            skill_data.skill_bundle.write_resources(skill_dir)
 
         result.skills.append(
             PendingSkillInfo(
@@ -864,6 +874,61 @@ def format_review_notification(
 {strategies_section}
 {lessons_block}{errors_section}
 {workflow}"""
+
+
+# =========================================================================
+# Pending -> Approved approval hook (A7)
+# =========================================================================
+
+
+class PendingApprovalError(ValueError):
+    """Raised by `approve_pending_skill` when validate_bundle returns errors.
+
+    Carries the full list of findings so callers can surface every blocker at
+    once rather than fixing them one round-trip at a time.
+    """
+
+    def __init__(self, findings: list[ValidationFinding]) -> None:
+        self.findings = findings
+        codes = ", ".join(f.code for f in findings if f.severity == "error")
+        super().__init__(f"Bundle failed runtime validation: {codes}")
+
+
+def approve_pending_skill(pending_dir: Path) -> SkillBundle:
+    """Validate a pending skill bundle for approval (pending -> approved).
+
+    Loads the bundle from disk, normalises its SKILL.md frontmatter (backfills
+    `allowed-tools` and canonicalises metadata), then runs
+    `validate_bundle(bundle, stage="runtime")`. Raises `PendingApprovalError`
+    on any `severity == "error"` finding; warnings pass through silently and
+    are returned to the caller for surfacing.
+
+    Args:
+        pending_dir: Path to the on-disk pending bundle (e.g.
+            `pending-skills/<slug>/`).
+
+    Returns:
+        The validated `SkillBundle` with normalised SKILL.md.
+    """
+    from mega_code.client.api.protocol import SkillBundle
+    from mega_code.client.skill_utils import (
+        normalize_pending_skill_markdown,
+        validate_bundle,
+    )
+
+    bundle = SkillBundle.from_disk(pending_dir)
+    normalised_md = normalize_pending_skill_markdown(
+        skill_md=bundle.skill_md,
+        skill_name=bundle.skill_slug,
+        metadata_json=bundle.metadata,
+    )
+    bundle = bundle.model_copy(update={"skill_md": normalised_md})
+
+    findings = validate_bundle(bundle, stage="runtime")
+    errors = [f for f in findings if f.severity == "error"]
+    if errors:
+        raise PendingApprovalError(findings)
+    return bundle
 
 
 # =========================================================================

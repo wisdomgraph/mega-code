@@ -248,8 +248,6 @@ def create_loader(
 # =============================================================================
 # Convenience Functions
 # =============================================================================
-
-
 def load_session_by_id(session_id: str) -> Session:
     """Load a single session by ID.
 

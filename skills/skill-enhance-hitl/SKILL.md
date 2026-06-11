@@ -279,7 +279,7 @@ uv run --directory "$MEGA_DIR" python -m mega_code.client.skill_enhance_helper \
 
 If the store-skill command succeeds, tell the user the skill was stored on the server. If it fails (non-zero exit), show the error output and warn that the enhanced skill was saved locally but not stored on the server.
 
-**Upload the full skill bundle to S3** (SKILL.md + references/ + scripts/ + assets/ — captures adjacent files that `store-skill` doesn't. The packager filters wisdom-gen sidecars: `evidence.json` and `injection.json` unconditionally, plus `metadata.json` only when its content matches the wisdom-gen shape (has both `skill_id` and `run_id` keys) — third-party `metadata.json` files with other shapes still travel. ROI already rides in the SKILL.md frontmatter). Idempotent: re-running the same iteration replays the prior upload without producing duplicate rows.
+**Upload the full skill bundle to S3** (SKILL.md + references/ + scripts/ + assets/ — captures adjacent files that `store-skill` doesn't. The packager filters wisdom-gen sidecars: `evidence.json`, `injection.json`, and `resource_plan.json` unconditionally, plus `metadata.json` only when its content matches the wisdom-gen shape (has both `skill_id` and `run_id` keys) — third-party `metadata.json` files with other shapes still travel. ROI already rides in the SKILL.md frontmatter). Idempotent: re-running the same iteration replays the prior upload without producing duplicate rows.
 
 ```bash
 BUNDLE_DIR="$(dirname "$SKILL_PATH")"

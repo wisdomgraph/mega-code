@@ -20,6 +20,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from mega_code.client.api.protocol import _SYSTEM_FILES
 from mega_code.client.utils.tracing import set_span_attributes, traced
 
 # 25 MB matches the gateway's MAX_ARCHIVE_BYTES. Both compressed and
@@ -34,6 +35,7 @@ MAX_ARCHIVE_BYTES = 25 * 1024 * 1024
 #   - ``"glob*"``    — fnmatch-style glob against the basename
 #   - ``"dir/"``     — any path component equal to ``"dir"``
 _FORBIDDEN_BASENAMES: tuple[str, ...] = (".env",)
+
 _FORBIDDEN_GLOBS: tuple[str, ...] = (
     "*.key",
     "*.pem",
@@ -41,6 +43,7 @@ _FORBIDDEN_GLOBS: tuple[str, ...] = (
     "*credentials*",
     ".env.*",
 )
+
 _FORBIDDEN_DIRS: tuple[str, ...] = ("secrets",)
 
 # Names / paths that are *silently filtered* from the bundle (not refused).
@@ -52,25 +55,29 @@ _FORBIDDEN_DIRS: tuple[str, ...] = ("secrets",)
 # semantics are preserved: if a path matches both _FORBIDDEN_* and _SKIPPED_*,
 # the refusal wins (e.g. ``.vscode/credentials.json`` still raises rather than
 # silently dropping the credential file).
+# wisdom-gen system files (protocol._SYSTEM_FILES) are internal pipeline
+# artifacts that live next to SKILL.md in pending/feedback folders. They are
+# read locally pre-upload (see mega_code/client/pending.py); no upstream
+# consumer reads them out of the uploaded bundle, so they are skipped by exact
+# basename. `metadata.json` is the exception — its name collides with unrelated
+# skill ecosystems (marketplace catalogs, authored metadata), so it is filtered
+# by content shape instead (see _is_wisdom_gen_metadata) and excluded here.
+_WISDOM_GEN_SKIP_BASENAMES: frozenset[str] = frozenset(
+    name for name in _SYSTEM_FILES if name != "metadata.json"
+)
+
 _SKIPPED_BASENAMES: tuple[str, ...] = (
     ".ds_store",  # macOS Finder metadata
     "thumbs.db",  # Windows thumbnail cache
     "desktop.ini",  # Windows folder config
     ".gitignore",  # repo-level ignore rules; matches zip_skill.sh
-    # wisdom-gen sidecars — internal pipeline artifacts that live next to
-    # SKILL.md in pending/feedback folders. Read locally pre-upload (see
-    # mega_code/client/pending.py); no upstream consumer reads them out
-    # of the uploaded bundle. The filename `metadata.json` is also used
-    # by unrelated skill ecosystems (marketplace catalogs, authored
-    # metadata), so it is filtered by content shape instead — see
-    # _is_wisdom_gen_metadata.
-    "evidence.json",
-    "injection.json",
 )
+
 _SKIPPED_GLOBS: tuple[str, ...] = (
     "*.pyc",  # Python bytecode
     "*.pyo",  # Python optimised bytecode
 )
+
 _SKIPPED_DIRS: tuple[str, ...] = (
     "__macosx",  # macOS zip resource forks
     "__pycache__",  # Python bytecode cache
@@ -150,6 +157,10 @@ def _is_skipped(relpath: str) -> bool:
     parts = relpath.split("/")
     basename = parts[-1].lower()
     if basename in _SKIPPED_BASENAMES:
+        return True
+    # wisdom-gen system files only collide with the contract at the root —
+    # a user-authored references/resource_plan.json should travel intact.
+    if len(parts) == 1 and basename in _WISDOM_GEN_SKIP_BASENAMES:
         return True
     for pat in _SKIPPED_GLOBS:
         if fnmatch.fnmatch(basename, pat):

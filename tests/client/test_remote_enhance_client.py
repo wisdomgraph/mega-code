@@ -82,7 +82,7 @@ def _good(body: dict) -> MagicMock:
     return resp
 
 
-def _4xx_envelope(code: str = "invalid_skill_id", status: int = 400) -> MagicMock:
+def _4xx_envelope(code: str = "invalid_prefix", status: int = 400) -> MagicMock:
     body = {"error": {"code": code, "message": "bad"}}
     resp = MagicMock(spec=httpx.Response)
     resp.status_code = status
@@ -111,7 +111,7 @@ def test_upload_retries_on_transient_503():
         GatewayClient() as client,
         patch("httpx.Client.post", side_effect=[_bad_5xx(), _bad_5xx(), good]) as post,
     ):
-        body = client.upload(archive_bytes=b"PK", source="test", skill_id="s")
+        body = client.upload(archive_bytes=b"PK", source="test", prefix="s")
     assert post.call_count == 3
     assert body["job_id"]
 
@@ -120,7 +120,7 @@ def test_upload_persistent_503_surfaces_as_network_error():
     """Full retry budget exhausted (5 attempts), then NetworkError."""
     with GatewayClient() as client, patch("httpx.Client.post", return_value=_bad_5xx()) as post:
         with pytest.raises(NetworkError):
-            client.upload(archive_bytes=b"PK", source="test", skill_id="s")
+            client.upload(archive_bytes=b"PK", source="test", prefix="s")
     assert post.call_count == 5
 
 
@@ -131,9 +131,9 @@ def test_upload_no_retry_on_4xx():
         patch("httpx.Client.post", return_value=_4xx_envelope()) as post,
     ):
         with pytest.raises(ApiError) as exc:
-            client.upload(archive_bytes=b"PK", source="test", skill_id="s")
+            client.upload(archive_bytes=b"PK", source="test", prefix="s")
     assert post.call_count == 1
-    assert exc.value.code == "invalid_skill_id"
+    assert exc.value.code == "invalid_prefix"
 
 
 # ---------------------------------------------------------------------------

@@ -104,8 +104,10 @@ class ClaudeNativeSource:
     ) -> list[dict[str, Any]]:
         """Discover sessions from JSONL files not in sessions-index.json.
 
-        Scans *.jsonl files in the project directory and builds synthetic
-        index entries by reading metadata from the first 'progress' entry.
+        Scans top-level ``*.jsonl`` main-session transcripts plus orphaned
+        subagent transcripts under ``<uuid>/subagents/agent-*.jsonl`` and
+        builds synthetic index entries by reading metadata from the first
+        entry that carries ``cwd``.
 
         Args:
             project_dir: Claude project directory (e.g. ~/.claude/projects/-Users-...).
@@ -117,62 +119,26 @@ class ClaudeNativeSource:
         discovered: list[dict[str, Any]] = []
 
         try:
-            jsonl_files = list(project_dir.glob("*.jsonl"))
+            top_level = list(project_dir.glob("*.jsonl"))
         except OSError as e:
             logger.warning(f"Failed to scan for JSONL files in {project_dir}: {e}")
-            return discovered
+            top_level = []
 
-        for jsonl_path in jsonl_files:
-            session_id = jsonl_path.stem
-            if session_id in indexed_ids:
-                continue
+        try:
+            subagent_files = list(project_dir.glob("*/subagents/agent-*.jsonl"))
+        except OSError as e:
+            logger.warning(f"Failed to scan for subagent JSONL files in {project_dir}: {e}")
+            subagent_files = []
 
-            # Extract metadata from the first entry that carries it.
-            # Older Claude Code versions wrote a dedicated ``progress`` entry;
-            # newer versions attach ``cwd`` / ``gitBranch`` / ``isSidechain``
-            # directly to user/assistant message entries. Accept either shape.
-            cwd = None
-            git_branch = None
-            is_sidechain = False
-            try:
-                with open(jsonl_path, encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            entry = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        if entry.get("cwd"):
-                            cwd = entry["cwd"]
-                            git_branch = entry.get("gitBranch")
-                            is_sidechain = entry.get("isSidechain", False)
-                            break
-            except OSError as e:
-                logger.debug(f"Failed to read JSONL {jsonl_path}: {e}")
-                continue
+        for jsonl_path in top_level:
+            entry = self._build_discovered_entry(jsonl_path, indexed_ids, is_subagent=False)
+            if entry is not None:
+                discovered.append(entry)
 
-            if is_sidechain:
-                continue
-
-            # Build synthetic index entry
-            try:
-                stat = jsonl_path.stat()
-            except OSError as e:
-                logger.debug(f"Failed to stat {jsonl_path}: {e}")
-                continue
-            discovered.append(
-                {
-                    "sessionId": session_id,
-                    "fullPath": str(jsonl_path),
-                    "projectPath": cwd,
-                    "gitBranch": git_branch,
-                    "isSidechain": False,
-                    "created": datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat(),
-                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
-                }
-            )
+        for jsonl_path in subagent_files:
+            entry = self._build_discovered_entry(jsonl_path, indexed_ids, is_subagent=True)
+            if entry is not None:
+                discovered.append(entry)
 
         if discovered:
             logger.info(
@@ -181,6 +147,74 @@ class ClaudeNativeSource:
             )
 
         return discovered
+
+    def _build_discovered_entry(
+        self, jsonl_path: Path, indexed_ids: set[str], is_subagent: bool
+    ) -> dict[str, Any] | None:
+        """Build one synthetic index entry from a JSONL transcript.
+
+        Subagent transcripts share the parent's ``sessionId`` and carry
+        ``isSidechain: true``; we derive a parent-qualified synthetic id
+        (``<parent_uuid>-<agent_stem>``) so ids stay unique and deterministic
+        across re-runs, and admit them as first-class sessions rather than
+        applying the top-level sidechain skip.
+        """
+        if is_subagent:
+            # project_dir/<parent_uuid>/subagents/agent-<id>.jsonl
+            parent_uuid = jsonl_path.parent.parent.name
+            session_id = f"{parent_uuid}-{jsonl_path.stem}"
+        else:
+            session_id = jsonl_path.stem
+
+        if session_id in indexed_ids:
+            return None
+
+        # Extract metadata from the first entry that carries it.
+        # Older Claude Code versions wrote a dedicated ``progress`` entry;
+        # newer versions attach ``cwd`` / ``gitBranch`` / ``isSidechain``
+        # directly to user/assistant message entries. Accept either shape.
+        cwd = None
+        git_branch = None
+        is_sidechain = False
+        try:
+            with open(jsonl_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("cwd"):
+                        cwd = entry["cwd"]
+                        git_branch = entry.get("gitBranch")
+                        is_sidechain = entry.get("isSidechain", False)
+                        break
+        except OSError as e:
+            logger.debug(f"Failed to read JSONL {jsonl_path}: {e}")
+            return None
+
+        # Inline sidechains inside an ordinary main transcript stay dropped;
+        # transcripts found under a subagents/ directory are admitted.
+        if is_sidechain and not is_subagent:
+            return None
+
+        try:
+            stat = jsonl_path.stat()
+        except OSError as e:
+            logger.debug(f"Failed to stat {jsonl_path}: {e}")
+            return None
+
+        return {
+            "sessionId": session_id,
+            "fullPath": str(jsonl_path),
+            "projectPath": cwd,
+            "gitBranch": git_branch,
+            "isSidechain": False,
+            "created": datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat(),
+            "modified": datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+        }
 
     def _parse_jsonl_file(self, jsonl_path: Path) -> list[dict[str, Any]]:
         """Parse a JSONL file into a list of entries.

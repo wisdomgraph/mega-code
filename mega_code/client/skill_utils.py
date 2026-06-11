@@ -15,14 +15,31 @@ import os
 import re
 from copy import deepcopy
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
+from typing import Literal
 
 import yaml
+
+from mega_code.client.api.protocol import (
+    _BUNDLE_SUBDIRS as _BUNDLE_ROOTS,
+)
+from mega_code.client.api.protocol import (
+    BundleFile,
+    ResourcePlan,
+    SkillBundle,
+    ValidationFinding,
+)
 
 DEFAULT_AUTHOR = "co-authored by www.megacode.ai"
 
 DEFAULT_VERSION = "1.0.0"
 
 MEGACODE_AUTHOR_MARKER = "megacode.ai"
+
+# Conservative default tool whitelist for SKILL.md `allowed-tools` when neither
+# the source frontmatter nor metadata supplies a value. Runtime stage requires
+# this key to be present and non-empty.
+DEFAULT_ALLOWED_TOOLS = "Read, Grep, Glob, Bash, Edit, Write"
 
 SKILL_METADATA_KEYS = (
     "version",
@@ -174,6 +191,14 @@ def normalize_skill_frontmatter(frontmatter: dict) -> dict:
     for key, value in frontmatter.items():
         if key == "metadata" or key in SKILL_METADATA_KEYS or key in DEPRECATED_SKILL_METADATA_KEYS:
             continue
+        # Canonicalise snake_case allowed_tools to the kebab key Claude Code
+        # expects; F003 rejects the snake-case form at runtime, and emitting
+        # both keys would trip _ensure_allowed_tools into a double-injection.
+        if key == "allowed_tools" and "allowed-tools" not in frontmatter:
+            normalized["allowed-tools"] = value
+            continue
+        if key == "allowed_tools":
+            continue
         normalized[key] = value
 
     metadata = skill_metadata(frontmatter)
@@ -270,17 +295,62 @@ def normalize_pending_skill_markdown(
             metadata_block.setdefault(key, value)
         if metadata_block:
             normalized["metadata"] = metadata_block
-        return render_frontmatter(normalized) + body
+        rendered = render_frontmatter(normalized) + body
+    else:
+        rendered = ensure_skill_frontmatter(
+            skill_md,
+            skill_name,
+            author=resolved_author,
+            version=resolved_version,
+            generated_at=str(extra_frontmatter.get("generated_at", "")),
+            tags=resolved_tags or None,
+            extra_frontmatter=(
+                {"roi": extra_frontmatter["roi"]} if "roi" in extra_frontmatter else None
+            ),
+        )
 
-    return ensure_skill_frontmatter(
-        skill_md,
-        skill_name,
-        author=resolved_author,
-        version=resolved_version,
-        generated_at=str(extra_frontmatter.get("generated_at", "")),
-        tags=resolved_tags or None,
-        extra_frontmatter={"roi": extra_frontmatter["roi"]} if "roi" in extra_frontmatter else None,
-    )
+    allowed_tools_value = _allowed_tools_from_metadata(metadata_payload) or DEFAULT_ALLOWED_TOOLS
+    return _ensure_allowed_tools(rendered, allowed_tools_value)
+
+
+def _allowed_tools_from_metadata(metadata_payload: dict) -> str | None:
+    """Extract `allowed-tools` from a metadata.json payload, normalised to a string.
+
+    Accepts both kebab (`allowed-tools`) and snake (`allowed_tools`) keys, and
+    both list and string shapes. Returns `None` if absent or empty so the
+    caller can fall back to a default.
+    """
+    raw = metadata_payload.get("allowed-tools")
+    if raw is None:
+        raw = metadata_payload.get("allowed_tools")
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        items = [str(item).strip() for item in raw if str(item).strip()]
+        return ", ".join(items) if items else None
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        return stripped or None
+    return None
+
+
+def _ensure_allowed_tools(skill_md: str, value: str) -> str:
+    """Inject `allowed-tools: "<value>"` into the YAML frontmatter if missing.
+
+    Idempotent — when `allowed-tools` already exists at the top level (even as
+    an empty value), the input is returned unchanged. Stage validators surface
+    empty-value violations separately.
+    """
+    frontmatter, _ = split_frontmatter(skill_md)
+    if "allowed-tools" in frontmatter:
+        return skill_md
+    if not skill_md.startswith("---"):
+        return skill_md
+    parts = skill_md.split("---", 2)
+    if len(parts) < 3:
+        return skill_md
+    header_block = parts[1].rstrip("\n")
+    return parts[0] + "---" + header_block + "\n" + f'allowed-tools: "{value}"\n' + "---" + parts[2]
 
 
 def get_author() -> str:
@@ -758,3 +828,467 @@ def format_eval_roi_entry(eval_roi_data: dict, *, include_analytics: bool = Fals
                 roi_entry[output_key] = eval_roi_data[source_key]
 
     return roi_entry
+
+
+# =============================================================================
+# Validators: validate_frontmatter + validate_bundle
+# =============================================================================
+# Codes returned via the shared ValidationFinding type.
+#
+# F-prefix: frontmatter findings (validate_frontmatter).
+# W-prefix: warnings (validate_bundle).
+# E-prefix: bundle errors (validate_bundle).
+# P-prefix: planner / ResourcePlan errors (validate_bundle).
+# Codes are stable identifiers — see the per-code docstrings below.
+
+_KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+# Path: forward-slash, two segments max in Phase 3, each segment kebab-ish.
+# First segment is checked against the whitelist separately.
+_BUNDLE_PATH_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)?$")
+
+_EVIDENCE_CITATION_RE = re.compile(r"\bev:\d+\b|\bL\d+-\d+\b")
+
+_SHELL_VAR_CITATION_PREFIX = r'"[^"]*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?[^"]*?/'
+
+_REVERSE_CITATION_RE = re.compile(
+    r"`((?:references|scripts|assets)/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)?)`"
+    r"|\]\(((?:references|scripts|assets)/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)?)\)"
+    r"|/load\s+((?:references|scripts|assets)/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)?)"
+)
+
+_REVERSE_SHELL_CITATION_RE = re.compile(
+    _SHELL_VAR_CITATION_PREFIX
+    + r"((?:references|scripts|assets)/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9._-]+)?)"
+    + r'"'
+)
+
+_EXTRACT_PHRASES = ("extract", "move to references", "pull out")
+
+_EXTENSIONS_BY_KIND: dict[str, set[str]] = {
+    "reference": {".md"},
+    "script": {".py", ".sh"},
+    "asset": {".md", ".json", ".yaml", ".txt", ".csv", ".tmpl"},
+}
+
+# Allowed top-level frontmatter keys at runtime stage (F003 source).
+_ALLOWED_RUNTIME_KEYS: frozenset[str] = frozenset(
+    {
+        "description",
+        "allowed-tools",
+        "name",
+        "version",
+        "author",
+        "tags",
+        "argument-hint",
+        "disable-model-invocation",
+        "metadata",
+    }
+)
+
+# Required keys per stage (F001 source).
+_REQUIRED_KEYS_BY_STAGE: dict[str, tuple[str, ...]] = {
+    "runtime": ("description", "allowed-tools"),
+    "extracted": ("description", "name"),
+}
+
+_W001_BODY_LINES = 500
+
+_E002_BODY_LINES = 800
+
+_PER_FILE_BYTES_LIMIT = 32 * 1024
+
+_TOTAL_BUNDLE_BYTES_LIMIT = 256 * 1024
+
+
+def _is_empty_value(value: object) -> bool:
+    """Treat None, '', and [] as empty; everything else as populated."""
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    if isinstance(value, list) and len(value) == 0:
+        return True
+    return False
+
+
+def _description_starts_first_person(description: str) -> bool:
+    stripped = description.lstrip().lower()
+    for marker in ("i ", "my ", "we "):
+        if stripped.startswith(marker):
+            return True
+    return False
+
+
+def validate_frontmatter(
+    skill_md: str,
+    *,
+    stage: Literal["runtime", "extracted"],
+    expected_slug: str | None = None,
+) -> list[ValidationFinding]:
+    """Validate SKILL.md YAML frontmatter against the per-stage contract.
+
+    Returns every finding in one pass. Callers decide policy:
+    `severity="error"` blocks, `severity="warning"` is report-only.
+
+    `expected_slug` is the directory/slug the skill is expected to own. When
+    `None`, the F005 name-vs-directory check is skipped — all other checks
+    still run.
+    """
+    findings: list[ValidationFinding] = []
+    frontmatter = parse_frontmatter(skill_md)
+
+    required = _REQUIRED_KEYS_BY_STAGE[stage]
+    for key in required:
+        if key not in frontmatter:
+            findings.append(
+                ValidationFinding(
+                    code="F001_MISSING_REQUIRED_KEY",
+                    severity="error",
+                    message=f"Required key {key!r} missing at stage={stage!r}",
+                )
+            )
+        elif _is_empty_value(frontmatter[key]):
+            # Empty allowed-tools list is a more specific F007.
+            if key == "allowed-tools" and isinstance(frontmatter[key], list):
+                findings.append(
+                    ValidationFinding(
+                        code="F007_ALLOWED_TOOLS_EMPTY_LIST",
+                        severity="error",
+                        message="'allowed-tools' is an empty list",
+                    )
+                )
+            else:
+                findings.append(
+                    ValidationFinding(
+                        code="F002_EMPTY_VALUE",
+                        severity="error",
+                        message=f"Key {key!r} is present but empty at stage={stage!r}",
+                    )
+                )
+
+    if stage == "runtime":
+        for key in frontmatter:
+            if key not in _ALLOWED_RUNTIME_KEYS:
+                findings.append(
+                    ValidationFinding(
+                        code="F003_FORBIDDEN_KEY",
+                        severity="error",
+                        message=f"Key {key!r} is not permitted at stage='runtime'",
+                    )
+                )
+
+    name = frontmatter.get("name")
+    if isinstance(name, str) and name:
+        if not _KEBAB_RE.match(name):
+            findings.append(
+                ValidationFinding(
+                    code="F004_BAD_KEBAB_CASE",
+                    severity="error",
+                    message=f"'name' value {name!r} is not kebab-case",
+                )
+            )
+        if expected_slug is not None and name != expected_slug:
+            findings.append(
+                ValidationFinding(
+                    code="F005_NAME_DIR_MISMATCH",
+                    severity="error",
+                    message=f"'name' is {name!r} but expected slug is {expected_slug!r}",
+                )
+            )
+
+    description = frontmatter.get("description")
+    if isinstance(description, str) and _description_starts_first_person(description):
+        findings.append(
+            ValidationFinding(
+                code="F006_DESCRIPTION_WRONG_PERSON",
+                severity="warning",
+                message=(
+                    "'description' should be written in the third person "
+                    "(starts with 'I ', 'my ', or 'we ')"
+                ),
+            )
+        )
+
+    return findings
+
+
+def _validate_bundle_path(bf: BundleFile, nbytes: int) -> list[ValidationFinding]:
+    """Path-safety checks for a single BundleFile. `nbytes` is its UTF-8 size."""
+    findings: list[ValidationFinding] = []
+    path = bf.path
+    if not path or path.startswith("/") or "\\" in path or ".." in path.split("/"):
+        findings.append(
+            ValidationFinding(
+                code="E003_BUNDLE_PATH_UNSAFE",
+                severity="error",
+                message=f"Path {path!r} is unsafe (absolute, backslash, or traversal)",
+                path=path,
+            )
+        )
+        # No further per-path checks once we've established unsafety.
+        return findings
+
+    head, _, tail = path.partition("/")
+    if head not in _BUNDLE_ROOTS:
+        findings.append(
+            ValidationFinding(
+                code="E004_BUNDLE_PATH_WHITELIST",
+                severity="error",
+                message=f"Top-level directory {head!r} must be one of {sorted(_BUNDLE_ROOTS)}",
+                path=path,
+            )
+        )
+        return findings
+
+    if not tail:
+        findings.append(
+            ValidationFinding(
+                code="E003_BUNDLE_PATH_UNSAFE",
+                severity="error",
+                message=f"Path {path!r} is just a directory; expected a file",
+                path=path,
+            )
+        )
+        return findings
+
+    if not _BUNDLE_PATH_RE.match(path):
+        findings.append(
+            ValidationFinding(
+                code="E003_BUNDLE_PATH_UNSAFE",
+                severity="error",
+                message=f"Path {path!r} fails the bundle path regex",
+                path=path,
+            )
+        )
+        return findings
+
+    suffix = PurePosixPath(path).suffix
+    allowed = _EXTENSIONS_BY_KIND[bf.kind]
+    if suffix not in allowed:
+        findings.append(
+            ValidationFinding(
+                code="E005_BUNDLE_EXTENSION",
+                severity="error",
+                message=(
+                    f"Extension {suffix!r} not permitted for kind={bf.kind!r}; "
+                    f"allowed: {sorted(allowed)}"
+                ),
+                path=path,
+            )
+        )
+
+    # Per-file size cap.
+    if nbytes > _PER_FILE_BYTES_LIMIT:
+        findings.append(
+            ValidationFinding(
+                code="E006_BUNDLE_FILE_TOO_LARGE",
+                severity="error",
+                message=f"File {path!r} exceeds {_PER_FILE_BYTES_LIMIT} bytes",
+                path=path,
+            )
+        )
+    return findings
+
+
+def _validate_bundle_consistency(bundle: SkillBundle) -> list[ValidationFinding]:
+    """ResourcePlan.create_X iff any BundleFile.kind == X."""
+    findings: list[ValidationFinding] = []
+    rp = bundle.resource_plan
+    flag_by_kind = {
+        "reference": rp.create_references,
+        "script": rp.create_scripts,
+        "asset": rp.create_assets,
+    }
+    has_kind = {k: any(bf.kind == k for bf in bundle.bundle_files) for k in flag_by_kind}
+    for kind, flag in flag_by_kind.items():
+        if flag != has_kind[kind]:
+            findings.append(
+                ValidationFinding(
+                    code="E008_BUNDLE_FLAG_FILES_MISMATCH",
+                    severity="error",
+                    message=(
+                        f"create_{kind}s={flag} but bundle_files {'has' if has_kind[kind] else 'lacks'} "
+                        f"kind={kind!r}"
+                    ),
+                )
+            )
+    return findings
+
+
+def _cites_path_shell(skill_md: str, path: str) -> bool:
+    """Match a shell-string citation: `"$VAR/.../<path>"` with variable expansion."""
+    pattern = _SHELL_VAR_CITATION_PREFIX + re.escape(path) + '"'
+    return re.search(pattern, skill_md) is not None
+
+
+def iter_cited_bundle_paths(skill_md: str) -> set[str]:
+    """Bundle-file paths cited in ``skill_md`` (contract §Consistency).
+
+    Recognises the four citation forms that the bundle contract considers
+    resolvable: ``` `<root>/<file>` ``` (backtick), ``[label](<root>/<file>)``
+    (markdown link), ``/load <root>/<file>`` (slash directive), and the
+    shell-string form ``"${VAR}/<root>/<file>"`` (matches ``_cites_path_shell``
+    on the forward direction). ``<root>`` is one of ``references`` /
+    ``scripts`` / ``assets``. Returns the set of distinct paths cited; order
+    is not meaningful.
+
+    Used by ``validate_bundle`` for E012 dangling-citation detection and by
+    downstream consumers (pipeline diagnostics, judge harness) that need to
+    know which bundle files a SKILL.md references without re-implementing
+    the grammar.
+    """
+    cited: set[str] = set()
+    for match in _REVERSE_CITATION_RE.finditer(skill_md):
+        for group in match.groups():
+            if group:
+                cited.add(group)
+    for match in _REVERSE_SHELL_CITATION_RE.finditer(skill_md):
+        cited.add(match.group(1))
+    return cited
+
+
+def _validate_bundle_citations(bundle: SkillBundle) -> list[ValidationFinding]:
+    """Bidirectional citation check — only meaningful when bundle_files is non-empty."""
+    findings: list[ValidationFinding] = []
+    if not bundle.bundle_files:
+        return findings
+
+    bundle_paths = {bf.path for bf in bundle.bundle_files}
+    cited = iter_cited_bundle_paths(bundle.skill_md)
+
+    # Forward: every BundleFile.path must be cited somewhere in SKILL.md.
+    for bf in bundle.bundle_files:
+        if bf.path in cited or _cites_path_shell(bundle.skill_md, bf.path):
+            continue
+        findings.append(
+            ValidationFinding(
+                code="E009_BUNDLE_CITATION_MISSING",
+                severity="error",
+                message=f"BundleFile {bf.path!r} is not cited in SKILL.md",
+                path=bf.path,
+            )
+        )
+
+    # Reverse: every recognised citation to references|scripts|assets must
+    # resolve to an actual BundleFile.
+    for path in cited - bundle_paths:
+        findings.append(
+            ValidationFinding(
+                code="E012_BUNDLE_DANGLING_CITATION",
+                severity="error",
+                message=f"SKILL.md cites {path!r} but no matching BundleFile exists",
+                path=path,
+            )
+        )
+    return findings
+
+
+def _validate_resource_plan(rp: ResourcePlan) -> list[ValidationFinding]:
+    """Planner codes P001-P004."""
+    findings: list[ValidationFinding] = []
+
+    if rp.create_assets:
+        findings.append(
+            ValidationFinding(
+                code="P001_CREATE_ASSETS_FORBIDDEN_IN_PHASE_3",
+                severity="error",
+                message="create_assets=True is forbidden until a dedicated assets design doc lifts the restriction",
+            )
+        )
+
+    any_create = rp.create_references or rp.create_scripts or rp.create_assets
+    if any_create and not rp.rationale.strip():
+        findings.append(
+            ValidationFinding(
+                code="P002_EMPTY_RATIONALE",
+                severity="error",
+                message="'rationale' must be non-empty when any create_* flag is True",
+            )
+        )
+    if any_create and rp.rationale.strip() and not _EVIDENCE_CITATION_RE.search(rp.rationale):
+        findings.append(
+            ValidationFinding(
+                code="P003_RATIONALE_LACKS_CITATION",
+                severity="error",
+                message="'rationale' must cite at least one evidence id (ev:NNN) or line range (L<n>-<m>)",
+            )
+        )
+
+    rationale_lower = rp.rationale.lower()
+    if any(phrase in rationale_lower for phrase in _EXTRACT_PHRASES) and not any_create:
+        findings.append(
+            ValidationFinding(
+                code="P004_RATIONALE_EXTRACT_FLAG_MISMATCH",
+                severity="error",
+                message="'rationale' claims extraction but every create_* flag is False",
+            )
+        )
+    return findings
+
+
+def validate_bundle(
+    bundle: SkillBundle,
+    *,
+    stage: Literal["runtime", "extracted"],
+) -> list[ValidationFinding]:
+    """Validate a SkillBundle and its embedded SKILL.md frontmatter.
+
+    Concatenates `validate_frontmatter(skill_md, stage=stage,
+    expected_slug=bundle.skill_slug)` findings directly (shared
+    ValidationFinding type — no conversion).
+
+    Note: the citation check (E009/E012) is only meaningful on the final
+    assembled bundle, post-Stage C. Callers must not invoke `validate_bundle`
+    on intermediate pipeline artefacts where `bundle_files` has not yet been
+    populated (per contract §Consistency — Timing).
+    """
+    findings: list[ValidationFinding] = []
+
+    # SKILL.md body size (excluding frontmatter).
+    _, body = split_frontmatter(bundle.skill_md)
+    body_lines = len(body.splitlines())
+    if body_lines > _E002_BODY_LINES:
+        findings.append(
+            ValidationFinding(
+                code="E002_SKILL_MD_TOO_LONG",
+                severity="error",
+                message=f"SKILL.md body has {body_lines} lines (limit {_E002_BODY_LINES})",
+            )
+        )
+    elif body_lines > _W001_BODY_LINES:
+        findings.append(
+            ValidationFinding(
+                code="W001_SKILL_MD_LONG",
+                severity="warning",
+                message=(
+                    f"SKILL.md body has {body_lines} lines (Anthropic soft cap {_W001_BODY_LINES})"
+                ),
+            )
+        )
+
+    # Per-file path safety + extension + size.
+    total_bytes = 0
+    for bf in bundle.bundle_files:
+        nbytes = len(bf.content.encode("utf-8"))
+        findings.extend(_validate_bundle_path(bf, nbytes))
+        total_bytes += nbytes
+    if total_bytes > _TOTAL_BUNDLE_BYTES_LIMIT:
+        findings.append(
+            ValidationFinding(
+                code="E007_BUNDLE_TOTAL_TOO_LARGE",
+                severity="error",
+                message=(
+                    f"Total bundle content is {total_bytes} bytes "
+                    f"(limit {_TOTAL_BUNDLE_BYTES_LIMIT})"
+                ),
+            )
+        )
+
+    findings.extend(_validate_bundle_consistency(bundle))
+    findings.extend(_validate_bundle_citations(bundle))
+    findings.extend(_validate_resource_plan(bundle.resource_plan))
+    findings.extend(
+        validate_frontmatter(bundle.skill_md, stage=stage, expected_slug=bundle.skill_slug)
+    )
+    return findings

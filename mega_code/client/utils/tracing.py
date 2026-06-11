@@ -37,7 +37,6 @@ def _parse_otlp_headers(headers_str: str) -> tuple[tuple[str, str], ...]:
 _client_initialized = False
 
 _HAS_OTEL = importlib.util.find_spec("opentelemetry") is not None
-
 if _HAS_OTEL:
     import json as _json
 

@@ -28,6 +28,7 @@ from mega_code.client.pending import (
     PendingSkillInfo,
     PendingStrategyInfo,
 )
+from mega_code.client.skill_utils import canonical_skill_name
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +53,6 @@ class ArchivedRun:
 # =============================================================================
 # Archive Operations (replaces delete)
 # =============================================================================
-
-
 def archive_pending_items(
     run_id: str,
     project_id: str,
@@ -158,6 +157,7 @@ def archive_pending_items(
             skills=[
                 {
                     "name": s.name,
+                    "skill_slug": canonical_skill_name(s.name),
                     "description": s.description,
                     "path": str(archive_skills_dir / s.name),
                     "author": s.author,

@@ -137,3 +137,100 @@ class TestNormalizeSkillFrontmatterPreservesCreator:
         }
         result = normalize_skill_frontmatter(fm)
         assert result["metadata"]["creator"] == "a@b.com"
+
+
+class TestNormalizePendingSkillAllowedToolsBackfill:
+    """normalize_pending_skill_markdown backfills `allowed-tools` (A4)."""
+
+    _SKILL_WITH_FRONTMATTER = "---\nname: my-skill\ndescription: A skill.\n---\n\nBody.\n"
+    _SKILL_BODY_ONLY = "# My Skill\n\nBody only, no frontmatter yet.\n"
+
+    def _result(self, **kwargs) -> str:
+        from mega_code.client.skill_utils import normalize_pending_skill_markdown
+
+        defaults = {"skill_md": self._SKILL_WITH_FRONTMATTER, "skill_name": "my-skill"}
+        defaults.update(kwargs)
+        return normalize_pending_skill_markdown(**defaults)
+
+    def _allowed_tools(self, rendered: str) -> object:
+        from mega_code.client.skill_utils import split_frontmatter
+
+        fm, _ = split_frontmatter(rendered)
+        return fm.get("allowed-tools")
+
+    def test_backfill_from_metadata_string(self):
+        result = self._result(
+            metadata_json='{"allowed_tools": "Read, Grep, Bash"}',
+        )
+        assert self._allowed_tools(result) == "Read, Grep, Bash"
+
+    def test_backfill_from_metadata_kebab_key(self):
+        result = self._result(
+            metadata_json='{"allowed-tools": "Read, Edit"}',
+        )
+        assert self._allowed_tools(result) == "Read, Edit"
+
+    def test_backfill_from_metadata_list_form(self):
+        result = self._result(
+            metadata_json='{"allowed_tools": ["Read", "Grep", "Glob"]}',
+        )
+        assert self._allowed_tools(result) == "Read, Grep, Glob"
+
+    def test_safe_default_when_metadata_absent(self):
+        from mega_code.client.skill_utils import DEFAULT_ALLOWED_TOOLS
+
+        result = self._result(metadata_json="{}")
+        assert self._allowed_tools(result) == DEFAULT_ALLOWED_TOOLS
+
+    def test_safe_default_when_metadata_empty_string(self):
+        from mega_code.client.skill_utils import DEFAULT_ALLOWED_TOOLS
+
+        result = self._result(metadata_json='{"allowed_tools": ""}')
+        assert self._allowed_tools(result) == DEFAULT_ALLOWED_TOOLS
+
+    def test_safe_default_when_metadata_empty_list(self):
+        from mega_code.client.skill_utils import DEFAULT_ALLOWED_TOOLS
+
+        result = self._result(metadata_json='{"allowed_tools": []}')
+        assert self._allowed_tools(result) == DEFAULT_ALLOWED_TOOLS
+
+    def test_idempotent_when_frontmatter_already_has_allowed_tools(self):
+        skill_md = (
+            '---\nname: my-skill\ndescription: A skill.\nallowed-tools: "Read"\n---\n\nBody.\n'
+        )
+        # Source metadata tries to override — must be ignored.
+        result = self._result(
+            skill_md=skill_md,
+            metadata_json='{"allowed_tools": "OtherTool"}',
+        )
+        assert self._allowed_tools(result) == "Read"
+
+    def test_idempotent_on_second_call(self):
+        first = self._result(metadata_json='{"allowed_tools": "Read, Edit"}')
+        second = self._result(skill_md=first, metadata_json="{}")
+        assert self._allowed_tools(second) == "Read, Edit"
+
+    def test_backfill_when_source_has_no_frontmatter(self):
+        from mega_code.client.skill_utils import DEFAULT_ALLOWED_TOOLS
+
+        result = self._result(skill_md=self._SKILL_BODY_ONLY, metadata_json="{}")
+        assert self._allowed_tools(result) == DEFAULT_ALLOWED_TOOLS
+
+    def test_backfill_when_source_has_no_frontmatter_with_metadata(self):
+        result = self._result(
+            skill_md=self._SKILL_BODY_ONLY,
+            metadata_json='{"allowed_tools": "Read"}',
+        )
+        assert self._allowed_tools(result) == "Read"
+
+    def test_existing_metadata_block_not_disturbed_by_backfill(self):
+        from mega_code.client.skill_utils import split_frontmatter
+
+        skill_md = (
+            "---\nname: my-skill\ndescription: A skill.\n"
+            'metadata:\n  version: "1.0.0"\n  author: "alice"\n---\n\nBody.\n'
+        )
+        result = self._result(skill_md=skill_md, metadata_json="{}")
+        fm, _ = split_frontmatter(result)
+        assert fm["metadata"]["author"] == "alice"
+        assert fm["metadata"]["version"] == "1.0.0"

@@ -13,6 +13,7 @@ __all__ = [
     "TERMINAL_STATUSES",
     "ActivePipelineItem",
     "ActivePipelinesResult",
+    "BundleFile",
     "EnhanceSkillResult",
     "MegaCodeBaseClient",
     "OutputsResult",
@@ -22,17 +23,22 @@ __all__ = [
     "PipelineStatusResult",
     "PipelineStopResult",
     "ProfileResult",
+    "ResourcePlan",
     "SkillArtifactData",
+    "SkillBundle",
+    "SkillBundleError",
     "SkillRefItem",
     "TriggerPipelineResult",
     "UploadResult",
     "UserProfile",
+    "ValidationFinding",
 ]
 
-from pathlib import Path
-from typing import Protocol, runtime_checkable
+import zipfile
+from pathlib import Path, PurePosixPath
+from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from mega_code.client.models import TurnSet
 
@@ -72,6 +78,13 @@ class PendingSkillData(BaseModel):
     author: str = ""
     version: str = ""
     tags: list[str] = Field(default_factory=list)
+    skill_bundle: SkillBundle | None = Field(
+        default=None,
+        description=(
+            "Progressive-disclosure bundle (B7). Populated when the pipeline emits "
+            "a SkillBundle alongside the legacy fields; None for pre-bundle rows."
+        ),
+    )
 
 
 class SkillArtifactData(BaseModel):
@@ -117,6 +130,380 @@ class PendingLessonData(BaseModel):
 
 
 # =============================================================================
+# Skill Bundle Models (progressive-disclosure SKILL packaging)
+# =============================================================================
+# All new fields must be optional-defaulted — future additions are wire-additive only.
+
+BundleKind = Literal["reference", "script", "asset"]
+
+
+class BundleFile(BaseModel):
+    """A single file packaged inside a SkillBundle (reference, script, or asset).
+
+    Frozen so bundle contents are rewritten rather than mutated in place — catches
+    accidental aliasing between pending, approved, and installed copies.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str = Field(description="Relative forward-slash path, e.g. 'references/examples.md'")
+    kind: BundleKind
+    content: str = Field(description="File contents — text only in Phase 3 (D1)")
+
+    @field_validator("path")
+    @classmethod
+    def _reject_escaping_path(cls, v: str) -> str:
+        # Block absolute paths and any '..' segment so a malicious or
+        # misconfigured server response cannot escape the bundle root when
+        # write_resources joins target_dir / bf.path.
+        p = PurePosixPath(v)
+        if not v or p.is_absolute() or ".." in p.parts:
+            raise ValueError(f"bundle file path must be relative with no '..' segments: {v!r}")
+        return v
+
+
+class ResourcePlan(BaseModel):
+    """Planner output describing which optional bundle resources to create."""
+
+    create_references: bool = False
+    create_scripts: bool = False
+    create_assets: bool = False
+    rationale: str = Field(
+        default="", description="One-paragraph justification with evidence citations"
+    )
+    planned_files: list[BundleFile] = Field(default_factory=list)
+
+
+_BUNDLE_KIND_SUBDIR: dict[BundleKind, str] = {
+    "reference": "references",
+    "script": "scripts",
+    "asset": "assets",
+}
+
+_BUNDLE_SUBDIRS: tuple[str, ...] = tuple(_BUNDLE_KIND_SUBDIR.values())
+
+# Single source of truth for the string-backed JSON system files written beside
+# SKILL.md: (filename, SkillBundle attr, on-read default when the file is absent).
+# Drives the read path in from_disk / from_zip; resource_plan.json is handled
+# separately because it (de)serialises through the ResourcePlan model.
+_JSON_SYSTEM_FILES: tuple[tuple[str, str, str], ...] = (
+    ("injection.json", "injection_rules", "{}"),
+    ("evidence.json", "evidence", "[]"),
+    ("metadata.json", "metadata", "{}"),
+)
+
+# All reserved root-level system filenames (the JSON sidecars + the plan).
+# Consumers that need to recognise wisdom-gen system files — e.g. the remote
+# packager's upload skip-list — derive from this rather than re-hardcoding names.
+_SYSTEM_FILES: tuple[str, ...] = (
+    *(name for name, _attr, _default in _JSON_SYSTEM_FILES),
+    "resource_plan.json",
+)
+
+
+class SkillBundleError(ValueError):
+    """Raised by SkillBundle.from_disk / from_zip for structural errors.
+
+    The `code` field carries a stable error identifier (e.g.
+    `E010_MISSING_RESOURCE_PLAN`); the `path` field is set when the error is
+    scoped to a single file inside the bundle directory.
+    """
+
+    def __init__(self, code: str, message: str, *, path: str | None = None):
+        self.code = code
+        self.path = path
+        super().__init__(f"{code}: {message}")
+
+
+class SkillBundle(BaseModel):
+    """A self-contained extracted skill: lean SKILL.md + optional bundled resources."""
+
+    # Identity
+    skill_slug: str = Field(description="Kebab-case canonical slug")
+    version: str = "1.0.0"
+
+    # Core instruction
+    skill_md: str = Field(description="Lean SKILL.md body with frontmatter")
+
+    # System artifacts — JSON strings, opaque to the bundle
+    injection_rules: str = Field(description="JSON(InjectionRules)")
+    evidence: str = Field(description="JSON(list[Evidence])")
+    metadata: str = Field(description="JSON(dict)")
+
+    # Optional bundled resources — progressive disclosure
+    bundle_files: list[BundleFile] = Field(default_factory=list)
+
+    # Plan that produced bundle_files (for audit / re-generation)
+    resource_plan: ResourcePlan = Field(default_factory=ResourcePlan)
+
+    # Review state
+    installed: bool = False
+    approved: bool = False
+    author: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+    # -- Disk I/O ------------------------------------------------------------
+
+    def to_disk(self, base_dir: Path, *, run_id: str = "") -> Path:
+        """Write the bundle into `base_dir`, returning the bundle root path.
+
+        Layout:
+            <base_dir>[/<run_id>]/<skill_slug>/
+              SKILL.md
+              injection.json
+              evidence.json
+              metadata.json
+              resource_plan.json
+              references/*.md    (only if bundle has references)
+              scripts/*.{py,sh}  (only if bundle has scripts)
+              assets/*           (only if bundle has assets)
+
+        Empty optional sub-directories are never created.
+        """
+        bundle_root = Path(base_dir)
+        if run_id:
+            bundle_root = bundle_root / run_id
+        bundle_root = bundle_root / self.skill_slug
+        bundle_root.mkdir(parents=True, exist_ok=True)
+
+        (bundle_root / "SKILL.md").write_text(self.skill_md, encoding="utf-8")
+        (bundle_root / "injection.json").write_text(self.injection_rules, encoding="utf-8")
+        (bundle_root / "evidence.json").write_text(self.evidence, encoding="utf-8")
+        (bundle_root / "metadata.json").write_text(self.metadata, encoding="utf-8")
+        self.write_resources(bundle_root)
+
+        return bundle_root
+
+    def write_resources(self, target_dir: Path) -> None:
+        """Write resource_plan.json and bundle files into `target_dir`.
+
+        The progressive-disclosure half of the bundle, split out so callers that
+        have already materialized SKILL.md/injection/evidence/metadata (e.g. the
+        remote pending writer) can add the resources without re-nesting under a
+        `<slug>/` subdir. Writing resource_plan.json alongside any sub-dirs keeps
+        the result loadable by `from_disk` (E010 requires a plan when sub-dirs exist).
+        """
+        target_dir = Path(target_dir)
+        (target_dir / "resource_plan.json").write_text(
+            self.resource_plan.model_dump_json(indent=2), encoding="utf-8"
+        )
+        target_resolved = target_dir.resolve()
+        for bf in self.bundle_files:
+            file_path = (target_dir / bf.path).resolve()
+            if not file_path.is_relative_to(target_resolved):
+                raise SkillBundleError(
+                    "E030_PATH_ESCAPE",
+                    f"bundle file path escapes target dir: {bf.path!r}",
+                    path=bf.path,
+                )
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(bf.content, encoding="utf-8")
+
+    @classmethod
+    def from_disk(cls, bundle_dir: Path) -> SkillBundle:
+        """Load a bundle from `bundle_dir`. Structural-only validation.
+
+        Applies the MQ5 archive rule:
+          - no `resource_plan.json` and no bundle sub-dirs → `ResourcePlan()`
+          - no `resource_plan.json` but bundle sub-dirs present → raise
+            `E010_MISSING_RESOURCE_PLAN`
+          - `resource_plan.json` present → normal load
+        """
+        bundle_dir = Path(bundle_dir)
+        skill_md_path = bundle_dir / "SKILL.md"
+        if not skill_md_path.is_file():
+            raise SkillBundleError(
+                "E020_MISSING_SKILL_MD",
+                f"SKILL.md not found in {bundle_dir}",
+            )
+
+        plan_path = bundle_dir / "resource_plan.json"
+        has_plan = plan_path.is_file()
+        has_subdirs = any((bundle_dir / sub).is_dir() for sub in _BUNDLE_SUBDIRS)
+
+        if not has_plan and has_subdirs:
+            raise SkillBundleError(
+                "E010_MISSING_RESOURCE_PLAN",
+                f"Bundle sub-directories present but {plan_path.name} is missing",
+            )
+
+        plan_raw = plan_path.read_text(encoding="utf-8") if has_plan else None
+        resource_plan = _parse_resource_plan(plan_raw, source_name=plan_path.name)
+
+        bundle_files: list[BundleFile] = []
+        for kind, sub in _BUNDLE_KIND_SUBDIR.items():
+            sub_dir = bundle_dir / sub
+            if not sub_dir.is_dir():
+                continue
+            for file_path in sorted(p for p in sub_dir.rglob("*") if p.is_file()):
+                rel = file_path.relative_to(bundle_dir).as_posix()
+                bundle_files.append(
+                    BundleFile(
+                        path=rel,
+                        kind=kind,
+                        content=file_path.read_text(encoding="utf-8"),
+                    )
+                )
+
+        return cls(
+            skill_slug=bundle_dir.name,
+            skill_md=skill_md_path.read_text(encoding="utf-8"),
+            bundle_files=bundle_files,
+            resource_plan=resource_plan,
+            **{
+                attr: _read_or_default(bundle_dir / name, default)
+                for name, attr, default in _JSON_SYSTEM_FILES
+            },
+        )
+
+    # -- ZIP I/O -------------------------------------------------------------
+
+    def to_zip(self, path: Path) -> Path:
+        """Write the bundle as a flat-rooted ZIP archive (no `<slug>/` wrapper)."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("SKILL.md", self.skill_md)
+            zf.writestr("injection.json", self.injection_rules)
+            zf.writestr("evidence.json", self.evidence)
+            zf.writestr("metadata.json", self.metadata)
+            zf.writestr("resource_plan.json", self.resource_plan.model_dump_json(indent=2))
+            for bf in self.bundle_files:
+                zf.writestr(bf.path, bf.content)
+        return path
+
+    @classmethod
+    def from_zip(cls, path: Path, *, skill_slug: str | None = None) -> SkillBundle:
+        """Load a bundle from a flat-rooted ZIP archive.
+
+        Since flat-rooted ZIPs carry no `<slug>/` wrapper, `skill_slug` must
+        be supplied; when omitted, the ZIP filename stem is used.
+        """
+        path = Path(path)
+        slug = skill_slug if skill_slug is not None else path.stem
+        with zipfile.ZipFile(path, "r") as zf:
+            names = set(zf.namelist())
+            if "SKILL.md" not in names:
+                raise SkillBundleError(
+                    "E020_MISSING_SKILL_MD",
+                    f"SKILL.md not found at archive root of {path}",
+                )
+
+            has_plan = "resource_plan.json" in names
+            has_subdir_entries = any(
+                name.split("/", 1)[0] in _BUNDLE_SUBDIRS for name in names if "/" in name
+            )
+            if not has_plan and has_subdir_entries:
+                raise SkillBundleError(
+                    "E010_MISSING_RESOURCE_PLAN",
+                    "Bundle sub-directories present but resource_plan.json is missing",
+                )
+
+            plan_raw = zf.read("resource_plan.json").decode("utf-8") if has_plan else None
+            resource_plan = _parse_resource_plan(plan_raw, source_name="resource_plan.json")
+
+            bundle_files: list[BundleFile] = []
+            for kind, sub in _BUNDLE_KIND_SUBDIR.items():
+                prefix = sub + "/"
+                for name in sorted(
+                    n for n in names if n.startswith(prefix) and not n.endswith("/")
+                ):
+                    bundle_files.append(
+                        BundleFile(
+                            path=name,
+                            kind=kind,
+                            content=zf.read(name).decode("utf-8"),
+                        )
+                    )
+
+            return cls(
+                skill_slug=slug,
+                skill_md=zf.read("SKILL.md").decode("utf-8"),
+                bundle_files=bundle_files,
+                resource_plan=resource_plan,
+                **{
+                    attr: _zip_read_or_default(zf, names, name, default)
+                    for name, attr, default in _JSON_SYSTEM_FILES
+                },
+            )
+
+    # -- Adapter -------------------------------------------------------------
+
+    @classmethod
+    def from_pending_skill_data(cls, pend: PendingSkillData) -> SkillBundle:
+        """Adapt a legacy `PendingSkillData` into an empty-plan `SkillBundle`.
+
+        Maps `skill_name → skill_slug` via the client-side canonical slug
+        derivation. `bundle_files` and `resource_plan` start empty —
+        progressive disclosure is opt-in.
+        """
+        # Late import to avoid a skill_utils → protocol cycle.
+        from mega_code.client.skill_utils import canonical_skill_name
+
+        return cls(
+            skill_slug=canonical_skill_name(pend.skill_name, pend.skill_md),
+            version=pend.version or "1.0.0",
+            skill_md=pend.skill_md,
+            injection_rules=pend.injection_rules,
+            evidence=pend.evidence,
+            metadata=pend.metadata,
+            installed=pend.installed,
+            approved=pend.approved,
+            author=pend.author,
+            tags=list(pend.tags),
+        )
+
+
+def _parse_resource_plan(raw: str | None, *, source_name: str) -> ResourcePlan:
+    """Parse resource_plan.json text, or return an empty plan when ``raw`` is None.
+
+    Callers pass None when the bundle has no resource_plan.json (the MQ5 archive
+    rule — sub-dirs present without a plan — is enforced before this point).
+    """
+    if raw is None:
+        return ResourcePlan()
+    try:
+        return ResourcePlan.model_validate_json(raw)
+    except ValueError as exc:
+        raise SkillBundleError(
+            "E010_MISSING_RESOURCE_PLAN",
+            f"Failed to parse {source_name}: {exc}",
+        ) from exc
+
+
+def _read_or_default(path: Path, default: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return default
+
+
+def _zip_read_or_default(zf: zipfile.ZipFile, names: set[str], name: str, default: str) -> str:
+    if name in names:
+        return zf.read(name).decode("utf-8")
+    return default
+
+
+PendingSkillData.model_rebuild()
+
+
+class ValidationFinding(BaseModel):
+    """A single finding from validate_bundle / validate_frontmatter.
+
+    Shared type — frontmatter findings carry F-prefixed codes, bundle findings
+    carry E/W codes, planner findings P-prefixed. Severity (not type) distinguishes
+    blockers from warnings.
+    """
+
+    code: str = Field(description="e.g. 'E002_SKILL_MD_TOO_LONG', 'F001_MISSING_REQUIRED_KEY'")
+    severity: Literal["error", "warning"]
+    message: str
+    path: str | None = Field(
+        default=None, description="e.g. 'references/api.md' when the finding is path-scoped"
+    )
+
+
+# =============================================================================
 # Response Models
 # =============================================================================
 
@@ -136,6 +523,13 @@ class OutputsResult(BaseModel):
     pending_skills: list[PendingSkillData] = Field(default_factory=list)
     pending_strategies: list[PendingStrategyData] = Field(default_factory=list)
     pending_lessons: list[PendingLessonData] = Field(default_factory=list)
+    skill_bundles: list[SkillBundle] = Field(
+        default_factory=list,
+        description=(
+            "Progressive-disclosure bundles (B7). Wire carrier for SkillBundle "
+            "objects emitted by the pipeline. Empty list for pre-bundle runs."
+        ),
+    )
 
 
 class TriggerPipelineResult(BaseModel):

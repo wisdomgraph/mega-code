@@ -380,7 +380,6 @@ def _run_default_mode(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 upload_resp = client.upload(
                     archive_bytes=bundle.archive_bytes,
                     source="api",
-                    skill_id=args.skill_name,
                 )
             except ApiError as exc:
                 exit_code, env = _api_error_envelope(exc)

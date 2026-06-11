@@ -530,6 +530,9 @@ def test_wisdom_gen_sidecars_excluded_from_bundle(tmp_path):
     )
     (bundle_dir / "evidence.json").write_text("{}")
     (bundle_dir / "injection.json").write_text("{}")
+    (bundle_dir / "resource_plan.json").write_text(
+        '{"create_references": true, "planned_files": []}'
+    )
     (bundle_dir / "references").mkdir()
     (bundle_dir / "references" / "x.md").write_text("ref\n")
 
